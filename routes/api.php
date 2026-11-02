@@ -32,6 +32,12 @@ Route::post('/password/forgot',     [PasswordResetController::class, 'sendOtp'])
 Route::post('/password/verify-otp', [PasswordResetController::class, 'verifyOtp'])->middleware('throttle:customer-otp-verify');
 Route::post('/password/reset',      [PasswordResetController::class, 'resetPassword'])->middleware('throttle:customer-password-reset-submit');
 
+// PayMongo SANDBOX webhook. Unauthenticated by design (the provider calls it); every request is
+// verified against the raw-body signature, and the route answers 404 unless the sandbox is enabled.
+Route::post('/webhooks/paymongo', \App\Http\Controllers\Api\PayMongoWebhookController::class)
+    ->middleware('throttle:paymongo-webhook')
+    ->name('webhooks.paymongo');
+
 Route::get('/v1/customer/content', [CustomerContentController::class, 'index']);
 Route::get('/media/mobile/{filename}', [CustomerContentController::class, 'media'])
     ->where('filename', '[A-Za-z0-9._-]+');
@@ -68,6 +74,11 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::get('bookings/{code}/detail', [CustomerBookingController::class, 'detail']);
         Route::get('bookings/{code}/receipt', [CustomerBookingController::class, 'receipt']);
         Route::post('bookings/{code}/follow-up', [CustomerBookingController::class, 'followUp']);
+
+        // PayMongo SANDBOX checkout: feature-flagged, allow-listed test users only (404 otherwise).
+        Route::post('bookings/{code}/online-payment/checkout', [\App\Http\Controllers\Api\OnlinePaymentController::class, 'checkout'])->middleware('throttle:online-payment');
+        Route::get('bookings/{code}/online-payment', [\App\Http\Controllers\Api\OnlinePaymentController::class, 'show']);
+        Route::post('bookings/{code}/online-payment/cancel', [\App\Http\Controllers\Api\OnlinePaymentController::class, 'cancel'])->middleware('throttle:online-payment');
         Route::get('bookings/{code}/tracking', [CustomerBookingController::class, 'tracking'])->middleware('throttle:customer-booking-tracking');
         Route::post('bookings/{code}/cancel', [CustomerBookingController::class, 'cancelBooking'])->middleware('throttle:customer-booking-cancel');
         Route::post('bookings/group/{groupCode}/cancel', [CustomerBookingController::class, 'cancelGroupBookings'])->middleware('throttle:customer-booking-cancel');

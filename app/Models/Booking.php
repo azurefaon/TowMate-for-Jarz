@@ -18,6 +18,40 @@ class Booking extends Model
      */
     public const REVIEWABLE_STATUSES = ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'scheduled_confirmed'];
 
+    /**
+     * What the customer says they intend to pay with (bookings.preferred_payment_method).
+     * A preference only — it never means paid, and it is never copied into
+     * payment_method, which records what the Team Leader actually collected.
+     */
+    public const PREFERRED_PAYMENT_METHODS = [
+        'cash'          => 'Cash',
+        'gcash'         => 'GCash',
+        'bank_transfer' => 'Online Banking',
+    ];
+
+    public static function preferredPaymentMethodLabel(?string $method): ?string
+    {
+        return self::PREFERRED_PAYMENT_METHODS[$method] ?? null;
+    }
+
+    /** Whether this customer's account is one of the allow-listed sandbox demo accounts. */
+    public static function isDemoCustomer(int $customerId): bool
+    {
+        if (config('paymongo.test_user_ids') === [] && config('paymongo.test_user_emails') === []) {
+            return false; // the common case: no demo accounts configured, no query
+        }
+
+        $userId = Customer::whereKey($customerId)->value('user_id');
+
+        return app(\App\Services\OnlinePayments\SandboxGuard::class)->userAllowed($userId ? User::find($userId) : null);
+    }
+
+    /** Real business only: demo (sandbox test-account) bookings never count in revenue or financial aggregates. */
+    public function scopeExcludingDemo($query)
+    {
+        return $query->where($query->qualifyColumn('is_demo'), false);
+    }
+
     public const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected'];
 
     protected $fillable = [
@@ -99,6 +133,7 @@ class Booking extends Model
         'customer_signature_path',
 
         'payment_method',
+        'preferred_payment_method',
         'payment_proof_path',
         'payment_submitted_at',
         'cash_received',
@@ -114,6 +149,12 @@ class Booking extends Model
         static::creating(function (Booking $booking) {
             if (blank($booking->booking_code)) {
                 $booking->booking_code = static::nextPublicCode('booking_code');
+            }
+
+            // Capstone demo: a booking made by an allow-listed sandbox test account is marked once, here, for every
+            // creation path (app, web, quotation acceptance, group siblings). Not mass-assignable; never cleared.
+            if (! $booking->is_demo && $booking->customer_id && static::isDemoCustomer((int) $booking->customer_id)) {
+                $booking->is_demo = true;
             }
         });
 
@@ -155,6 +196,7 @@ class Booking extends Model
     protected function casts(): array
     {
         return [
+            'is_demo' => 'boolean',
             'quotation_generated' => 'boolean',
             'scheduled_date' => 'date',
             'capacity_reserved_date' => 'date',

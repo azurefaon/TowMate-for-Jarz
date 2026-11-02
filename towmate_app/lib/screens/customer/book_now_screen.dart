@@ -13,6 +13,7 @@ import '../../models/booking_model.dart';
 import '../../models/vehicle_category_model.dart';
 import '../../models/vehicle_type_model.dart';
 import '../../services/api_service.dart';
+import '../../widgets/payment_method_selector.dart';
 import '../../widgets/quotation_price_cards.dart';
 import '../../widgets/skeleton_box.dart';
 import 'map_picker_screen.dart';
@@ -70,6 +71,10 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
   bool _submitting = false;
   String? _bookingError;
+
+  // Customer's payment preference. Deliberately no default: the customer must pick one,
+  // and picking it never pays or redirects anywhere.
+  String? _preferredPaymentMethod;
 
   bool _prefillApplied = false;
   String? _prefillPickupAddress;
@@ -886,6 +891,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
       vehicleImagePaths: _vehicleImages.map((x) => x.path).toList(),
       extraVehicles: extraList,
       extraVehicleImagePaths: extraVehicleImagePaths,
+      preferredPaymentMethod: _preferredPaymentMethod,
     );
 
     if (!mounted) return;
@@ -1262,6 +1268,14 @@ class _BookNowScreenState extends State<BookNowScreen> {
           ),
         ),
         _NotesSection(controller: _notesCtrl),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+          child: PaymentMethodSelector(
+            value: _preferredPaymentMethod,
+            enabled: !_submitting,
+            onChanged: (m) => setState(() => _preferredPaymentMethod = m),
+          ),
+        ),
         if (_bookingError != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
@@ -1458,7 +1472,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
       };
     } else {
       final bool pricingReady = !_loadingPricing && _pricingPreview != null;
-      onTap = (_submitting || !pricingReady) ? null : _submitBooking;
+      if (_preferredPaymentMethod == null) {
+        hint = 'Choose a payment method to continue';
+      }
+      onTap = (_submitting || !pricingReady || _preferredPaymentMethod == null)
+          ? null
+          : _submitBooking;
     }
 
     final bool busy = loading || (_step == 2 && _submitting);

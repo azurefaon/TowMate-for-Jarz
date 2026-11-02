@@ -155,6 +155,8 @@
                         data-payment-ready="{{ $paymentReady ? '1' : '0' }}"
                         data-unit-released="{{ $job->status === 'waiting_verification' && $job->payment_submitted_at !== null ? '1' : '0' }}"
                         data-payment-method="{{ $paymentMethodLabel ?? '' }}"
+                        data-preferred-payment="{{ \App\Models\Booking::preferredPaymentMethodLabel($job->preferred_payment_method) ?? '' }}"
+                        data-online-payment="{{ $isAwaiting ? (\App\Models\PaymentTransaction::dispatcherNote($job) ?? '') : '' }}"
                         data-amount-submitted="{{ $amountSubmitted ? number_format((float) $amountSubmitted, 2) : '' }}"
                         data-payment-submitted-at="{{ $paymentSubmittedAt?->format('M d, Y g:i A') }}"
                         data-proof-url="{{ $proofUrl }}"
@@ -333,8 +335,16 @@
                             <dd id="job-detail-amount-paid">—</dd>
                         </div>
                         <div class="jobs-detail-item">
-                            <dt>Payment method</dt>
+                            <dt>Collected payment method</dt>
                             <dd id="job-detail-payment-method">—</dd>
+                        </div>
+                        <div class="jobs-detail-item">
+                            <dt>Preferred payment method (customer's choice)</dt>
+                            <dd id="job-detail-preferred-payment">—</dd>
+                        </div>
+                        <div class="jobs-detail-item" id="job-detail-online-payment-wrap" style="display:none;">
+                            <dt>Online payment evidence</dt>
+                            <dd id="job-detail-online-payment">—</dd>
                         </div>
                         <div class="jobs-detail-item">
                             <dt>Submitted at</dt>

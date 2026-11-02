@@ -33,6 +33,11 @@ if (! empty($job['artisan'])) {
 $app['auth']->guard('web')->setUser(App\Models\User::findOrFail($job['actor_id']));
 
 $server = ['HTTP_ACCEPT' => $job['json'] ? 'application/json' : 'text/html'];
+// Optional extra request headers as server vars, e.g. {"HTTP_PAYMONGO_SIGNATURE": "..."} (job.server).
+foreach (($job['server'] ?? []) as $name => $value) {
+    $server[$name] = $value;
+}
+
 $content = null;
 if ($job['json'] && $job['method'] !== 'GET') {
     $server['CONTENT_TYPE'] = 'application/json';

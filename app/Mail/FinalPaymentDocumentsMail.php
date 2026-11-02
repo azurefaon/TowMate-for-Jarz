@@ -49,7 +49,10 @@ class FinalPaymentDocumentsMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Payment confirmed — ' . $this->booking->job_code);
+        // A capstone demo booking's documents must never read as a real payment confirmation.
+        $prefix = $this->booking->is_demo ? '[TEST / DEMO — NO REAL MONEY] ' : '';
+
+        return new Envelope(subject: $prefix . 'Payment confirmed — ' . $this->booking->job_code);
     }
 
     public function content(): Content

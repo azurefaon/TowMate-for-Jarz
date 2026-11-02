@@ -166,6 +166,7 @@ class QuotationService
             'service_type' => $data['service_type'] ?? null,
             'scheduled_date' => $data['scheduled_date'] ?? null,
             'scheduled_time' => $data['scheduled_time'] ?? null,
+            'preferred_payment_method' => $data['preferred_payment_method'] ?? null,
             'status' => 'pending',
         ]);
     }
@@ -370,6 +371,7 @@ class QuotationService
                     'status'              => $isScheduled ? 'scheduled_confirmed' : 'confirmed',
                     'customer_approved_at' => now(),
                     'price_locked_at'     => now(),
+                    'preferred_payment_method' => $quotation->preferred_payment_method,
                 ]);
             }
 
@@ -459,6 +461,7 @@ class QuotationService
                     'status' => $evScheduled ? 'scheduled_confirmed' : 'confirmed',
                     'customer_approved_at' => now(),
                     'price_locked_at' => now(),
+                    'preferred_payment_method' => $quotation->preferred_payment_method,
                 ]);
 
                 if ($evScheduled && $evDate) {

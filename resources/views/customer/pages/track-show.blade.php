@@ -538,6 +538,12 @@
                         <div class="trk-detail-val">{{ number_format((float)$booking->distance_km, 1) }} km</div>
                     </div>
                     @endif
+                    @if (\App\Models\Booking::preferredPaymentMethodLabel($booking->preferred_payment_method))
+                    <div>
+                        <div class="trk-detail-lbl">Preferred payment</div>
+                        <div class="trk-detail-val" data-testid="preferred-payment">{{ \App\Models\Booking::preferredPaymentMethodLabel($booking->preferred_payment_method) }}</div>
+                    </div>
+                    @endif
                 </div>
             </div>
 

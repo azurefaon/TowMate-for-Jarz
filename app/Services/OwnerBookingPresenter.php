@@ -654,15 +654,19 @@ class OwnerBookingPresenter
         $method = self::PAYMENT_METHODS[$booking->payment_method] ?? null;
         $with = fn (?CarbonInterface $at) => trim(implode(' · ', array_filter([$method, $at?->format('M j, Y, g:i A')])));
 
+        // The customer's choice at booking time. Shown beside, never instead of, the collected
+        // method above; a difference between the two is expected and not an error.
+        $preferred = ['preferred' => Booking::preferredPaymentMethodLabel($booking->preferred_payment_method)];
+
         if ($booking->status === 'completed' && $booking->completed_at) {
-            return ['value' => 'Confirmed', 'note' => $with($booking->completed_at) ?: null];
+            return ['value' => 'Confirmed', 'note' => $with($booking->completed_at) ?: null] + $preferred;
         }
 
         if ($booking->payment_submitted_at) {
-            return ['value' => 'Submitted', 'note' => $with($booking->payment_submitted_at) ?: null];
+            return ['value' => 'Submitted', 'note' => $with($booking->payment_submitted_at) ?: null] + $preferred;
         }
 
-        return ['value' => 'Not submitted', 'note' => null];
+        return ['value' => 'Not submitted', 'note' => null] + $preferred;
     }
 
     private function paymentNote(Booking $booking): ?string

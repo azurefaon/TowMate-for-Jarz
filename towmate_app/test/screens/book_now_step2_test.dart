@@ -224,9 +224,14 @@ http.Client _client({
   Map<String, dynamic>? pricingOverride,
   bool pricingFails = false,
   double routeDistanceKm = 8.48,
+  List<String>? bookingPosts,
 }) {
   return MockClient((request) async {
     final url = request.url.toString();
+    if (request.method == 'POST' && request.url.path.endsWith('/v1/bookings')) {
+      bookingPosts?.add(latin1.decode(request.bodyBytes));
+      return _json({'message': 'Booking rejected in test.'}, status: 422);
+    }
     if (url.contains('router.project-osrm.org')) {
       return _json({
         'code': 'Ok',
@@ -279,6 +284,14 @@ http.Client _client({
   });
 }
 
+/// The Review step requires a payment preference before Confirm Booking enables.
+Future<void> _pickPayment(WidgetTester tester, [String value = 'cash']) async {
+  final tile = find.byKey(Key('payment_option_$value'));
+  await tester.ensureVisible(tile);
+  await tester.tap(tile);
+  await _settle(tester);
+}
+
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 12; i++) {
     await tester.pump(const Duration(milliseconds: 50));
@@ -293,6 +306,8 @@ Future<void> _pumpToStep2(
   bool pricingFails = false,
   double routeDistanceKm = 8.48,
   bool withPhoto = true,
+  List<String>? bookingPosts,
+  Future<void> Function()? onReview,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -348,12 +363,14 @@ Future<void> _pumpToStep2(
       await tester.ensureVisible(find.text('Continue'));
       await tester.tap(find.text('Continue'));
       await _settle(tester);
+      await onReview?.call();
     },
     () => _client(
       readyTruckTypeIds: readyTruckTypeIds,
       pricingOverride: pricingOverride,
       pricingFails: pricingFails,
       routeDistanceKm: routeDistanceKm,
+      bookingPosts: bookingPosts,
     ),
   );
 }
@@ -439,6 +456,82 @@ void main() {
     (call) async => null,
   );
   FlutterImageCompressPlatform.instance = _FakeImageCompressPlatform();
+
+  group('BookNowScreen Review payment method (preference only)', () {
+    testWidgets('offers Cash, GCash and Online Banking and asks for no payment details', (
+      tester,
+    ) async {
+      await _pumpToStep2(tester);
+
+      expect(find.text('PAYMENT METHOD'), findsOneWidget);
+      expect(find.text('Cash'), findsOneWidget);
+      expect(find.text('GCash'), findsOneWidget);
+      expect(find.text('Online Banking'), findsOneWidget);
+      expect(find.text('Bank Transfer'), findsNothing);
+      expect(find.textContaining('Nothing is charged now'), findsOneWidget);
+      // Only the notes box is a text input; no number / account / OTP field is requested.
+      expect(find.byType(TextField), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Confirm Booking sends nothing until a payment method is chosen', (
+      tester,
+    ) async {
+      final posts = <String>[];
+      await _pumpToStep2(
+        tester,
+        bookingPosts: posts,
+        onReview: () async {
+          await tester.ensureVisible(find.text('Confirm Booking'));
+          await tester.tap(find.text('Confirm Booking'), warnIfMissed: false);
+          await _settle(tester);
+        },
+      );
+
+      expect(find.text('Choose a payment method to continue'), findsOneWidget);
+      expect(posts, isEmpty);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    for (final entry in const {
+      'Cash': 'cash',
+      'GCash': 'gcash',
+      'Online Banking': 'bank_transfer',
+    }.entries) {
+      testWidgets('choosing ${entry.key} submits preferred_payment_method=${entry.value} and nothing else payment-related', (
+        tester,
+      ) async {
+        final posts = <String>[];
+        await _pumpToStep2(
+          tester,
+          bookingPosts: posts,
+          onReview: () async {
+            await tester.ensureVisible(find.byKey(Key('payment_option_${entry.value}')));
+            await tester.tap(find.byKey(Key('payment_option_${entry.value}')));
+            await _settle(tester);
+            await tester.ensureVisible(find.text('Confirm Booking'));
+            await tester.tap(find.text('Confirm Booking'));
+            await _settle(tester);
+          },
+        );
+
+        expect(posts, hasLength(1));
+        expect(
+          posts.single,
+          contains('name="preferred_payment_method"\r\n\r\n${entry.value}'),
+        );
+        expect(posts.single, isNot(contains('payment_method"\r\n\r\ncash_received')));
+        expect(posts.single.contains('name="payment_method"'), isFalse);
+        expect(posts.single.contains('name="payment_status"'), isFalse);
+        // The server rejected it in this test; the screen stays put with the message.
+        expect(find.text('Booking rejected in test.'), findsOneWidget);
+
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+  });
 
   group('BookNowScreen Step 2 pricing authoritative behavior', () {
     testWidgets('canonical distance <= 4 km shows Distance Fee of ₱0.00', (
@@ -1003,9 +1096,16 @@ void main() {
     );
 
     testWidgets(
-      'Confirm Booking becomes enabled once pricing resolves successfully',
+      'Confirm Booking becomes enabled once pricing resolves and a payment method is chosen',
       (tester) async {
-        await _pumpToStep2(tester);
+        await _pumpToStep2(tester, onReview: () async {
+          // Pricing has resolved, but no payment method is chosen yet.
+          expect(
+            tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed,
+            isNull,
+          );
+          await _pickPayment(tester, 'gcash');
+        });
 
         final button = tester.widget<ElevatedButton>(
           find.byType(ElevatedButton),
@@ -1105,6 +1205,7 @@ void main() {
           await tester.tap(find.text('Continue'));
           await _settle(tester);
 
+          await _pickPayment(tester);
           await tester.tap(find.text('Confirm Booking'));
           await tester.tap(find.text('Confirm Booking'), warnIfMissed: false);
           await tester.pump(const Duration(milliseconds: 400));
@@ -1226,6 +1327,7 @@ void main() {
           await tester.tap(find.text('Continue'));
           await _settle(tester);
 
+          await _pickPayment(tester);
           await tester.tap(find.text('Confirm Booking'));
           await _settle(tester);
         }, () => client);
@@ -1346,6 +1448,7 @@ void main() {
           await _settle(tester);
 
           await tester.enterText(find.byType(TextField).last, 'Call before arriving');
+          await _pickPayment(tester);
           await tester.tap(find.text('Confirm Booking'));
           for (var i = 0; i < 30; i++) {
             await tester.pump(const Duration(milliseconds: 50));
@@ -1854,6 +1957,7 @@ void main() {
           await tester.tap(find.text('Continue'));
           await _settle(tester);
 
+          await _pickPayment(tester);
           await tester.tap(find.text('Confirm Booking'));
           await _settle(tester);
         }, () => client);

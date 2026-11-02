@@ -277,3 +277,155 @@ it('does not affect the customer-visible status label for a returned booking', f
     expect($booking->status)->not->toBe('completed');
     expect($booking->status)->not->toBe('cancelled');
 });
+
+// ── Return before Accept (panel revision #3) ────────────────────────────────
+
+it('lets a team leader return an assigned task before accepting it, without touching accept', function () {
+    $teamLeader = rtdTeamLeader();
+    $truckType = rtdTruckType();
+    $unit = rtdUnit($truckType, $teamLeader);
+    $unit->update(['status' => 'available']);
+    $booking = rtdBooking($truckType, $unit, $teamLeader, 'assigned');
+
+    Sanctum::actingAs($teamLeader, ['*']);
+
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/return", [
+        'reason' => 'Vehicle/Unit Issue',
+        'notes' => 'Unit not roadworthy.',
+    ])->assertOk()->assertJsonPath('success', true);
+
+    $booking->refresh();
+
+    expect($booking->status)->toBe('returned');
+    expect($booking->needs_reassignment)->toBeTrue();
+    expect($booking->returned_at)->not->toBeNull();
+    expect($booking->return_reason)->toBe('Vehicle/Unit Issue');
+    expect($booking->return_notes)->toBe('Unit not roadworthy.');
+    expect($booking->returned_by_team_leader_id)->toBe($teamLeader->id);
+    expect($unit->fresh()->status)->toBe('available');
+
+    expect(AuditLog::where('entity_id', $booking->id)->where('action', 'task_returned')->count())->toBe(1);
+
+    // The unit is no longer held by this booking.
+    $evaluation = app(\App\Services\UnitAvailabilityService::class)->evaluate($unit->fresh());
+    expect($evaluation['reasons'])->not->toContain('busy');
+    expect($evaluation['active_booking'])->toBeNull();
+
+    // The returned assignment can no longer be accepted.
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/accept")->assertStatus(409);
+});
+
+it('surfaces a pre-accept return to the dispatcher, who reassigns it to a new team leader who can accept', function () {
+    $originalLeader = rtdTeamLeader();
+    $truckType = rtdTruckType();
+    $originalUnit = rtdUnit($truckType, $originalLeader);
+    $originalUnit->update(['status' => 'available']);
+    $booking = rtdBooking($truckType, $originalUnit, $originalLeader, 'assigned');
+
+    Sanctum::actingAs($originalLeader, ['*']);
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/return", ['reason' => 'Other'])->assertOk();
+
+    $dispatcher = rtdDispatcher();
+    $this->actingAs($dispatcher)
+        ->get(route('admin.dispatch'))
+        ->assertOk()
+        ->assertSee($booking->job_code);
+
+    $newLeader = rtdTeamLeader();
+    $newUnit = rtdUnit($truckType, $newLeader);
+    $newUnit->update(['status' => 'available']);
+
+    $this->actingAs($dispatcher)
+        ->postJson(route('admin.booking.assign', $booking), [
+            'action' => 'accept',
+            'assigned_unit_id' => $newUnit->id,
+        ])->assertOk()->assertJsonPath('status', 'assigned');
+
+    $booking->refresh();
+    expect($booking->assigned_team_leader_id)->toBe($newLeader->id);
+    expect($booking->returned_at)->toBeNull();
+    expect($booking->return_reason)->toBeNull();
+    expect($booking->returned_by_team_leader_id)->toBeNull();
+
+    Sanctum::actingAs($newLeader, ['*']);
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/accept")
+        ->assertOk()
+        ->assertJsonPath('data.status', 'accepted');
+
+    // The original leader's stale client can no longer act on it.
+    Sanctum::actingAs($originalLeader, ['*']);
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/accept")->assertStatus(403);
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/return", ['reason' => 'Other'])->assertStatus(403);
+});
+
+it('keeps normal accept and the post-accept return working after the pre-accept return path exists', function () {
+    $teamLeader = rtdTeamLeader();
+    $truckType = rtdTruckType();
+    $unit = rtdUnit($truckType, $teamLeader);
+    $unit->update(['status' => 'available']);
+    $booking = rtdBooking($truckType, $unit, $teamLeader, 'assigned');
+
+    Sanctum::actingAs($teamLeader, ['*']);
+
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/accept")->assertOk();
+    expect($booking->fresh()->status)->toBe('accepted');
+
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/return", ['reason' => 'Other'])->assertOk();
+    $booking->refresh();
+    expect($booking->status)->toBe('returned');
+    expect($booking->returned_by_team_leader_id)->toBe($teamLeader->id);
+    expect(AuditLog::where('entity_id', $booking->id)->where('action', 'task_returned')->count())->toBe(1);
+});
+
+it('leaves a consistent state when return and accept are issued back to back in either order', function () {
+    $teamLeader = rtdTeamLeader();
+    $truckType = rtdTruckType();
+    $unit = rtdUnit($truckType, $teamLeader);
+    $unit->update(['status' => 'available']);
+
+    // Order 1: return, then a late accept -> returned stands, accept refused.
+    $first = rtdBooking($truckType, $unit, $teamLeader, 'assigned');
+    Sanctum::actingAs($teamLeader, ['*']);
+    $this->postJson("/api/v1/team-leader/task/{$first->booking_code}/return", ['reason' => 'Other'])->assertOk();
+    $this->postJson("/api/v1/team-leader/task/{$first->booking_code}/accept")->assertStatus(409);
+    $this->postJson("/api/v1/team-leader/task/{$first->booking_code}/return", ['reason' => 'Other'])->assertStatus(409);
+    expect($first->fresh()->status)->toBe('returned');
+    expect(AuditLog::where('entity_id', $first->id)->where('action', 'task_returned')->count())->toBe(1);
+
+    // Order 2: accept, then return -> a valid sequential transition, ends returned once.
+    $second = rtdBooking($truckType, $unit, $teamLeader, 'assigned');
+    $this->postJson("/api/v1/team-leader/task/{$second->booking_code}/accept")->assertOk();
+    $this->postJson("/api/v1/team-leader/task/{$second->booking_code}/return", ['reason' => 'Other'])->assertOk();
+    $second->refresh();
+    expect($second->status)->toBe('returned');
+    expect($second->assigned_team_leader_id)->toBe($teamLeader->id);
+    expect($unit->fresh()->status)->toBe('available');
+    expect(AuditLog::where('entity_id', $second->id)->where('action', 'task_returned')->count())->toBe(1);
+});
+
+it('keeps waiting_verification and completed bookings protected from return', function () {
+    $teamLeader = rtdTeamLeader();
+    $truckType = rtdTruckType();
+    $unit = rtdUnit($truckType, $teamLeader);
+    Sanctum::actingAs($teamLeader, ['*']);
+
+    foreach (['waiting_verification', 'completed'] as $status) {
+        $booking = rtdBooking($truckType, $unit, $teamLeader, $status);
+        $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/return", ['reason' => 'Other'])->assertStatus(409);
+        expect($booking->fresh()->status)->toBe($status);
+    }
+});
+
+it('rejects an invalid reason on a pre-accept return and leaves the booking assigned', function () {
+    $teamLeader = rtdTeamLeader();
+    $truckType = rtdTruckType();
+    $unit = rtdUnit($truckType, $teamLeader);
+    $unit->update(['status' => 'available']);
+    $booking = rtdBooking($truckType, $unit, $teamLeader, 'assigned');
+
+    Sanctum::actingAs($teamLeader, ['*']);
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/return", ['reason' => 'Nope'])->assertStatus(422);
+    $this->postJson("/api/v1/team-leader/task/{$booking->booking_code}/return", [])->assertStatus(422);
+
+    expect($booking->fresh()->status)->toBe('assigned');
+});

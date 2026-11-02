@@ -1893,6 +1893,7 @@
                                     data-payment-method="{{ $booking->payment_method ?? '' }}"
                                     data-cash-received="{{ $booking->cash_received ?? '' }}"
                                     data-payment-method-label="{{ $cj_paymentMethodLabel }}"
+                                    data-preferred-payment-label="{{ \App\Models\Booking::preferredPaymentMethodLabel($booking->preferred_payment_method) ?? '' }}"
                                     data-payment-status-label="{{ $cj_paymentStatusLabel }}"
                                     data-payment-proof-url="{{ json_encode($booking->payment_proof_path ? array_values(array_map(fn($p) => protected_file_url($p), (array) $booking->payment_proof_path)) : []) }}"
                                     data-vat-amount="{{ $booking->vat_amount ?? 0 }}"
@@ -2912,7 +2913,7 @@
                                         <div style="padding:10px 14px;border-right:1px solid #f1f5f9;">
                                             <div
                                                 style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
-                                                Mode</div>
+                                                Collected Method</div>
                                             <div id="cjPaymentMode" style="font-size:.88rem;color:#0f172a;">—
                                             </div>
                                         </div>
@@ -2922,6 +2923,13 @@
                                                 Status</div>
                                             <div id="cjPaymentStatus" style="font-size:.88rem;color:#0f172a;">—
                                             </div>
+                                        </div>
+                                    </div>
+                                    <div style="border-top:1px solid #f1f5f9;padding:10px 14px;">
+                                        <div
+                                            style="font-size:.6rem;text-transform:uppercase;color:#000000;margin-bottom:2px;">
+                                            Preferred Payment Method (customer's choice at booking)</div>
+                                        <div id="cjPreferredPayment" style="font-size:.88rem;color:#0f172a;">—
                                         </div>
                                     </div>
                                     <div id="cjCashRow"
@@ -3568,6 +3576,7 @@
                 setText('cjDropoff', ds.dropoff);
 
                 setText('cjPaymentMode', ds.paymentMethodLabel || '—');
+                setText('cjPreferredPayment', ds.preferredPaymentLabel || 'Not specified');
                 setText('cjPaymentStatus', ds.paymentStatusLabel || '—');
 
                 _pendingFinalTotal = finalTotal;

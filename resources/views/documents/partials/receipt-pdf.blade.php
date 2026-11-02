@@ -1,6 +1,7 @@
 @php($c = $doc['company'])
 @include('documents.partials.pdf-frame', ['c' => $c])
 @include('documents.partials.pdf-head', ['c' => $c, 'title' => 'RECEIPT', 'withLogo' => false])
+@include('documents.partials.demo-banner', ['doc' => $doc, 'kind' => 'receipt'])
 
 <table class="pdf-meta">
     <tr>

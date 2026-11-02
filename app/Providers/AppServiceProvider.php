@@ -33,6 +33,9 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(GoogleIdTokenVerifier::class, GoogleApiClientIdTokenVerifier::class);
+
+        // PayMongo SANDBOX only; the integration is disabled unless config('paymongo.enabled').
+        $this->app->bind(\App\Services\OnlinePayments\OnlinePaymentGateway::class, \App\Services\OnlinePayments\PayMongoCheckoutGateway::class);
     }
 
     protected function registerCustomerOtpRateLimiters(): void
@@ -118,6 +121,11 @@ class AppServiceProvider extends ServiceProvider
         // Booking creation — a real business-state mutation with an upload
         // attached; low limit, keyed by customer.
         RateLimiter::for('customer-booking-create', fn(Request $r) => Limit::perMinute(5)->by($byUser($r, 'booking-create')));
+
+        // Sandbox online payment: starting/cancelling a checkout is a real state change; the
+        // provider webhook is unauthenticated (signature-checked), so it is keyed by IP.
+        RateLimiter::for('online-payment', fn(Request $r) => Limit::perMinute(6)->by($byUser($r, 'online-payment')));
+        RateLimiter::for('paymongo-webhook', fn(Request $r) => Limit::perMinute(120)->by('paymongo-webhook:ip:' . $r->ip()));
 
         // Cancellation — low limit, one-way state transition.
         RateLimiter::for('customer-booking-cancel', fn(Request $r) => Limit::perMinute(8)->by($byUser($r, 'booking-cancel')));

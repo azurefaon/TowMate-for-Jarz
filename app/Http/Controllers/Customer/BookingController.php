@@ -51,7 +51,10 @@ class BookingController extends Controller
         }
 
         return redirect()->route('customer.dashboard')
-            ->with('success', 'Quotation request submitted! Reference: ' . $quotation->quotation_number . '. We will send you a quotation shortly.');
+            ->with('success', 'Quotation request submitted! Reference: ' . $quotation->quotation_number . '. We will send you a quotation shortly.'
+                . ($quotation->preferred_payment_method
+                    ? ' Preferred payment: ' . Booking::preferredPaymentMethodLabel($quotation->preferred_payment_method) . ' (nothing has been charged).'
+                    : ''));
     }
 
     public function landingStore(LandingBookingRequest $request)

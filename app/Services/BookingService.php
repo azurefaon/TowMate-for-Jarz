@@ -80,6 +80,7 @@ class BookingService
             'service_type'         => $data['service_type'] ?? 'book_now',
             'scheduled_date'       => $data['scheduled_date'] ?? null,
             'scheduled_time'       => $data['scheduled_time'] ?? null,
+            'preferred_payment_method' => $data['preferred_payment_method'] ?? null,
         ]);
     }
 

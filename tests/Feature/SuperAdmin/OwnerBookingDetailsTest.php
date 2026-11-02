@@ -124,7 +124,8 @@ it('shows a completed single booking with its fee, quotation, payment and receip
     expect($data['pricing']['kind'])->toBe('single');
     expect($data['pricing']['total'])->toMatchArray(['label' => 'Total', 'amount' => '₱7,350.00', 'note' => 'Includes ₱350.00 additional fee']);
     expect($data['pricing']['quotation'])->toBe(['value' => 'Accepted', 'note' => 'Oct 10, 2026, 11:46 AM']);
-    expect($data['pricing']['payment'])->toBe(['value' => 'Confirmed', 'note' => 'Cash · Oct 10, 2026, 1:40 PM']);
+    // `preferred` is the customer's booking-time choice (null here: this booking has none).
+    expect($data['pricing']['payment'])->toBe(['value' => 'Confirmed', 'note' => 'Cash · Oct 10, 2026, 1:40 PM', 'preferred' => null]);
     expect($data['pricing']['receipt']['code'])->not->toBeEmpty();
     expect($data['notes'])->toBe('Car has low ground clearance.');
     expect($data)->not->toHaveKey('vehicles');

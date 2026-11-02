@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../models/truck_type_model.dart';
 import '../../models/vehicle_type_model.dart';
 import '../../services/api_service.dart';
+import '../../widgets/payment_method_selector.dart';
 
 class BookingReviewScreen extends StatefulWidget {
   const BookingReviewScreen({
@@ -58,6 +59,7 @@ class BookingReviewScreen extends StatefulWidget {
 class _BookingReviewScreenState extends State<BookingReviewScreen> {
   bool _submitting = false;
   String? _error;
+  String? _preferredPaymentMethod; // no default: the customer must choose
 
   String? _userName;
   String? _userEmail;
@@ -182,6 +184,7 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
       scheduledTime: widget.scheduledTimeStr,
       vehicleImagePaths: widget.vehicleImagePaths,
       extraVehicles: extraList,
+      preferredPaymentMethod: _preferredPaymentMethod,
     );
 
     if (!mounted) return;
@@ -453,6 +456,17 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
                       ),
                     ],
 
+                    // ── Payment method (preference only) ────────────────────
+                    const SizedBox(height: 24),
+                    _Divider(),
+                    const SizedBox(height: 20),
+                    PaymentMethodSelector(
+                      value: _preferredPaymentMethod,
+                      enabled: !_submitting,
+                      onChanged: (m) =>
+                          setState(() => _preferredPaymentMethod = m),
+                    ),
+
                     // ── Error ───────────────────────────────────────────────
                     if (_error != null) ...[
                       const SizedBox(height: 20),
@@ -495,7 +509,9 @@ class _BookingReviewScreenState extends State<BookingReviewScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _submitting ? null : _confirm,
+                  onPressed: (_submitting || _preferredPaymentMethod == null)
+                      ? null
+                      : _confirm,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: TmColors.black,
                     foregroundColor: TmColors.white,
