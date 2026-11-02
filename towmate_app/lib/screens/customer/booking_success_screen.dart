@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../models/booking_model.dart';
+import '../../widgets/payment_method_selector.dart';
 import '../../widgets/quotation_price_cards.dart';
 
 class BookingSuccessScreen extends StatelessWidget {
@@ -183,6 +184,18 @@ class _SubmittedBookingCard extends StatelessWidget {
               letterSpacing: 0.1,
             ),
           ),
+          if (preferredPaymentLabel(booking.preferredPaymentMethod) != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Preferred payment: ${preferredPaymentLabel(booking.preferredPaymentMethod)} · not paid yet',
+              key: const Key('success_preferred_payment'),
+              style: GoogleFonts.inter(
+                color: secondaryTextColor(context),
+                fontSize: 12.5,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
         ],
       ),
     );

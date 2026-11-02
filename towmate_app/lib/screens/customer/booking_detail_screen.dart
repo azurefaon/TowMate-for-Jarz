@@ -14,6 +14,7 @@ import '../../widgets/booking_cancel_dialog.dart';
 import '../../widgets/closure_note.dart';
 import '../../widgets/group_cancel_sheet.dart';
 import '../../widgets/live_tracking_widgets.dart';
+import '../../widgets/payment_method_selector.dart';
 import '../../widgets/quotation_price_cards.dart';
 import '../../widgets/skeleton_box.dart';
 import '../../widgets/status_badge.dart';
@@ -418,13 +419,25 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ),
           ],
 
-          if (!widget.asGroupOverview && b.paymentMethod != null) ...[
+          if (!widget.asGroupOverview &&
+              (b.paymentMethod != null || b.preferredPaymentMethod != null)) ...[
             const SizedBox(height: 20),
             _DetailCard(
               title: 'PAYMENT',
-              rows: [_DetailRow('Method', _paymentLabel(b.paymentMethod))],
+              rows: [
+                // What the customer chose when booking — a preference, not a payment.
+                if (preferredPaymentLabel(b.preferredPaymentMethod) != null)
+                  _DetailRow('Preferred method', preferredPaymentLabel(b.preferredPaymentMethod)!),
+                // What the Team Leader actually collected, once payment is submitted.
+                if (b.paymentMethod != null)
+                  _DetailRow(
+                    b.preferredPaymentMethod != null ? 'Collected method' : 'Method',
+                    _paymentLabel(b.paymentMethod),
+                  ),
+              ],
             ),
           ],
+
 
           if (b.pickupNotes != null && b.pickupNotes!.isNotEmpty) ...[
             const SizedBox(height: 20),

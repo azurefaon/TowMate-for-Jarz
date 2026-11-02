@@ -362,6 +362,12 @@
                     <span class="qv-value">{{ number_format($quotation->distance_km, 2) }} km</span>
                 </div>
             @endif
+            @if (\App\Models\Booking::preferredPaymentMethodLabel($quotation->preferred_payment_method))
+                <div class="qv-row">
+                    <span class="qv-label">Preferred payment</span>
+                    <span class="qv-value" data-testid="preferred-payment">{{ \App\Models\Booking::preferredPaymentMethodLabel($quotation->preferred_payment_method) }}</span>
+                </div>
+            @endif
             @if ($quotation->service_type === 'schedule' && $quotation->scheduled_date)
                 <div class="qv-row">
                     <span class="qv-label">Scheduled</span>

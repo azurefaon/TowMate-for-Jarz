@@ -37,6 +37,7 @@ class Quotation extends Model
         'vat_rate',
         'counter_offer_amount',
         'service_type',
+        'preferred_payment_method',
         'status',
         'sent_at',
         'expires_at',

@@ -116,6 +116,9 @@ class BookingRequest extends FormRequest
             'scheduled_date' => 'nullable|required_if:service_type,schedule|date|after_or_equal:today',
             'scheduled_time' => 'nullable|required_if:service_type,schedule|date_format:H:i',
             'confirmation_type' => 'nullable|in:call,system',
+            // Preference only, never a payment. The web form always offers it, so it is required here
+            // (the mobile API keeps it optional for older app versions).
+            'preferred_payment_method' => ['required', 'string', Rule::in(array_keys(\App\Models\Booking::PREFERRED_PAYMENT_METHODS))],
             'vehicle_make'         => 'nullable|string|max:100',
             'vehicle_model'        => 'nullable|string|max:100',
             'vehicle_year'         => 'nullable|integer|min:1900|max:2100',

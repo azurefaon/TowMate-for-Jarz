@@ -190,6 +190,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (paymentSection) paymentSection.style.display = isAwaiting ? "" : "none";
         if (isAwaiting) {
             fillField("job-detail-payment-method", paymentReady ? row.dataset.paymentMethod : "Not yet submitted");
+            fillField("job-detail-preferred-payment", row.dataset.preferredPayment || "Not specified");
             fillField("job-detail-submitted-at", paymentReady ? row.dataset.paymentSubmittedAt : "—");
 
             const dueWrap = document.getElementById("job-detail-amount-due-wrap");

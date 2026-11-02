@@ -3118,6 +3118,7 @@ class DispatchController extends Controller
             'correction_locked_by_receipt' => $invoice ? $invoice->hasIssuedReceipt() : false,
             'payment' => [
                 'payment_method' => $booking->payment_method,
+                'preferred_payment_method' => $booking->preferred_payment_method,
                 'cash_received' => $booking->cash_received !== null ? (float) $booking->cash_received : null,
                 'payment_submitted_at' => $booking->payment_submitted_at,
                 'customer_verified_at' => $booking->customer_verified_at,

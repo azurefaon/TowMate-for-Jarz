@@ -20,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerBookingController extends Controller
@@ -60,6 +61,7 @@ class CustomerBookingController extends Controller
             'truck_type_name'   => $b->truckType?->name,
             'service_type'      => $b->service_type,
             'status'            => $b->status,
+            'preferred_payment_method' => $b->preferred_payment_method,
             'scheduled_date'    => $b->scheduled_date?->toDateString(),
             'scheduled_time'    => $b->scheduled_time,
             'scheduled_for'     => $b->scheduled_for?->toIso8601String(),
@@ -229,6 +231,7 @@ class CustomerBookingController extends Controller
             'group_vehicle_count' => $booking->group_code ? count($groupSiblings) + 1 : 1,
             'group_siblings'      => $groupSiblings,
             'group_totals'        => $groupTotals,
+            'preferred_payment_method' => $booking->preferred_payment_method,
             'scheduled_date'      => $booking->scheduled_date?->toDateString(),
             'scheduled_time'      => $booking->scheduled_time,
             'scheduled_for'       => $booking->scheduled_for?->toIso8601String(),
@@ -366,6 +369,8 @@ class CustomerBookingController extends Controller
             'scheduled_date'                   => 'required_if:service_type,schedule|nullable|date|after_or_equal:today',
             'scheduled_time'                   => 'required_if:service_type,schedule|nullable|date_format:H:i',
             'extra_vehicles'                   => 'nullable|string',
+            // Optional so older app versions keep working; the current app always sends it.
+            'preferred_payment_method'         => ['nullable', 'string', Rule::in(array_keys(Booking::PREFERRED_PAYMENT_METHODS))],
         ]);
 
         if ($this->bookingService->estimateDirectDistanceKm(
@@ -556,6 +561,7 @@ class CustomerBookingController extends Controller
                 'customer_type'    => $customer->customer_type ?? 'regular',
                 'confirmation_type' => 'mobile',
                 'notes'            => $validated['notes'] ?? null,
+                'preferred_payment_method' => $validated['preferred_payment_method'] ?? null,
                 'scheduled_date'   => $validated['scheduled_date'] ?? null,
                 'scheduled_time'   => $validated['scheduled_time'] ?? null,
                 'scheduled_expires_at' => ($validated['service_type'] ?? 'book_now') === 'schedule' ? now()->addDays(7) : null,
@@ -609,6 +615,7 @@ class CustomerBookingController extends Controller
                             'customer_type' => $customer->customer_type ?? 'regular',
                             'confirmation_type' => 'mobile',
                             'notes' => $validated['notes'] ?? null,
+                            'preferred_payment_method' => $validated['preferred_payment_method'] ?? null,
                             'group_code' => $groupCode,
                         ]);
                     });
@@ -669,6 +676,7 @@ class CustomerBookingController extends Controller
                         'customer_type'     => $customer->customer_type ?? 'regular',
                         'confirmation_type' => 'mobile',
                         'notes'             => $validated['notes'] ?? null,
+                        'preferred_payment_method' => $validated['preferred_payment_method'] ?? null,
                         'scheduled_date'    => $validated['scheduled_date'] ?? null,
                         'scheduled_time'    => $validated['scheduled_time'] ?? null,
                         'scheduled_expires_at' => now()->addDays(7),
@@ -728,6 +736,7 @@ class CustomerBookingController extends Controller
                     'vehicle_image_path' => $booking->vehicle_image_path,
                     'extra_vehicles'     => !empty($bookNowLineItems) ? $bookNowLineItems : null,
                     'pickup_notes'       => $validated['notes'] ?? null,
+                    'preferred_payment_method' => $validated['preferred_payment_method'] ?? null,
                 ]);
                 $booking->update(['quotation_id' => $quotation->id]);
             } catch (\Throwable $e) {
@@ -1123,6 +1132,7 @@ class CustomerBookingController extends Controller
                 'vat_amount'        => $booking->vat_amount !== null ? (float) $booking->vat_amount : null,
                 'final_total'       => $booking->final_total !== null ? (float) $booking->final_total : null,
                 'payment_method'    => $booking->payment_method,
+                'preferred_payment_method' => $booking->preferred_payment_method,
                 'scheduled_date'    => $booking->scheduled_date?->toDateString(),
                 'scheduled_time'    => $booking->scheduled_time,
                 'scheduled_for'     => $booking->scheduled_for?->toIso8601String(),

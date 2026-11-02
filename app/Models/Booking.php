@@ -18,6 +18,22 @@ class Booking extends Model
      */
     public const REVIEWABLE_STATUSES = ['requested', 'reviewed', 'quoted', 'quotation_sent', 'confirmed', 'scheduled_confirmed'];
 
+    /**
+     * What the customer says they intend to pay with (bookings.preferred_payment_method).
+     * A preference only — it never means paid, and it is never copied into
+     * payment_method, which records what the Team Leader actually collected.
+     */
+    public const PREFERRED_PAYMENT_METHODS = [
+        'cash'          => 'Cash',
+        'gcash'         => 'GCash',
+        'bank_transfer' => 'Online Banking',
+    ];
+
+    public static function preferredPaymentMethodLabel(?string $method): ?string
+    {
+        return self::PREFERRED_PAYMENT_METHODS[$method] ?? null;
+    }
+
     public const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected'];
 
     protected $fillable = [
@@ -99,6 +115,7 @@ class Booking extends Model
         'customer_signature_path',
 
         'payment_method',
+        'preferred_payment_method',
         'payment_proof_path',
         'payment_submitted_at',
         'cash_received',
@@ -115,6 +132,7 @@ class Booking extends Model
             if (blank($booking->booking_code)) {
                 $booking->booking_code = static::nextPublicCode('booking_code');
             }
+
         });
 
         static::saving(function (Booking $booking) {

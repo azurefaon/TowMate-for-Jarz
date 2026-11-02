@@ -11,6 +11,7 @@ BookingGroupSibling _booking({
   String? scheduledDate,
   String? scheduledTime,
   bool isCurrent = false,
+  String? preferredPaymentMethod,
 }) {
   return BookingGroupSibling(
     bookingCode: code,
@@ -21,6 +22,7 @@ BookingGroupSibling _booking({
     scheduledDate: scheduledDate,
     scheduledTime: scheduledTime,
     isCurrent: isCurrent,
+    preferredPaymentMethod: preferredPaymentMethod,
   );
 }
 
@@ -45,6 +47,21 @@ Future<void> _pumpScreen(
 
 void main() {
   group('BookingSuccessScreen', () {
+    testWidgets('shows the chosen payment preference as not yet paid, with Online Banking wording', (tester) async {
+      await _pumpScreen(tester, [
+        _booking(code: 'TM-00301', vehicleTypeName: 'Sedan', preferredPaymentMethod: 'bank_transfer'),
+      ]);
+
+      expect(find.text('Preferred payment: Online Banking · not paid yet'), findsOneWidget);
+      expect(find.textContaining('Bank Transfer'), findsNothing);
+    });
+
+    testWidgets('omits the payment line for an older response without a preference', (tester) async {
+      await _pumpScreen(tester, [_booking(code: 'TM-00302', vehicleTypeName: 'Sedan')]);
+
+      expect(find.byKey(const Key('success_preferred_payment')), findsNothing);
+    });
+
     testWidgets('a single booking shows one card and no multi-vehicle count', (tester) async {
       await _pumpScreen(tester, [
         _booking(code: 'TM-00225', vehicleTypeName: 'Sedan', isCurrent: true),

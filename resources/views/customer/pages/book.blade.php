@@ -64,6 +64,49 @@
             border-bottom: 1px solid #f4f4f5;
         }
 
+        /* ── payment method preference ── */
+        .bk-pay-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .bk-pay-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            border: 1.5px solid #e4e4e7;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #18181b;
+            background: #fff;
+        }
+
+        .bk-pay-option:has(input:checked) {
+            border-color: #facc15;
+            background: #fefce8;
+        }
+
+        .bk-pay-option input {
+            accent-color: #111;
+        }
+
+        .bk-pay-note {
+            margin: 12px 0 0;
+            font-size: 12px;
+            color: #71717a;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 600px) {
+            .bk-pay-options {
+                grid-template-columns: 1fr;
+            }
+        }
+
         /* ── form layout ── */
         .bk-row {
             display: grid;
@@ -1098,6 +1141,27 @@
                 </div>
             </div>
 
+            {{-- ── Payment Method (preference only; nothing is charged here) ── --}}
+            <div class="bk-section" id="bkPaymentSection">
+                <div class="bk-section-label">Payment Method</div>
+                <div class="bk-pay-options" role="radiogroup" aria-label="Payment method">
+                    @foreach (\App\Models\Booking::PREFERRED_PAYMENT_METHODS as $pmValue => $pmLabel)
+                        <label class="bk-pay-option">
+                            <input type="radio" name="preferred_payment_method" value="{{ $pmValue }}"
+                                @checked(old('preferred_payment_method') === $pmValue)>
+                            <span class="bk-pay-option-name">{{ $pmLabel }}</span>
+                        </label>
+                    @endforeach
+                </div>
+                <div class="bk-error" id="bkPaymentError" style="display:none;color:#ef4444;font-size:12px;margin-top:8px;">
+                    Please choose a payment method.
+                </div>
+                <p class="bk-pay-note">
+                    This only records how you plan to pay. No payment is made now — you pay after the service is
+                    completed, and you won't be asked for any account number, bank login, or card details.
+                </p>
+            </div>
+
             {{-- ── Submit ── --}}
             <div class="bk-submit-row">
                 <a href="{{ route('customer.dashboard') }}" class="bk-btn-back">
@@ -1537,6 +1601,14 @@
                             alert('Please select a truck class (Light, Medium, or Heavy).');
                             return;
                         }
+                        const payError = document.getElementById('bkPaymentError');
+                        if (!form.querySelector('input[name="preferred_payment_method"]:checked')) {
+                            e.preventDefault();
+                            if (payError) payError.style.display = 'block';
+                            document.getElementById('bkPaymentSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            return;
+                        }
+                        if (payError) payError.style.display = 'none';
                         btn.disabled = true;
                         btn.querySelector('span').textContent = 'Submitting…';
                     });

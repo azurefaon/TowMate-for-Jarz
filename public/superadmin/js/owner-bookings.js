@@ -405,6 +405,7 @@
         const pay = docs.payment;
         content.push(el('div', { class: 'ob-section-rule', 'aria-hidden': 'true' }), dl([
             ['Payment', pay.value, pay.note],
+            ['Preferred payment method', pay.preferred || 'Not specified', null, pay.preferred ? null : 'is-muted'],
             pay.cash_received ? ['Cash received', pay.cash_received] : null,
             pay.confirmed_by ? ['Confirmed by', pay.confirmed_by] : null,
             ['Receipt', docs.receipt ? docs.receipt.number || docs.receipt.code : 'No receipt issued yet', docs.receipt ? docs.receipt.issued : null, docs.receipt ? null : 'is-muted'],
@@ -421,6 +422,7 @@
         const lines = [
             ['Quotation', pricing.quotation.value, pricing.quotation.note],
             [pricing.kind === 'group' ? 'Group Payment' : 'Payment', pricing.payment.value, pricing.payment.note],
+            ['Preferred payment method', pricing.payment.preferred || 'Not specified', null, pricing.payment.preferred ? null : 'is-muted'],
         ];
 
         if (pricing.kind === 'single') {

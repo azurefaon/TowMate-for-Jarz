@@ -66,6 +66,7 @@ class BookingGroupSibling {
     this.scheduledTime,
     this.scheduledFor,
     this.isCurrent = false,
+    this.preferredPaymentMethod,
   });
 
   final String bookingCode;
@@ -77,6 +78,7 @@ class BookingGroupSibling {
   final String? scheduledTime;
   final DateTime? scheduledFor;
   final bool isCurrent;
+  final String? preferredPaymentMethod;
 
   String get displayVehicleName =>
       (vehicleTypeName != null && vehicleTypeName!.isNotEmpty)
@@ -104,6 +106,7 @@ class BookingGroupSibling {
           ? DateTime.tryParse(j['scheduled_for'] as String)
           : null,
       isCurrent: j['is_current'] as bool? ?? false,
+      preferredPaymentMethod: j['preferred_payment_method'] as String?,
     );
   }
 }
@@ -207,6 +210,7 @@ class BookingModel {
     this.additionalFee,
     this.finalTotal,
     this.paymentMethod,
+    this.preferredPaymentMethod,
     this.pickupNotes,
     this.serviceType,
     this.scheduledDate,
@@ -259,6 +263,7 @@ class BookingModel {
   final double? additionalFee;
   final double? finalTotal;
   final String? paymentMethod;
+  final String? preferredPaymentMethod;
   final String? pickupNotes;
   final String? serviceType;
   final String? scheduledDate;
@@ -419,6 +424,7 @@ class BookingModel {
       additionalFee: _d(j['additional_fee']),
       finalTotal: _d(j['final_total']),
       paymentMethod: j['payment_method'] as String?,
+      preferredPaymentMethod: j['preferred_payment_method'] as String?,
       pickupNotes: j['pickup_notes'] as String?,
       serviceType: j['service_type'] as String?,
       scheduledDate: j['scheduled_date'] as String?,
