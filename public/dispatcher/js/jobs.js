@@ -191,6 +191,12 @@ document.addEventListener("DOMContentLoaded", function () {
         if (isAwaiting) {
             fillField("job-detail-payment-method", paymentReady ? row.dataset.paymentMethod : "Not yet submitted");
             fillField("job-detail-preferred-payment", row.dataset.preferredPayment || "Not specified");
+
+            // Sandbox online-payment evidence: shown only when the row carries some. Informational;
+            // the dispatcher still verifies and confirms payment as usual.
+            const onlineWrap = document.getElementById("job-detail-online-payment-wrap");
+            if (onlineWrap) onlineWrap.style.display = row.dataset.onlinePayment ? "" : "none";
+            fillField("job-detail-online-payment", row.dataset.onlinePayment || "");
             fillField("job-detail-submitted-at", paymentReady ? row.dataset.paymentSubmittedAt : "—");
 
             const dueWrap = document.getElementById("job-detail-amount-due-wrap");

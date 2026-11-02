@@ -1,6 +1,7 @@
 @php($c = $doc['company'])
 <div class="doc-sheet doc-invoice">
     <div class="doc-pad">
+        @include('documents.partials.demo-banner', ['doc' => $doc, 'kind' => 'invoice'])
         <table class="doc-head">
             <tr>
                 <td>

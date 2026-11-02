@@ -76,7 +76,7 @@ class ReportsController extends Controller
         $start = Carbon::parse($start)->startOfDay();
         $end = Carbon::parse($end)->endOfDay();
 
-        $rows = Booking::query()
+        $rows = Booking::query()->excludingDemo()
             ->whereBetween('created_at', [$start, $end])
             ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
             ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
@@ -108,7 +108,7 @@ class ReportsController extends Controller
      */
     protected function buildTruckTypePerformance($start, $end, array $filters = []): \Illuminate\Support\Collection
     {
-        $base = fn () => Booking::whereBetween('created_at', [$start, $end])
+        $base = fn () => Booking::excludingDemo()->whereBetween('created_at', [$start, $end])
             ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
             ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
             ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));
@@ -147,7 +147,7 @@ class ReportsController extends Controller
     /** Same split as the truck-type table: job counts by creation date, revenue from the service. */
     protected function buildFleetPerformance($start, $end, array $filters = []): \Illuminate\Support\Collection
     {
-        $base = fn () => Booking::whereBetween('created_at', [$start, $end])
+        $base = fn () => Booking::excludingDemo()->whereBetween('created_at', [$start, $end])
             ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
             ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
             ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));
@@ -267,7 +267,7 @@ class ReportsController extends Controller
 
     protected function bookingDetailQuery($start, $end, array $filters, ?array $statuses = null)
     {
-        return Booking::with(['customer', 'truckType', 'unit'])
+        return Booking::with(['customer', 'truckType', 'unit'])->excludingDemo()
             ->whereBetween('created_at', [$start, $end])
             ->when($statuses, fn ($q) => $q->whereIn('status', $statuses))
             ->when($filters['truck_type_id'], fn ($q, $id) => $q->where('truck_type_id', $id))
@@ -630,7 +630,7 @@ class ReportsController extends Controller
 
     protected function buildSummary($start, $end, array $filters = []): array
     {
-        $base = fn () => Booking::whereBetween('created_at', [$start, $end])
+        $base = fn () => Booking::excludingDemo()->whereBetween('created_at', [$start, $end])
             ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
             ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
             ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));

@@ -93,6 +93,7 @@ class ReportMetricsService
     protected function applyFilters($query, array $filters)
     {
         return $query
+            ->excludingDemo() // capstone demo bookings are never business revenue or business volume
             ->when($filters['truck_type_id'] ?? null, fn ($q, $id) => $q->where('truck_type_id', $id))
             ->when(($filters['min_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '>=', $filters['min_amount']))
             ->when(($filters['max_amount'] ?? null) !== null, fn ($q) => $q->where('final_total', '<=', $filters['max_amount']));

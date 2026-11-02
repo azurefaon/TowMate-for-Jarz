@@ -14,6 +14,7 @@ import '../../widgets/booking_cancel_dialog.dart';
 import '../../widgets/closure_note.dart';
 import '../../widgets/group_cancel_sheet.dart';
 import '../../widgets/live_tracking_widgets.dart';
+import '../../widgets/online_payment_card.dart';
 import '../../widgets/payment_method_selector.dart';
 import '../../widgets/quotation_price_cards.dart';
 import '../../widgets/skeleton_box.dart';
@@ -438,6 +439,15 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ),
           ],
 
+          // Online payment (sandbox): only when the backend offers it. Preference and collected method above are unchanged.
+          if (!widget.asGroupOverview && b.onlinePayment != null && b.onlinePayment!.worthShowing) ...[
+            const SizedBox(height: 20),
+            OnlinePaymentCard(
+              bookingCode: b.bookingCode,
+              offer: b.onlinePayment!,
+              onChanged: _refreshAfterTrackingEnded,
+            ),
+          ],
 
           if (b.pickupNotes != null && b.pickupNotes!.isNotEmpty) ...[
             const SizedBox(height: 20),

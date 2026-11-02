@@ -1133,6 +1133,8 @@ class CustomerBookingController extends Controller
                 'final_total'       => $booking->final_total !== null ? (float) $booking->final_total : null,
                 'payment_method'    => $booking->payment_method,
                 'preferred_payment_method' => $booking->preferred_payment_method,
+                // Server-decided "Pay Now" offer (sandbox, allow-listed test customers only); null for everyone else.
+                'online_payment'    => app(\App\Services\OnlinePayments\OnlinePaymentService::class)->offerFor(auth()->user(), $booking),
                 'scheduled_date'    => $booking->scheduled_date?->toDateString(),
                 'scheduled_time'    => $booking->scheduled_time,
                 'scheduled_for'     => $booking->scheduled_for?->toIso8601String(),

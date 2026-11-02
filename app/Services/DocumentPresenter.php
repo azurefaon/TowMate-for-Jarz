@@ -244,6 +244,7 @@ class DocumentPresenter
             'company' => $company,
             'state' => $state,
             'status_label' => $statusLabel,
+            'demo' => (bool) $booking->is_demo,
             'status_bg' => $statusBg,
             'note' => $note,
             'number' => $invoice->invoice_number,
@@ -348,6 +349,7 @@ class DocumentPresenter
 
         return [
             'company' => $this->company(),
+            'demo' => (bool) $booking->is_demo,
             'number' => $receipt->receipt_number,
             'date' => $this->date($receipt->created_at),
             'issued_at' => $this->stamp($receipt->created_at),

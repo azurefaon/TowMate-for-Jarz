@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import 'quotation_model.dart' show QuotationSentPrice;
+import 'online_payment_model.dart';
 
 String humanStatusLabel(String status) {
   return switch (status) {
@@ -211,6 +212,7 @@ class BookingModel {
     this.finalTotal,
     this.paymentMethod,
     this.preferredPaymentMethod,
+    this.onlinePayment,
     this.pickupNotes,
     this.serviceType,
     this.scheduledDate,
@@ -264,6 +266,7 @@ class BookingModel {
   final double? finalTotal;
   final String? paymentMethod;
   final String? preferredPaymentMethod;
+  final OnlinePaymentOffer? onlinePayment;
   final String? pickupNotes;
   final String? serviceType;
   final String? scheduledDate;
@@ -425,6 +428,7 @@ class BookingModel {
       finalTotal: _d(j['final_total']),
       paymentMethod: j['payment_method'] as String?,
       preferredPaymentMethod: j['preferred_payment_method'] as String?,
+      onlinePayment: OnlinePaymentOffer.fromJson(j['online_payment']),
       pickupNotes: j['pickup_notes'] as String?,
       serviceType: j['service_type'] as String?,
       scheduledDate: j['scheduled_date'] as String?,

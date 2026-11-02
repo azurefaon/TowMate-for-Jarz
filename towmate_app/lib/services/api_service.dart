@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/session_coordinator.dart';
 import '../models/booking_model.dart';
+import '../models/online_payment_model.dart';
 import '../models/quotation_model.dart';
 import '../models/tracking_model.dart';
 import '../models/truck_type_model.dart';
@@ -1264,6 +1265,82 @@ class ApiService {
     }
   }
 
+  // ── Online payment (PayMongo hosted checkout) ────────────────────────────
+  // The server decides eligibility and the amount. These calls only start a checkout, read the VERIFIED state,
+  // and cancel an open one. A browser redirect is never used as evidence of payment anywhere in the app.
+
+  /// Starts (or resumes) the booking's hosted checkout. Only the payment channel is sent, never an amount.
+  /// On success, `transaction` carries the open session including the one-time `checkoutUrl`.
+  static Future<Map<String, dynamic>> startOnlineCheckout(String code) async {
+    try {
+      final token = await getToken();
+      final response = await apiClient
+          .post(
+            Uri.parse('$baseUrl/v1/bookings/$code/online-payment/checkout'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({'method': 'gcash'}),
+          )
+          .timeout(const Duration(seconds: 30));
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final ok = (response.statusCode == 200 || response.statusCode == 201) && body['success'] == true;
+      return {
+        'success': ok,
+        'reason': body['reason'],
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: 'Could not start the payment. Please try again.'),
+        'transaction': ok && body['data'] is Map<String, dynamic>
+            ? OnlinePaymentTransaction.fromJson(body['data'] as Map<String, dynamic>)
+            : null,
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
+  /// The backend's current verified state for the booking's online payment.
+  static Future<OnlinePaymentFetch> fetchOnlinePaymentStatus(String code) async {
+    try {
+      final token = await getToken();
+      final response = await apiClient
+          .get(
+            Uri.parse('$baseUrl/v1/bookings/$code/online-payment'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 404) return const OnlinePaymentFetch.unavailable();
+      if (response.statusCode != 200) return const OnlinePaymentFetch.unreachable();
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = body['data'];
+
+      return OnlinePaymentFetch.result(
+        data is Map<String, dynamic> ? OnlinePaymentTransaction.fromJson(data) : null,
+      );
+    } catch (_) {
+      return const OnlinePaymentFetch.unreachable();
+    }
+  }
+
+  /// Cancels the open checkout; the backend only reports it cancelled once PayMongo agrees.
+  static Future<Map<String, dynamic>> cancelOnlinePayment(String code) async {
+    try {
+      final token = await getToken();
+      final response = await apiClient
+          .post(
+            Uri.parse('$baseUrl/v1/bookings/$code/online-payment/cancel'),
+            headers: {..._headers, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 30));
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && body['success'] == true,
+        'message': ApiMessages.forResponse(response.statusCode, body, fallback: 'Could not cancel the payment right now.'),
+      };
+    } catch (e) {
+      return _networkError(e);
+    }
+  }
+
   static Future<String?> fetchReceiptUrl(String code) async {
     try {
       final token = await getToken();
@@ -1381,6 +1458,7 @@ class ApiService {
     List<String> vehicleImagePaths = const [],
     List<Map<String, dynamic>> extraVehicles = const [],
     Map<int, List<String>> extraVehicleImagePaths = const {},
+    String? preferredPaymentMethod,
   }) async {
     try {
       final token = await getToken();
@@ -1400,6 +1478,9 @@ class ApiService {
             ..fields['service_type'] = serviceType;
 
       if (notes != null && notes.isNotEmpty) req.fields['notes'] = notes;
+      if (preferredPaymentMethod != null) {
+        req.fields['preferred_payment_method'] = preferredPaymentMethod;
+      }
       if (scheduledDate != null) req.fields['scheduled_date'] = scheduledDate;
       if (scheduledTime != null) req.fields['scheduled_time'] = scheduledTime;
       if (extraVehicles.isNotEmpty) {

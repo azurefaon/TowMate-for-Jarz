@@ -249,8 +249,8 @@ class ControlCenterService
         $weekBookings = Booking::query()->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count();
         $completedToday = Booking::query()->where('status', 'completed')->whereDate('updated_at', today())->count();
         $pendingRequests = Booking::query()->where('status', 'requested')->count();
-        $totalRevenue = (float) Booking::query()->where('status', 'completed')->sum('final_total');
-        $weekRevenue = (float) Booking::query()
+        $totalRevenue = (float) Booking::query()->excludingDemo()->where('status', 'completed')->sum('final_total');
+        $weekRevenue = (float) Booking::query()->excludingDemo()
             ->where('status', 'completed')
             ->whereBetween('completed_at', [now()->startOfWeek(), now()->endOfWeek()])
             ->sum('final_total');

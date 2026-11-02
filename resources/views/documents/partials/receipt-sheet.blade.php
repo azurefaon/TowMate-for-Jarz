@@ -2,6 +2,7 @@
 <div class="doc-sheet doc-receipt">
     <div class="doc-topbar"></div>
     <div class="doc-pad" style="padding-top: 30pt">
+        @include('documents.partials.demo-banner', ['doc' => $doc, 'kind' => 'receipt'])
         <table class="doc-head">
             <tr>
                 <td>

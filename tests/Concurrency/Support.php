@@ -105,9 +105,10 @@ function ccStartArtisan(string $command, array $options = [], string $appName = 
 function ccSpawn(array $job, string $pgOptions = ''): Process
 {
     $db = config('database.connections.pgsql');
+    $extraEnv = $job['extra_env'] ?? []; // optional per-worker environment (job.extra_env), e.g. feature flags
     $job = base64_encode(json_encode($job));
 
-    $process = new Process([PHP_BINARY, __DIR__ . '/worker.php', $job], base_path(), [
+    $process = new Process([PHP_BINARY, __DIR__ . '/worker.php', $job], base_path(), $extraEnv + [
         'APP_ENV' => 'testing', 'SESSION_DRIVER' => 'array', 'CACHE_STORE' => 'array', 'MAIL_MAILER' => 'array',
         'QUEUE_CONNECTION' => 'sync', 'BROADCAST_CONNECTION' => 'null', 'BCRYPT_ROUNDS' => '4',
         'DB_CONNECTION' => 'pgsql', 'DB_HOST' => $db['host'], 'DB_PORT' => (string) $db['port'],
