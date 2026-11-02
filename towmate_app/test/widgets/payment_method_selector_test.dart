@@ -29,29 +29,57 @@ void main() {
     expect(legacy.preferredPaymentMethod, isNull);
   });
 
-  testWidgets('shows three options, reports the tapped value, and asks for no account details', (tester) async {
+  Future<String?> pumpAndTap(WidgetTester tester, String label, {required bool onlinePayAvailable}) async {
     String? chosen;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: StatefulBuilder(
           builder: (context, setState) => PaymentMethodSelector(
             value: chosen,
+            onlinePayAvailable: onlinePayAvailable,
             onChanged: (v) => setState(() => chosen = v),
           ),
         ),
       ),
     ));
+    await tester.tap(find.text(label));
+    await tester.pump();
+    return chosen;
+  }
 
-    expect(find.text('Cash'), findsOneWidget);
+  testWidgets('shows three options and asks for no account details; Cash is always available', (tester) async {
+    expect(await pumpAndTap(tester, 'Cash', onlinePayAvailable: false), 'cash');
+
     expect(find.text('GCash'), findsOneWidget);
     expect(find.text('Online Banking'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     expect(find.byType(TextFormField), findsNothing);
+    expect(find.byIcon(Icons.radio_button_checked_rounded), findsOneWidget);
+    expect(find.textContaining('submitted now and you pay the Team Leader'), findsOneWidget);
+  });
 
+  testWidgets('GCash (Pay & Submit) can be chosen only when the server allows online payment', (tester) async {
+    expect(await pumpAndTap(tester, 'GCash', onlinePayAvailable: false), isNull);
+    expect(find.text('Online payment is not available for your account'), findsOneWidget);
+
+    expect(await pumpAndTap(tester, 'GCash', onlinePayAvailable: true), 'gcash');
+    expect(find.textContaining('TEST MODE — no real money'), findsOneWidget);
+    expect(find.textContaining('submitted only after the payment is verified'), findsOneWidget);
+  });
+
+  testWidgets('Online Banking is visibly unavailable and cannot be chosen until the server switches it on', (tester) async {
+    expect(await pumpAndTap(tester, 'Online Banking', onlinePayAvailable: true), isNull);
+    expect(find.text('Not available yet'), findsOneWidget);
+
+    String? chosen;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: PaymentMethodSelector(value: null, onlinePayAvailable: true, onlineBankingAvailable: true, onChanged: (v) => chosen = v),
+      ),
+    ));
     await tester.tap(find.text('Online Banking'));
     await tester.pump();
     expect(chosen, 'bank_transfer');
-    expect(find.byIcon(Icons.radio_button_checked_rounded), findsOneWidget);
   });
 
   testWidgets('disabled selector ignores taps', (tester) async {

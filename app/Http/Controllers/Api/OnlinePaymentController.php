@@ -40,10 +40,40 @@ class OnlinePaymentController extends Controller
 
     public function show(Request $request, string $code): JsonResponse
     {
-        return $this->respond(fn () => response()->json([
+        return $this->respond(function () use ($request, $code) {
+            $data = $this->payments->statusFor($request->user(), $code);
+
+            // Once the paid booking is submitted, the app shows the same "Booking successful" summary as a Cash request.
+            if ($data && ($data['booking_submitted'] ?? false) && ($data['pay_at_booking'] ?? false)) {
+                $anchor = \App\Models\Booking::where('booking_code', $data['booking_code'])->first();
+                $members = $anchor && $anchor->group_code
+                    ? \App\Models\Booking::where('group_code', $anchor->group_code)->where('customer_id', $anchor->customer_id)->orderBy('id')->with(['truckType', 'vehicleType'])->get()
+                    : collect($anchor ? [$anchor->load(['truckType', 'vehicleType'])] : []);
+                $summaries = app(CustomerBookingController::class);
+                $data['bookings'] = $members->map(fn ($b) => $summaries->bookingSummary($b, $anchor->booking_code))->values()->all();
+            }
+
+            return response()->json(['success' => true, 'data' => $data]);
+        });
+    }
+
+    /** Step 3: may this customer use Pay & Submit, and with which channel? Server-decided; Online Banking is off unless configured. */
+    public function availability(Request $request): JsonResponse
+    {
+        $available = $this->payments->canPayAtBooking($request->user());
+
+        return response()->json([
             'success' => true,
-            'data' => $this->payments->statusFor($request->user(), $code),
-        ]));
+            'data' => [
+                'available' => $available,
+                'channels' => [
+                    'gcash' => $available && $this->payments->channelAvailable('gcash'),
+                    'bank_transfer' => $available && $this->payments->channelAvailable('bank_transfer'),
+                ],
+                'book_now_only' => true,
+                'test_mode' => true,
+            ],
+        ]);
     }
 
     public function cancel(Request $request, string $code): JsonResponse

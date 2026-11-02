@@ -94,19 +94,22 @@ void main() {
   late FakeGateway gateway;
   late FakePresenter presenter;
   late List<String> opened;
+  late List<String> openedTasks;
   late List<String> registered;
   var customerSession = true;
+  var teamLeaderSession = false;
   var navigatorReady = true;
   var registerResult = true;
   var removed = 0;
   var removeResult = true;
 
-  PushNotificationService build({FakeGateway? g, DateTime Function()? now}) {
+  PushNotificationService build({FakeGateway? g, DateTime Function()? now, bool isWeb = false}) {
     gateway = g ?? gateway;
     return PushNotificationService(
       gateway: gateway,
       presenter: presenter,
       isCustomerSession: () async => customerSession,
+      isTeamLeaderSession: () async => teamLeaderSession,
       registerToken: (t) async {
         registered.add(t);
         return registerResult;
@@ -120,7 +123,13 @@ void main() {
         opened.add(code);
         return true;
       },
+      openTeamLeaderTask: (code) {
+        if (!navigatorReady) return false;
+        openedTasks.add(code);
+        return true;
+      },
       now: now,
+      isWeb: isWeb,
     );
   }
 
@@ -129,12 +138,101 @@ void main() {
     gateway = FakeGateway();
     presenter = FakePresenter();
     opened = [];
+    openedTasks = [];
     registered = [];
     customerSession = true;
+    teamLeaderSession = false;
     navigatorReady = true;
     registerResult = true;
     removed = 0;
     removeResult = true;
+  });
+
+  group('Team Leader assignment push', () {
+    const assignment = {'type': 'tl_assignment', 'booking_id': '9', 'booking_code': 'TM-0009', 'status': 'assigned'};
+
+    test('parses a tl_assignment payload', () {
+      final push = BookingPush.tryParse(assignment);
+      expect(push, isNotNull);
+      expect(push!.isTeamLeaderAssignment, isTrue);
+      expect(push.bookingCode, 'TM-0009');
+    });
+
+    test('a signed-in Team Leader registers this device for assignment pushes', () async {
+      customerSession = false;
+      teamLeaderSession = true;
+      final service = build();
+      await service.initialize();
+
+      await service.startForTeamLeader();
+
+      expect(registered, ['fcm-token-1234567890abcd']);
+      await service.dispose();
+    });
+
+    test('shows "New Towing Assignment" as a system notification in the foreground', () async {
+      teamLeaderSession = true;
+      customerSession = false;
+      final service = build();
+      await service.initialize();
+
+      gateway.message.add(const PushMessage(title: 'New Towing Assignment', body: 'You have received a new towing task. Tap to view the details.', data: assignment));
+      await _flush();
+
+      expect(presenter.shown.single.title, 'New Towing Assignment');
+      await service.dispose();
+    });
+
+    test('tapping it opens the Team Leader task, never the customer booking screen', () async {
+      teamLeaderSession = true;
+      customerSession = false;
+      final service = build();
+      await service.initialize();
+
+      gateway.opened.add(const PushMessage(data: assignment));
+      await _flush();
+
+      expect(openedTasks, ['TM-0009']);
+      expect(opened, isEmpty);
+      await service.dispose();
+    });
+
+    test('an assignment push tapped on a customer session opens nothing', () async {
+      final service = build();
+      await service.initialize();
+
+      gateway.opened.add(const PushMessage(data: assignment));
+      await _flush();
+
+      expect(openedTasks, isEmpty);
+      expect(opened, isEmpty);
+      await service.dispose();
+    });
+
+    test('a token the server dropped is registered again after the re-registration window (e.g. on resume)', () async {
+      var clock = DateTime(2026, 11, 2, 18);
+      final service = build(now: () => clock);
+      await service.initialize();
+
+      await service.startForCustomer();
+      await service.reconcileRegistration(); // immediately after: deduplicated
+      clock = clock.add(const Duration(minutes: 11));
+      await service.reconcileRegistration();
+
+      expect(registered, ['fcm-token-1234567890abcd', 'fcm-token-1234567890abcd']);
+      await service.dispose();
+    });
+
+    test('the web build skips Firebase entirely (no browser push configured) and never throws', () async {
+      final failing = FakeGateway(failInit: true);
+      final service = build(g: failing, isWeb: true);
+      await service.initialize();
+      await service.startForCustomer();
+
+      expect(service.isAvailable, isFalse);
+      expect(registered, isEmpty);
+      await service.dispose();
+    });
   });
 
   group('BookingPush.tryParse', () {

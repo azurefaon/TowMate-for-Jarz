@@ -225,12 +225,16 @@ http.Client _client({
   bool pricingFails = false,
   double routeDistanceKm = 8.48,
   List<String>? bookingPosts,
+  bool onlinePayAvailable = false,
 }) {
   return MockClient((request) async {
     final url = request.url.toString();
     if (request.method == 'POST' && request.url.path.endsWith('/v1/bookings')) {
       bookingPosts?.add(latin1.decode(request.bodyBytes));
       return _json({'message': 'Booking rejected in test.'}, status: 422);
+    }
+    if (request.url.path.endsWith('/v1/online-payment/availability')) {
+      return _json({'success': true, 'data': {'available': onlinePayAvailable}});
     }
     if (url.contains('router.project-osrm.org')) {
       return _json({
@@ -284,7 +288,7 @@ http.Client _client({
   });
 }
 
-/// The Review step requires a payment preference before Confirm Booking enables.
+/// The Review step requires a payment preference before Submit Booking enables.
 Future<void> _pickPayment(WidgetTester tester, [String value = 'cash']) async {
   final tile = find.byKey(Key('payment_option_$value'));
   await tester.ensureVisible(tile);
@@ -308,6 +312,7 @@ Future<void> _pumpToStep2(
   bool withPhoto = true,
   List<String>? bookingPosts,
   Future<void> Function()? onReview,
+  bool onlinePayAvailable = false,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -371,6 +376,7 @@ Future<void> _pumpToStep2(
       pricingFails: pricingFails,
       routeDistanceKm: routeDistanceKm,
       bookingPosts: bookingPosts,
+      onlinePayAvailable: onlinePayAvailable,
     ),
   );
 }
@@ -457,7 +463,7 @@ void main() {
   );
   FlutterImageCompressPlatform.instance = _FakeImageCompressPlatform();
 
-  group('BookNowScreen Review payment method (preference only)', () {
+  group('BookNowScreen Review payment method (Cash → Submit Booking, GCash → Pay & Submit)', () {
     testWidgets('offers Cash, GCash and Online Banking and asks for no payment details', (
       tester,
     ) async {
@@ -468,14 +474,14 @@ void main() {
       expect(find.text('GCash'), findsOneWidget);
       expect(find.text('Online Banking'), findsOneWidget);
       expect(find.text('Bank Transfer'), findsNothing);
-      expect(find.textContaining('Nothing is charged now'), findsOneWidget);
+      expect(find.textContaining('you pay the Team Leader'), findsOneWidget);
       // Only the notes box is a text input; no number / account / OTP field is requested.
       expect(find.byType(TextField), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('Confirm Booking sends nothing until a payment method is chosen', (
+    testWidgets('Submit Booking sends nothing until a payment method is chosen', (
       tester,
     ) async {
       final posts = <String>[];
@@ -483,8 +489,8 @@ void main() {
         tester,
         bookingPosts: posts,
         onReview: () async {
-          await tester.ensureVisible(find.text('Confirm Booking'));
-          await tester.tap(find.text('Confirm Booking'), warnIfMissed: false);
+          await tester.ensureVisible(find.text('Submit Booking'));
+          await tester.tap(find.text('Submit Booking'), warnIfMissed: false);
           await _settle(tester);
         },
       );
@@ -495,42 +501,81 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    for (final entry in const {
-      'Cash': 'cash',
-      'GCash': 'gcash',
-      'Online Banking': 'bank_transfer',
-    }.entries) {
-      testWidgets('choosing ${entry.key} submits preferred_payment_method=${entry.value} and nothing else payment-related', (
+    testWidgets('Cash submits preferred_payment_method=cash with SUBMIT BOOKING and never asks to pay online', (
+      tester,
+    ) async {
+      final posts = <String>[];
+      await _pumpToStep2(
         tester,
-      ) async {
-        final posts = <String>[];
-        await _pumpToStep2(
-          tester,
-          bookingPosts: posts,
-          onReview: () async {
-            await tester.ensureVisible(find.byKey(Key('payment_option_${entry.value}')));
-            await tester.tap(find.byKey(Key('payment_option_${entry.value}')));
-            await _settle(tester);
-            await tester.ensureVisible(find.text('Confirm Booking'));
-            await tester.tap(find.text('Confirm Booking'));
-            await _settle(tester);
-          },
-        );
+        bookingPosts: posts,
+        onReview: () async {
+          await _pickPayment(tester, 'cash');
+          await tester.ensureVisible(find.text('Submit Booking'));
+          await tester.tap(find.text('Submit Booking'));
+          await _settle(tester);
+        },
+      );
 
-        expect(posts, hasLength(1));
-        expect(
-          posts.single,
-          contains('name="preferred_payment_method"\r\n\r\n${entry.value}'),
-        );
-        expect(posts.single, isNot(contains('payment_method"\r\n\r\ncash_received')));
-        expect(posts.single.contains('name="payment_method"'), isFalse);
-        expect(posts.single.contains('name="payment_status"'), isFalse);
-        // The server rejected it in this test; the screen stays put with the message.
-        expect(find.text('Booking rejected in test.'), findsOneWidget);
+      expect(posts, hasLength(1));
+      expect(posts.single, contains('name="preferred_payment_method"\r\n\r\ncash'));
+      expect(posts.single.contains('name="pay_online"'), isFalse);
+      expect(posts.single.contains('name="payment_method"'), isFalse);
+      // The server rejected it in this test; the screen stays put with the message.
+      expect(find.text('Booking rejected in test.'), findsOneWidget);
 
-        await tester.pumpWidget(const SizedBox());
-      });
-    }
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('GCash and Online Banking cannot be chosen when online payment is not available to the account', (
+      tester,
+    ) async {
+      final posts = <String>[];
+      await _pumpToStep2(
+        tester,
+        bookingPosts: posts,
+        onReview: () async {
+          for (final value in ['gcash', 'bank_transfer']) {
+            await tester.ensureVisible(find.byKey(Key('payment_option_$value')));
+            await tester.tap(find.byKey(Key('payment_option_$value')));
+            await _settle(tester);
+          }
+        },
+      );
+
+      expect(find.text('Choose a payment method to continue'), findsOneWidget);
+      expect(find.text('Pay & Submit'), findsNothing);
+      expect(posts, isEmpty);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('GCash turns the button into PAY & SUBMIT and asks the server to pay online', (
+      tester,
+    ) async {
+      final posts = <String>[];
+      await _pumpToStep2(
+        tester,
+        bookingPosts: posts,
+        onlinePayAvailable: true,
+        onReview: () async {
+          await _pickPayment(tester, 'gcash');
+          expect(find.text('Pay & Submit'), findsOneWidget);
+          expect(find.text('Submit Booking'), findsNothing);
+          await tester.ensureVisible(find.text('Pay & Submit'));
+          await tester.tap(find.text('Pay & Submit'));
+          await _settle(tester);
+        },
+      );
+
+      expect(posts, hasLength(1));
+      expect(posts.single, contains('name="preferred_payment_method"\r\n\r\ngcash'));
+      expect(posts.single, contains('name="pay_online"\r\n\r\n1'));
+      expect(posts.single.contains('amount'), isFalse); // the server prices it
+      // Rejected here: nothing was submitted and the draft stays on Review.
+      expect(find.text('Booking rejected in test.'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
   });
 
   group('BookNowScreen Step 2 pricing authoritative behavior', () {
@@ -1082,7 +1127,7 @@ void main() {
     );
 
     testWidgets(
-      'Confirm Booking is disabled while pricing is unresolved (failed)',
+      'Submit Booking is disabled while pricing is unresolved (failed)',
       (tester) async {
         await _pumpToStep2(tester, pricingFails: true);
 
@@ -1096,7 +1141,7 @@ void main() {
     );
 
     testWidgets(
-      'Confirm Booking becomes enabled once pricing resolves and a payment method is chosen',
+      'Submit Booking becomes enabled once pricing resolves and a payment method is chosen',
       (tester) async {
         await _pumpToStep2(tester, onReview: () async {
           // Pricing has resolved, but no payment method is chosen yet.
@@ -1104,7 +1149,7 @@ void main() {
             tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed,
             isNull,
           );
-          await _pickPayment(tester, 'gcash');
+          await _pickPayment(tester, 'cash');
         });
 
         final button = tester.widget<ElevatedButton>(
@@ -1117,7 +1162,7 @@ void main() {
     );
 
     testWidgets(
-      'tapping Confirm Booking twice does not trigger a double submit',
+      'tapping Submit Booking twice does not trigger a double submit',
       (tester) async {
         var submitCount = 0;
         tester.view.physicalSize = const Size(390, 844);
@@ -1206,8 +1251,8 @@ void main() {
           await _settle(tester);
 
           await _pickPayment(tester);
-          await tester.tap(find.text('Confirm Booking'));
-          await tester.tap(find.text('Confirm Booking'), warnIfMissed: false);
+          await tester.tap(find.text('Submit Booking'));
+          await tester.tap(find.text('Submit Booking'), warnIfMissed: false);
           await tester.pump(const Duration(milliseconds: 400));
         }, () => client);
 
@@ -1328,7 +1373,7 @@ void main() {
           await _settle(tester);
 
           await _pickPayment(tester);
-          await tester.tap(find.text('Confirm Booking'));
+          await tester.tap(find.text('Submit Booking'));
           await _settle(tester);
         }, () => client);
 
@@ -1449,7 +1494,7 @@ void main() {
 
           await tester.enterText(find.byType(TextField).last, 'Call before arriving');
           await _pickPayment(tester);
-          await tester.tap(find.text('Confirm Booking'));
+          await tester.tap(find.text('Submit Booking'));
           for (var i = 0; i < 30; i++) {
             await tester.pump(const Duration(milliseconds: 50));
           }
@@ -1958,7 +2003,7 @@ void main() {
           await _settle(tester);
 
           await _pickPayment(tester);
-          await tester.tap(find.text('Confirm Booking'));
+          await tester.tap(find.text('Submit Booking'));
           await _settle(tester);
         }, () => client);
 

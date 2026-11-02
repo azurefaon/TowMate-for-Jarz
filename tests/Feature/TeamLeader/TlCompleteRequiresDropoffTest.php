@@ -164,14 +164,14 @@ it('completes from arrived_dropoff with cash, proof and signature: invoice, paym
     expect($unit->fresh()->status)->toBe('available');
 });
 
-it('accepts GCash from arrived_dropoff with proof and signature (no cash amount needed)', function () {
+it('refuses GCash at the drop-off: online payments are made by the customer when booking, never collected by the Team Leader', function () {
     [$leader, $booking] = b1Scenario('arrived_dropoff');
     Sanctum::actingAs($leader, ['*']);
 
-    b1Complete($booking, ['payment_method' => 'gcash', 'cash_received' => null])->assertOk();
+    b1Complete($booking, ['payment_method' => 'gcash', 'cash_received' => B1_TOTAL])->assertStatus(422);
 
-    expect($booking->fresh()->status)->toBe('waiting_verification');
-    expect(Invoice::where('booking_id', $booking->id)->count())->toBe(1);
+    expect($booking->fresh()->status)->toBe('arrived_dropoff');
+    expect(Invoice::where('booking_id', $booking->id)->count())->toBe(0);
 });
 
 it('treats a repeated valid completion as already submitted: still one invoice and one audit entry', function () {

@@ -17,7 +17,7 @@ use Illuminate\Console\Command;
 class PilotOnlinePaymentCheckout extends Command
 {
     protected $signature = 'online-payments:pilot-checkout
-        {booking_code : Booking code of the prepared test booking (must be at arrived_dropoff)}
+        {booking_code : Booking code of the prepared test booking (must be awaiting payment)}
         {--user= : Id of the allow-listed test customer who owns that booking}
         {--confirm-sandbox : Required. Acknowledges this makes a real call to PayMongo TEST mode}';
 

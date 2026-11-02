@@ -140,4 +140,71 @@ class FinalPaymentDocumentsService
 
         return $invoice;
     }
+
+    /**
+     * After the response: the final quotation PDF, then the one email carrying the invoice and receipt PDFs.
+     * Shared by dispatcher payment confirmation (Cash) and the Team Leader completing a booking paid online at
+     * booking time. Idempotent per booking, so it is also the retry for a failed send.
+     */
+    public static function queueAfterResponse(int $bookingId, bool $isGroup, ?int $quotationId): void
+    {
+        app()->terminating(function () use ($bookingId, $isGroup, $quotationId) {
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+            flush();
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+
+            try {
+                $b = \App\Models\Booking::with(['customer', 'truckType', 'unit', 'assignedTeamLeader', 'receipt'])
+                    ->find($bookingId);
+                if (! $b || app(self::class)->alreadySent($b)) {
+                    return;
+                }
+
+                $groupVehicles = [];
+                $groupAdjustment = 0.0;
+
+                if ($isGroup && $quotationId) {
+                    $quotation = \App\Models\Quotation::find($quotationId);
+                    $cancelledGroupBookingIds = \App\Models\Booking::where('group_code', $b->group_code)
+                        ->where('status', 'cancelled')
+                        ->pluck('id');
+                    $groupVehicles = collect($quotation->extra_vehicles ?? [])
+                        ->reject(fn($ev) => in_array($ev['booking_id'] ?? null, $cancelledGroupBookingIds->all(), true))
+                        ->map(function ($ev) {
+                            $truckTypeName = $ev['truck_type_name']
+                                ?? (\App\Models\TruckType::find($ev['truck_type_id'] ?? null)?->name);
+                            return [
+                                'truck_type_name' => $truckTypeName ?? 'Towing Service',
+                                'final_total'     => (float) ($ev['final_total'] ?? $ev['estimated_price'] ?? 0),
+                            ];
+                        })->values()->all();
+                    $groupAdjustment = (float) ($quotation->additional_fee ?? 0) - (float) ($quotation->discount ?? 0);
+                }
+
+                // The customer documents come first; the internal final quotation PDF must not hold them up.
+                try {
+                    app(self::class)->send($bookingId, $groupVehicles, $groupAdjustment);
+                } finally {
+                    try {
+                        $finalQuotePath = app(\App\Services\DocumentGenerationService::class)->generateQuotation($b, true);
+                        $b->update(['final_quote_path' => $finalQuotePath]);
+                    } catch (\Throwable $quoteError) {
+                        \Illuminate\Support\Facades\Log::error('Final quotation PDF failed', [
+                            'booking_id' => $bookingId,
+                            'error'      => $quoteError->getMessage(),
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Background payment documents failed', [
+                    'booking_id' => $bookingId,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        });
+    }
 }

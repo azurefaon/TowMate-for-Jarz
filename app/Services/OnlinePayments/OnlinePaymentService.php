@@ -7,15 +7,17 @@ use App\Models\Customer;
 use App\Models\PaymentTransaction;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * PayMongo SANDBOX checkout, kept apart from the Team Leader / dispatcher payment flow.
+ * PayMongo SANDBOX checkout: the customer pays when submitting a Book Now request (Step 3 "Pay & Submit").
  *
  * Hard rules this class enforces:
- *  - it never changes a booking's status or its payment_method / preferred_payment_method;
+ *  - a booking paid this way stays `awaiting_payment` (invisible to dispatch) until the payment is verified, and is
+ *    then submitted exactly once by finalizePrepaid(); it never touches payment_method / preferred_payment_method;
  *  - only provider-verified evidence (a signed webhook, or a session retrieved from the provider)
  *    can mark a transaction paid — never a redirect, and never a client-supplied amount;
  *  - at most one open session and one verified payment per payable (database-enforced);
@@ -36,6 +38,18 @@ class OnlinePaymentService
         return $this->guard->enabled() && $this->guard->userAllowed($user);
     }
 
+    /** Step 3 "Pay & Submit" can actually run for this user: enabled, allow-listed, and fully configured. */
+    public function canPayAtBooking(?User $user): bool
+    {
+        return $this->availableFor($user) && ! $this->guard->credentialsProblem() && ! $this->guard->webhookSecretProblem();
+    }
+
+    /** A TowMate payment method that is wired to a PayMongo channel (GCash; Online Banking only when configured). */
+    public function channelAvailable(?string $method): bool
+    {
+        return $method !== null && is_string(config('paymongo.channels.' . $method)) && config('paymongo.channels.' . $method) !== '';
+    }
+
     // ── Checkout ────────────────────────────────────────────────────────────
 
     /**
@@ -54,7 +68,7 @@ class OnlinePaymentService
 
         $customer = Customer::where('user_id', $user->id)->first();
         $booking = $customer
-            ? Booking::where('booking_code', $bookingCode)->where('customer_id', $customer->id)->first()
+            ? Booking::includingUnsubmitted()->where('booking_code', $bookingCode)->where('customer_id', $customer->id)->first()
             : null;
 
         if (! $customer || ! $booking) {
@@ -67,7 +81,7 @@ class OnlinePaymentService
             [$transaction, $created] = DB::transaction(function () use ($booking, $customer, $user, $method, &$staleSessionId) {
                 // Lock every vehicle of the payable (ascending id, like the Team Leader flow) before deciding anything.
                 $ids = $this->resolver->resolve($booking)->memberIds;
-                Booking::whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+                Booking::includingUnsubmitted()->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
 
                 $payable = $this->resolver->resolve($booking->refresh());
                 $this->assertPayable($payable, $customer);
@@ -113,7 +127,7 @@ class OnlinePaymentService
                     'method' => $method,
                     'amount_centavos' => $payable->totalCentavos,
                     'currency' => 'PHP',
-                    'payable_snapshot' => $payable->snapshot(),
+                    'payable_snapshot' => $payable->snapshot() + ['pay_at_booking' => true],
                     'status' => PaymentTransaction::STATUS_PENDING,
                     'livemode' => false,
                     'expires_at' => now()->addMinutes((int) config('paymongo.session_ttl_minutes', 30)),
@@ -235,7 +249,7 @@ class OnlinePaymentService
     /** @throws OnlinePaymentException */
     protected function assertPayable(Payable $payable, Customer $customer): void
     {
-        $members = Booking::whereIn('id', $payable->memberIds)->get();
+        $members = Booking::includingUnsubmitted()->whereIn('id', $payable->memberIds)->get();
 
         if ($members->contains(fn (Booking $member) => (int) $member->customer_id !== (int) $customer->id)) {
             throw new OnlinePaymentException('Booking not found.', 404, 'not_found');
@@ -252,9 +266,10 @@ class OnlinePaymentService
             throw new OnlinePaymentException('There is nothing to pay on this booking.', 409, 'nothing_to_pay');
         }
 
-        // The final amount only exists once the tow has reached the drop-off.
-        if ($active->contains(fn (Booking $member) => $member->status !== 'arrived_dropoff')) {
-            throw new OnlinePaymentException('Online payment opens once the tow reaches the drop-off.', 409, 'not_ready');
+        // Online payment is taken only when a Book Now request is submitted (Step 3 "Pay & Submit"). A booking that is
+        // already submitted is paid in cash to the Team Leader; there is no pay-after-towing step any more.
+        if ($active->contains(fn (Booking $member) => $member->status !== Booking::STATUS_AWAITING_PAYMENT)) {
+            throw new OnlinePaymentException('Online payment is made when you submit a booking.', 409, 'not_awaiting_payment');
         }
 
         // Payment already being handled the normal way (Team Leader / cash): do not collect twice.
@@ -280,15 +295,34 @@ class OnlinePaymentService
             return null;
         }
 
-        $bookingStatus = Booking::where('booking_code', $bookingCode)->value('status');
+        // A late webhook must not leave the customer waiting: while the checkout is open, ask PayMongo directly (at
+        // most every few seconds per transaction). The answer is provider evidence, never the app's word.
+        if ($transaction->isOpen() && $transaction->provider_checkout_session_id
+            && Cache::add('online-payment-sync:' . $transaction->id, 1, now()->addSeconds(4))) {
+            $this->syncWithProvider($transaction);
+            $transaction->refresh();
+        }
+
+        // Paid but not yet submitted (e.g. the finalization after the webhook failed): submit it now, exactly once.
+        if ($transaction->status === PaymentTransaction::STATUS_PAID
+            && Booking::includingUnsubmitted()->whereKey($transaction->booking_id)->value('status') === Booking::STATUS_AWAITING_PAYMENT) {
+            $this->finalizePrepaid($transaction);
+        }
+
+        $bookingStatus = Booking::includingUnsubmitted()->whereKey($transaction->booking_id)->value('status');
+        $submitted = $bookingStatus !== null && ! in_array($bookingStatus, Booking::UNSUBMITTED_STATUSES, true);
 
         return $this->presentTransaction($transaction) + [
             // Only an open session has a usable link; it is never shown for finished ones.
             'checkout_url' => $transaction->isOpen() ? $transaction->checkout_url : null,
-            // Gateway success is not booking completion: the app shows both, separately.
+            'booking_code' => Booking::includingUnsubmitted()->whereKey($transaction->booking_id)->value('booking_code'),
             'booking_status' => $bookingStatus,
+            // Pay & Submit: the booking exists for dispatch only once this is true.
+            'booking_submitted' => $submitted,
             'booking_completed' => $bookingStatus === 'completed',
-            'note' => 'Verified online payment is recorded for the dispatcher. The booking is completed only after the dispatcher confirms payment.',
+            'pay_at_booking' => (bool) ($transaction->payable_snapshot['pay_at_booking'] ?? false),
+            'test_mode' => true,
+            'note' => 'TEST / DEMO — NO REAL MONEY. Your booking is submitted only after the payment is verified.',
         ];
     }
 
@@ -331,27 +365,17 @@ class OnlinePaymentService
             ->latest('id')
             ->first();
 
-        $reason = null;
-
-        if ($latest && $latest->status === PaymentTransaction::STATUS_PAID) {
-            $reason = 'already_paid';
-        } elseif ($latest && in_array($latest->status, [PaymentTransaction::STATUS_REVIEW, PaymentTransaction::STATUS_DUPLICATE], true)) {
-            $reason = 'under_review';
-        } elseif ($booking->preferred_payment_method === 'bank_transfer') {
-            $reason = 'channel_unavailable'; // Online Banking is not wired yet
-        } elseif ($booking->preferred_payment_method !== 'gcash') {
-            $reason = 'preference_not_online'; // cash, or no preference recorded
-        } else {
-            try {
-                $this->assertPayable($payable, $customer);
-            } catch (OnlinePaymentException $e) {
-                $reason = $e->reason;
-            }
-        }
+        // A submitted booking is never paid online afterwards (cash goes to the Team Leader). The booking detail only
+        // reports a payment that was made at booking time.
+        $reason = match (true) {
+            $latest && $latest->status === PaymentTransaction::STATUS_PAID => 'already_paid',
+            $latest && in_array($latest->status, [PaymentTransaction::STATUS_REVIEW, PaymentTransaction::STATUS_DUPLICATE], true) => 'under_review',
+            default => 'pay_at_booking_only',
+        };
 
         return [
             'available' => true,
-            'eligible' => $reason === null,
+            'eligible' => false,
             'reason' => $reason,
             'amount' => $payable->totalPesos,
             'currency' => 'PHP',
@@ -398,7 +422,7 @@ class OnlinePaymentService
     {
         $customer = Customer::where('user_id', $user->id)->first();
         $booking = $customer
-            ? Booking::where('booking_code', $bookingCode)->where('customer_id', $customer->id)->first()
+            ? Booking::includingUnsubmitted()->where('booking_code', $bookingCode)->where('customer_id', $customer->id)->first()
             : null;
 
         if (! $booking) {
@@ -486,6 +510,12 @@ class OnlinePaymentService
 
             return ['outcome' => $outcome, 'transaction_id' => $transactionId];
         });
+
+        // The payment is committed first, so it can never be lost; submitting the booking is a separate, idempotent
+        // step (retried by the app's status check and by online-payments:reconcile if it fails here).
+        if (in_array($outcome['outcome'], ['paid', 'already_paid'], true) && $outcome['transaction_id']) {
+            $this->finalizePrepaid(PaymentTransaction::findOrFail($outcome['transaction_id']));
+        }
 
         return ['status' => 200, 'outcome' => $outcome['outcome']];
     }
@@ -579,7 +609,7 @@ class OnlinePaymentService
         }
 
         $memberIds = $transaction->payable_snapshot['member_ids'] ?? [$transaction->booking_id];
-        $members = Booking::whereIn('id', $memberIds)->orderBy('id')->lockForUpdate()->get();
+        $members = Booking::includingUnsubmitted()->whereIn('id', $memberIds)->orderBy('id')->lockForUpdate()->get();
         $evidence = ['provider_payment_id' => $paymentId, 'last_event_id' => $eventId, 'paid_at' => now(), 'livemode' => false];
 
         if (in_array($transaction->status, [PaymentTransaction::STATUS_CANCELLED, PaymentTransaction::STATUS_EXPIRED, PaymentTransaction::STATUS_FAILED], true)) {
@@ -614,7 +644,7 @@ class OnlinePaymentService
         }
 
         $activeIds = $transaction->payable_snapshot['active_ids'] ?? $memberIds;
-        if ($members->whereIn('id', $activeIds)->contains(fn (Booking $member) => $member->status === 'cancelled')) {
+        if ($members->whereIn('id', $activeIds)->contains(fn (Booking $member) => in_array($member->status, ['cancelled', Booking::STATUS_PAYMENT_ABANDONED], true))) {
             $transaction->update($evidence + ['status' => PaymentTransaction::STATUS_REVIEW, 'flag' => 'booking_cancelled']);
 
             return 'review_booking_cancelled';
@@ -640,14 +670,24 @@ class OnlinePaymentService
 
     // ── Reconciliation (missed webhooks, expiry) ────────────────────────────
 
-    /** @return array{checked: int, paid: int, expired: int, unconfirmed: int} */
+    /** @return array{checked: int, paid: int, expired: int, unconfirmed: int, submitted: int} */
     public function reconcile(): array
     {
-        $summary = ['checked' => 0, 'paid' => 0, 'expired' => 0, 'unconfirmed' => 0];
+        $summary = ['checked' => 0, 'paid' => 0, 'expired' => 0, 'unconfirmed' => 0, 'submitted' => 0];
 
         if (! $this->guard->enabled() || $this->guard->credentialsProblem()) {
             return $summary;
         }
+
+        // Recovery: a verified payment whose booking was not submitted (finalization failed earlier).
+        PaymentTransaction::where('status', PaymentTransaction::STATUS_PAID)
+            ->whereIn('booking_id', Booking::includingUnsubmitted()->where('status', Booking::STATUS_AWAITING_PAYMENT)->select('id'))
+            ->orderBy('id')
+            ->each(function (PaymentTransaction $transaction) use (&$summary) {
+                if ($this->finalizePrepaid($transaction)) {
+                    $summary['submitted']++;
+                }
+            });
 
         PaymentTransaction::where('status', PaymentTransaction::STATUS_PENDING)
             ->where('expires_at', '<=', now())
@@ -667,30 +707,12 @@ class OnlinePaymentService
         $sessionId = $transaction->provider_checkout_session_id;
 
         // Ask the provider what really happened before deciding anything: a missed webhook may hide a payment.
-        if ($sessionId) {
-            try {
-                $session = $this->gateway->retrieveCheckoutSession($sessionId);
-            } catch (GatewayException) {
-                $session = null;
-            }
-
-            if ($session) {
-                if ($session['livemode']) {
-                    return 'unconfirmed';
-                }
-
-                $paid = collect($session['payments'])->firstWhere('status', 'paid');
-                if ($paid && preg_match('/^pay_\w+$/', $paid['id']) && $paid['amount'] > 0) {
-                    // A reference that is present but different, or a non-PHP currency, goes to review.
-                    $integrity = ($session['reference'] ?? null) !== null && $session['reference'] !== $transaction->reference
-                        ? 'reference_mismatch'
-                        : ($paid['currency'] !== 'PHP' ? 'currency_mismatch' : null);
-
-                    DB::transaction(fn () => $this->applyPaid($transaction, $paid['id'], $paid['amount'], null, $integrity));
-
-                    return 'paid';
-                }
-            }
+        $provider = $this->syncWithProvider($transaction);
+        if ($provider === 'paid') {
+            return 'paid';
+        }
+        if ($provider === 'live') {
+            return 'unconfirmed'; // never act on a live-mode session, not even to expire it
         }
 
         if (! $transaction->expires_at || $transaction->expires_at->isFuture()) {
@@ -714,6 +736,261 @@ class OnlinePaymentService
         }
 
         return 'expired';
+    }
+
+    /**
+     * Retrieves the checkout session from PayMongo and, if it holds a paid payment, records it through applyPaid()
+     * (the same rules as the webhook) and submits the booking.
+     *
+     * @return 'paid'|'live'|null  `paid` when the provider reported a payment, `live` for a live-mode session (never
+     *                             trusted or acted on), null when there is nothing to record or the provider could not be asked
+     */
+    protected function syncWithProvider(PaymentTransaction $transaction): ?string
+    {
+        $sessionId = $transaction->provider_checkout_session_id;
+        if (! $sessionId) {
+            return null;
+        }
+
+        try {
+            $session = $this->gateway->retrieveCheckoutSession($sessionId);
+        } catch (GatewayException) {
+            return null;
+        }
+
+        if ($session['livemode']) {
+            return 'live';
+        }
+
+        $paid = collect($session['payments'])->firstWhere('status', 'paid');
+        if (! $paid || ! preg_match('/^pay_\w+$/', $paid['id']) || $paid['amount'] <= 0) {
+            return null;
+        }
+
+        // A reference that is present but different, or a non-PHP currency, goes to review.
+        $integrity = ($session['reference'] ?? null) !== null && $session['reference'] !== $transaction->reference
+            ? 'reference_mismatch'
+            : ($paid['currency'] !== 'PHP' ? 'currency_mismatch' : null);
+
+        $outcome = DB::transaction(fn () => $this->applyPaid($transaction, $paid['id'], $paid['amount'], null, $integrity));
+
+        if (in_array($outcome, ['paid', 'already_paid'], true)) {
+            $this->finalizePrepaid($transaction->refresh());
+        }
+
+        return 'paid';
+    }
+
+    // ── Pay at booking: submission, abandoned attempts, Team Leader collection ──
+
+    /**
+     * Submits a pay-at-booking request once its payment is verified: the hidden `awaiting_payment` rows become a
+     * normal confirmed Book Now booking with an accepted quotation at exactly the amount that was paid, ready for the
+     * dispatcher to assign. Idempotent (row locks + status check), so the webhook, the app's status check and the
+     * reconcile command can all call it. Runs after the payment is committed: a failure here never loses the payment;
+     * it is logged for recovery and retried.
+     *
+     * @return bool true when this call submitted the booking
+     */
+    public function finalizePrepaid(PaymentTransaction $transaction): bool
+    {
+        try {
+            $primary = DB::transaction(function () use ($transaction) {
+                $memberIds = $transaction->payable_snapshot['member_ids'] ?? [$transaction->booking_id];
+                $members = Booking::includingUnsubmitted()->whereIn('id', $memberIds)->orderBy('id')->lockForUpdate()->get();
+                $locked = PaymentTransaction::whereKey($transaction->id)->lockForUpdate()->first();
+
+                if (! $locked || $locked->status !== PaymentTransaction::STATUS_PAID) {
+                    return null;
+                }
+
+                $awaiting = $members->where('status', Booking::STATUS_AWAITING_PAYMENT);
+                if ($awaiting->isEmpty()) {
+                    return null; // already submitted by an earlier call
+                }
+
+                $primary = $members->firstWhere('id', $locked->booking_id) ?? $members->first();
+                $lineItems = collect($primary->extra_vehicles ?? [])->filter(fn ($ev) => ! empty($ev['booking_id']))->values()->all();
+
+                $quotation = app(\App\Services\QuotationService::class)->createQuotation([
+                    'source_booking_id' => $primary->id,
+                    'customer_id' => $primary->customer_id,
+                    'truck_type_id' => $primary->truck_type_id,
+                    'pickup_address' => $primary->pickup_address,
+                    'dropoff_address' => $primary->dropoff_address,
+                    'distance_km' => $primary->distance_km,
+                    'estimated_price' => Money::centavosToPesos($locked->amount_centavos),
+                    'service_type' => $primary->service_type,
+                    'vehicle_image_path' => $primary->vehicle_image_path,
+                    'extra_vehicles' => $lineItems !== [] ? $lineItems : null,
+                    'pickup_notes' => $primary->notes,
+                    'preferred_payment_method' => $primary->preferred_payment_method,
+                ]);
+                $quotation->update([
+                    'status' => 'accepted',
+                    'sent_at' => now(),
+                    'responded_at' => now(),
+                    'response_note' => 'Paid online at booking (PayMongo TEST mode, ' . $locked->reference . ').',
+                ]);
+
+                foreach ($awaiting as $member) {
+                    $member->update([
+                        'status' => 'confirmed',
+                        'quotation_id' => $quotation->id,
+                        'customer_approved_at' => now(),
+                        'price_locked_at' => now(),
+                    ]);
+                }
+
+                \App\Models\AuditLog::create([
+                    'user_id' => $locked->initiated_by_user_id,
+                    'action' => 'prepaid_booking_submitted',
+                    'entity_type' => 'Booking',
+                    'entity_id' => $primary->id,
+                    'reference' => $primary->booking_code,
+                    'description' => 'Booking submitted after a verified PayMongo TEST payment (' . $locked->reference . ').',
+                ]);
+
+                return $primary->fresh(['customer', 'truckType']);
+            });
+        } catch (\Throwable $e) {
+            Log::error('Prepaid booking could not be submitted after a verified payment; it will be retried', [
+                'reference' => $transaction->reference,
+                'booking_id' => $transaction->booking_id,
+                'error' => class_basename($e),
+            ]);
+
+            return false;
+        }
+
+        if (! $primary) {
+            return false;
+        }
+
+        // Announced only now, after verified payment AND submission (the `created` observer skipped it).
+        try {
+            \App\Models\DispatcherNotification::create([
+                'type' => \App\Models\DispatcherNotification::TYPE_NEW_BOOK_NOW,
+                'booking_id' => $primary->id,
+            ]);
+        } catch (\Throwable) {
+        }
+        \App\Events\BookingStatusUpdated::safeFire($primary);
+        if ($primary->customer?->user_id) {
+            \App\Services\CustomerNotificationService::send(
+                userId: $primary->customer->user_id,
+                type: 'booking_update',
+                title: 'Booking submitted',
+                body: 'Payment received (TEST / DEMO — no real money). Booking ' . $primary->booking_code . ' is submitted; we will notify you when a team is assigned.',
+                bookingCode: $primary->booking_code,
+            );
+        }
+        app(\App\Services\Push\BookingStatusPush::class)->notifyEvent($primary, 'submitted_paid');
+
+        return true;
+    }
+
+    /**
+     * Before a customer submits another booking: their earlier pay-at-booking attempt that was never paid is closed
+     * (its checkout expired) so it can never be paid and submitted alongside the new one. If it turns out to be paid,
+     * it is submitted instead and its booking code returned, so the caller does not create a second booking.
+     *
+     * @throws OnlinePaymentException when a payment on the earlier attempt may still be going through
+     */
+    public function closeUnpaidAttempts(Customer $customer): ?string
+    {
+        $awaiting = Booking::includingUnsubmitted()
+            ->where('customer_id', $customer->id)
+            ->where('status', Booking::STATUS_AWAITING_PAYMENT)
+            ->orderBy('id')
+            ->get();
+
+        $handled = [];
+        foreach ($awaiting as $booking) {
+            $payable = $this->resolver->resolve($booking);
+            if (in_array($payable->anchorId, $handled, true)) {
+                continue;
+            }
+            $handled[] = $payable->anchorId;
+
+            $forPayable = fn () => PaymentTransaction::where('payable_type', $payable->type)->where('payable_id', $payable->anchorId);
+
+            foreach ($forPayable()->where('status', PaymentTransaction::STATUS_PENDING)->get() as $open) {
+                $this->syncWithProvider($open);
+                $open->refresh();
+                if (! $open->isOpen()) {
+                    continue;
+                }
+
+                if ($open->provider_checkout_session_id) {
+                    try {
+                        $this->gateway->expireCheckoutSession($open->provider_checkout_session_id);
+                    } catch (GatewayException) {
+                        throw new OnlinePaymentException('Your earlier online payment is still being processed. Please wait a moment and try again.', 409, 'payment_in_progress');
+                    }
+                }
+                $open->update(['status' => PaymentTransaction::STATUS_CANCELLED, 'flag' => 'superseded_by_new_booking']);
+            }
+
+            $paid = $forPayable()->where('status', PaymentTransaction::STATUS_PAID)->first();
+            if ($paid) {
+                $this->finalizePrepaid($paid);
+
+                return Booking::includingUnsubmitted()->whereKey($payable->anchorId)->value('booking_code');
+            }
+
+            Booking::includingUnsubmitted()
+                ->whereIn('id', $payable->memberIds)
+                ->where('status', Booking::STATUS_AWAITING_PAYMENT)
+                ->update(['status' => Booking::STATUS_PAYMENT_ABANDONED, 'updated_at' => now()]);
+        }
+
+        return null;
+    }
+
+    /**
+     * How the Team Leader handles payment at the drop-off, decided only from verified gateway records (never from the
+     * app or the customer's preference):
+     *  - `cash`           no online payment exists: collect cash (amount, photo, signature) for dispatcher verification;
+     *  - `online_prepaid` a verified TEST payment covers the current total: no collection, complete directly;
+     *  - `online_review`  an online payment exists but does not cleanly cover the total: nothing may be collected or
+     *                     completed until the dispatcher sorts it out (prevents double collection).
+     *
+     * @return array{mode: string, amount_due: string, amount_paid: ?string, method: ?string, reference: ?string, message: ?string}
+     */
+    public function collectionStateFor(Booking $booking): array
+    {
+        $payable = $this->resolver->resolve($booking);
+        $transactions = PaymentTransaction::where('payable_type', $payable->type)
+            ->where('payable_id', $payable->anchorId)
+            ->whereIn('status', [PaymentTransaction::STATUS_PAID, PaymentTransaction::STATUS_REVIEW, PaymentTransaction::STATUS_DUPLICATE])
+            ->orderBy('id')
+            ->get();
+
+        $base = ['amount_due' => $payable->totalPesos, 'amount_paid' => null, 'method' => null, 'reference' => null, 'message' => null];
+
+        if ($transactions->isEmpty()) {
+            return ['mode' => 'cash'] + $base;
+        }
+
+        $paid = $transactions->firstWhere('status', PaymentTransaction::STATUS_PAID);
+        $state = $base;
+        if ($paid) {
+            $state['amount_paid'] = Money::centavosToPesos($paid->amount_centavos);
+            $state['method'] = $paid->method;
+            $state['reference'] = $paid->reference;
+        }
+
+        if ($paid && ! $paid->livemode && (int) $paid->amount_centavos >= $payable->totalCentavos
+            && ! $transactions->contains('status', PaymentTransaction::STATUS_REVIEW)) {
+            return ['mode' => 'online_prepaid'] + $state;
+        }
+
+        $state['message'] = $paid
+            ? 'The online payment (₱' . $state['amount_paid'] . ') does not cover the current total of ₱' . $payable->totalPesos . '. Do not collect payment; contact the dispatcher.'
+            : 'An online payment for this booking needs dispatcher review. Do not collect payment; contact the dispatcher.';
+
+        return ['mode' => 'online_review'] + $state;
     }
 
     protected function tryExpire(string $sessionId): void

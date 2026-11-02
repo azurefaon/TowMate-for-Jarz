@@ -10,12 +10,14 @@ import '../../services/api_service.dart';
 import '../../services/checkout_launcher.dart';
 import '../../widgets/online_payment_card.dart' show TestPaymentBanner;
 import '../../widgets/quotation_price_cards.dart';
+import 'booking_success_screen.dart';
 
 /// Where the customer lands after the hosted checkout. It shows ONLY what the Laravel backend has verified
-/// (signed PayMongo webhook): the browser closing, a redirect, or the GCash app returning proves nothing here.
+/// (signed PayMongo webhook, or the server asking PayMongo directly): the browser closing, a redirect, or the GCash app
+/// returning proves nothing here.
 ///
-/// "Paid" means the gateway received the money. The booking is completed separately, when the dispatcher confirms
-/// payment, and this screen says so.
+/// Pay & Submit: "Verifying payment" until the server reports the payment verified AND the booking submitted, then
+/// BOOKING SUCCESSFUL. A cancelled, failed or expired payment leaves the booking unsubmitted, with a retry.
 class OnlinePaymentStatusScreen extends StatefulWidget {
   const OnlinePaymentStatusScreen({
     super.key,
@@ -23,11 +25,15 @@ class OnlinePaymentStatusScreen extends StatefulWidget {
     this.launcher = const UrlLauncherCheckoutLauncher(),
     this.pollInterval = const Duration(seconds: 3),
     this.maxPolls = 100,
+    this.onSubmitted,
   });
 
   final String bookingCode;
   final CheckoutLauncher launcher;
   final Duration pollInterval;
+
+  /// Called once when the paid booking has been submitted (e.g. to clear the saved booking draft).
+  final VoidCallback? onSubmitted;
 
   /// How many automatic checks before waiting for the customer to ask again (about 5 minutes by default).
   final int maxPolls;
@@ -51,8 +57,14 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
   bool _busy = false;
   int _polls = 0;
   Timer? _timer;
+  bool _leftForSuccess = false;
 
-  bool get _isFinal => _transaction?.status.isFinal ?? false;
+  bool get _payAtBooking => _transaction?.payAtBooking ?? false;
+
+  /// Paid at PayMongo, but the server has not submitted the booking yet: still verifying, keep asking.
+  bool get _awaitingSubmission => _payAtBooking && (_transaction?.status.isPaid ?? false) && !(_transaction?.bookingSubmitted ?? false);
+
+  bool get _isFinal => (_transaction?.status.isFinal ?? false) && !_awaitingSubmission;
 
   @override
   void initState() {
@@ -116,6 +128,25 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
     });
 
     if (_isFinal || _unavailable) _timer?.cancel();
+    _showSuccessIfSubmitted();
+  }
+
+  /// The server verified the payment and submitted the booking: BOOKING SUCCESSFUL, done (no second Submit).
+  void _showSuccessIfSubmitted() {
+    final tx = _transaction;
+    if (_leftForSuccess || tx == null || !tx.payAtBooking || !tx.status.isPaid || !tx.bookingSubmitted) return;
+    _leftForSuccess = true;
+    _timer?.cancel();
+    widget.onSubmitted?.call();
+
+    if (tx.bookings.isEmpty) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/booking-detail', (route) => route.isFirst, arguments: widget.bookingCode);
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => BookingSuccessScreen(bookings: tx.bookings, paidOnline: true)),
+      (_) => false,
+    );
   }
 
   void _snack(String message) {
@@ -197,7 +228,8 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
 
   // ── presentation ──────────────────────────────────────────────────────────
 
-  OnlinePaymentPhase get _phase => OnlinePaymentPhase.of(_transaction, checking: _checking);
+  OnlinePaymentPhase get _phase =>
+      _awaitingSubmission ? OnlinePaymentPhase.verifying : OnlinePaymentPhase.of(_transaction, checking: _checking);
 
   (IconData, Color) _look(OnlinePaymentPhase phase, BuildContext context) => switch (phase) {
         OnlinePaymentPhase.paid => (Icons.check_circle_rounded, TmColors.success),
@@ -209,7 +241,20 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
         OnlinePaymentPhase.pending || OnlinePaymentPhase.notStarted => (Icons.schedule_rounded, TmColors.yellow),
       };
 
-  String _explanation(OnlinePaymentPhase phase, OnlinePaymentTransaction? tx) => switch (phase) {
+  String _explanation(OnlinePaymentPhase phase, OnlinePaymentTransaction? tx) => _payAtBooking
+      ? switch (phase) {
+          OnlinePaymentPhase.verifying || OnlinePaymentPhase.paid =>
+            'Verifying your payment with PayMongo. Your booking is submitted as soon as it is confirmed.',
+          OnlinePaymentPhase.pending =>
+            'We have not received your payment yet. If you already paid, give it a moment; otherwise reopen the payment page to finish.',
+          OnlinePaymentPhase.failed => 'The payment did not go through. Your booking has not been submitted and you have not been charged.',
+          OnlinePaymentPhase.cancelled => 'Payment cancelled. Your booking has not been submitted and you have not been charged.',
+          OnlinePaymentPhase.expired => 'The payment page expired. Your booking has not been submitted and you have not been charged.',
+          OnlinePaymentPhase.review =>
+            'We received something that needs a quick check by our team. Please do not pay again; the dispatcher will contact you.',
+          OnlinePaymentPhase.notStarted => 'No payment has been started yet.',
+        }
+      : switch (phase) {
         OnlinePaymentPhase.verifying => 'Checking with TowMate and the payment provider. This can take a few moments.',
         OnlinePaymentPhase.pending =>
           'We have not received a confirmation yet. If you already paid, give it a moment; otherwise reopen the payment page to finish.',
@@ -237,7 +282,7 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
         elevation: 0,
         iconTheme: IconThemeData(color: context.textPrimary),
         title: Text(
-          'Online Payment',
+          _payAtBooking ? 'Pay & Submit' : 'Online Payment',
           style: GoogleFonts.inter(color: context.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
@@ -332,7 +377,10 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
           row('Method', preferredLabel(tx.method)),
           row('Booking', widget.bookingCode),
           row('Payment', tx.status.isPaid ? 'Received' : 'Not received yet'),
-          row('Booking status', tx.bookingCompleted ? 'Complete' : 'Awaiting dispatcher confirmation'),
+          if (tx.payAtBooking)
+            row('Booking', tx.bookingSubmitted ? 'Submitted' : 'Not submitted yet', key: const Key('payment_status_booking_submitted'))
+          else
+            row('Booking status', tx.bookingCompleted ? 'Complete' : 'Awaiting dispatcher confirmation'),
         ],
       ),
     );
@@ -359,9 +407,9 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
       ] else if (tx?.status.canRetry ?? false) ...[
         _primary(context, 'Try again', _busy ? null : _tryAgain, const Key('payment_try_again')),
         const SizedBox(height: 10),
-        _secondary(context, 'Back to booking', () => Navigator.pop(context), const Key('payment_done')),
+        _secondary(context, _payAtBooking ? 'Back to Review' : 'Back to booking', () => Navigator.pop(context), const Key('payment_done')),
       ] else
-        _primary(context, 'Back to booking', () => Navigator.pop(context), const Key('payment_done')),
+        _primary(context, _payAtBooking ? 'Back to Review' : 'Back to booking', () => Navigator.pop(context), const Key('payment_done')),
     ];
   }
 

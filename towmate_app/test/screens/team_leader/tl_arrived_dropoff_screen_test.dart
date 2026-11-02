@@ -28,8 +28,10 @@ Map<String, dynamic> taskJson({
   int groupVehicleCount = 1,
   int groupPosition = 1,
   bool groupReadyForPayment = false,
+  Map<String, dynamic>? payment,
 }) {
   return {
+    if (payment != null) 'payment': payment,
     'id': bookingCode.hashCode,
     'booking_code': bookingCode,
     'status': status,
@@ -77,11 +79,16 @@ void main() {
     required Map<String, dynamic> task,
     bool slowStatus = false,
     List<String>? statusRequestsLog,
+    List<String>? completeRequestsLog,
   }) {
     return MockClient((request) async {
       final path = request.url.path;
       if (path.endsWith('/v1/team-leader/task') && request.method == 'GET') {
         return jsonResponse({'success': true, 'data': task});
+      }
+      if (path.endsWith('/complete') && request.method == 'POST') {
+        completeRequestsLog?.add(request.body);
+        return jsonResponse({'success': true, 'data': Map<String, dynamic>.from(task)..['status'] = 'completed'});
       }
       if (path.contains('/status') && request.method == 'PATCH') {
         statusRequestsLog?.add(request.body);
@@ -112,6 +119,7 @@ void main() {
     ThemeMode? themeMode,
     bool slowStatus = false,
     List<String>? statusRequestsLog,
+    List<String>? completeRequestsLog,
     Future<void> Function(WidgetTester tester)? andThen,
   }) async {
     SharedPreferences.setMockInitialValues({'auth_token': 'tl-token'});
@@ -133,6 +141,7 @@ void main() {
         task: task,
         slowStatus: slowStatus,
         statusRequestsLog: statusRequestsLog,
+        completeRequestsLog: completeRequestsLog,
       ),
     );
     TlPresenceController.stop();
@@ -206,23 +215,67 @@ void main() {
       expect(find.textContaining('4,658.08'), findsNothing);
     });
 
-    testWidgets('shows the Customer Verification action context', (tester) async {
+    testWidgets('shows the Cash Payment action context for a cash booking', (tester) async {
       await pumpShell(tester, task: taskJson());
-      expect(find.text('Customer Verification'), findsOneWidget);
-      expect(find.text('Continue to payment and customer signature.'), findsOneWidget);
+      expect(find.text('Cash Payment'), findsOneWidget);
+      expect(find.text('Collect cash: amount received, payment photo and customer signature, then submit to the dispatcher.'), findsOneWidget);
+      expect(find.text('Complete Task'), findsNothing);
     });
 
-    testWidgets('shows Proceed to Verification and never the old Proceed to Payment label', (tester) async {
+    testWidgets('a verified online-paid booking shows Payment Already Completed Online and COMPLETE TASK, never a cash form', (tester) async {
+      final completes = <String>[];
+      await pumpShell(
+        tester,
+        task: taskJson(payment: {'mode': 'online_prepaid', 'amount_due': '4658.08', 'amount_paid': '4658.08', 'test_mode': true}),
+        completeRequestsLog: completes,
+        andThen: (tester) async {
+          expect(find.text('Payment Already Completed Online'), findsOneWidget);
+          expect(find.textContaining('TEST / DEMO'), findsOneWidget);
+          expect(find.text('Collect Cash Payment'), findsNothing);
+
+          await tester.ensureVisible(find.text('Complete Task'));
+          await tester.tap(find.text('Complete Task'));
+          await settle(tester);
+
+          expect(find.byType(TlAwaitingConfirmScreen), findsNothing);
+          expect(completes, hasLength(1));
+          expect(completes.single, isNot(contains('cash_received')));
+          expect(completes.single, isNot(contains('payment_method')));
+        },
+      );
+    });
+
+    testWidgets('an online payment under review blocks collection and completion', (tester) async {
+      await pumpShell(
+        tester,
+        task: taskJson(payment: {'mode': 'online_review', 'message': 'Do not collect payment; contact the dispatcher.'}),
+      );
+
+      expect(find.text('Do Not Collect Payment'), findsOneWidget);
+      expect(find.text('Do not collect payment; contact the dispatcher.'), findsOneWidget);
+      expect(tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Contact the Dispatcher')).onPressed, isNull);
+      expect(find.text('Collect Cash Payment'), findsNothing);
+      expect(find.text('Complete Task'), findsNothing);
+    });
+
+    testWidgets('an unknown payment mode from the server is never treated as paid', (tester) async {
+      await pumpShell(tester, task: taskJson(payment: {'mode': 'something_new'}));
+
+      expect(find.text('Complete Task'), findsNothing);
+      expect(find.text('Do Not Collect Payment'), findsOneWidget);
+    });
+
+    testWidgets('shows Collect Cash Payment and never the old Proceed to Payment label', (tester) async {
       await pumpShell(tester, task: taskJson());
-      expect(find.text('Proceed to Verification'), findsOneWidget);
+      expect(find.text('Collect Cash Payment'), findsOneWidget);
       expect(find.text('Proceed to Payment'), findsNothing);
     });
 
-    testWidgets('Proceed to Verification opens the same existing TlAwaitingConfirmScreen', (tester) async {
+    testWidgets('Collect Cash Payment opens the same existing TlAwaitingConfirmScreen', (tester) async {
       await pumpShell(tester, task: taskJson());
 
-      await tester.ensureVisible(find.text('Proceed to Verification'));
-      await tester.tap(find.text('Proceed to Verification'));
+      await tester.ensureVisible(find.text('Collect Cash Payment'));
+      await tester.tap(find.text('Collect Cash Payment'));
       await settle(tester);
 
       expect(find.byType(TlAwaitingConfirmScreen), findsOneWidget);
@@ -262,7 +315,7 @@ void main() {
       );
     });
 
-    testWidgets('Proceed to Verification stays disabled while Back is loading, matching existing shared-loading behavior', (tester) async {
+    testWidgets('Collect Cash Payment stays disabled while Back is loading, matching existing shared-loading behavior', (tester) async {
       await pumpShell(
         tester,
         task: taskJson(),
@@ -360,7 +413,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Arrived at Drop-off'), findsOneWidget);
-      expect(find.text('Proceed to Verification'), findsOneWidget);
+      expect(find.text('Collect Cash Payment'), findsOneWidget);
       expect(find.text('Waiting for Other Vehicle'), findsNothing);
     });
 
@@ -381,7 +434,7 @@ void main() {
       );
     });
 
-    testWidgets('Proceed to Verification opens Step 5 for a ready group', (tester) async {
+    testWidgets('Collect Cash Payment opens Step 5 for a ready group', (tester) async {
       await pumpShell(
         tester,
         task: taskJson(
@@ -392,8 +445,8 @@ void main() {
         ),
       );
 
-      await tester.ensureVisible(find.text('Proceed to Verification'));
-      await tester.tap(find.text('Proceed to Verification'));
+      await tester.ensureVisible(find.text('Collect Cash Payment'));
+      await tester.tap(find.text('Collect Cash Payment'));
       await settle(tester);
 
       expect(find.byType(TlAwaitingConfirmScreen), findsOneWidget);

@@ -3,9 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import 'quotation_price_cards.dart';
 
-/// The customer's payment *preference*, stored as bookings.preferred_payment_method.
-/// Backend identifiers on the left; `bank_transfer` is shown as "Online Banking".
-/// Choosing one never takes a payment and never asks for account details.
+/// How the customer pays, stored as bookings.preferred_payment_method. Backend identifiers on the left;
+/// `bank_transfer` is shown as "Online Banking".
+///  - Cash: submitted at once; the Team Leader collects cash after the tow.
+///  - GCash: "Pay & Submit" on PayMongo's TEST checkout; the booking is submitted after the verified payment.
+///  - Online Banking: shown, but not available (no verified PayMongo test checkout for it).
 const List<({String value, String label})> kPreferredPaymentMethods = [
   (value: 'cash', label: 'Cash'),
   (value: 'gcash', label: 'GCash'),
@@ -26,12 +28,37 @@ class PaymentMethodSelector extends StatelessWidget {
     required this.onChanged,
     this.enabled = true,
     this.showRequiredError = false,
+    this.onlinePayAvailable = false,
+    this.onlineBankingAvailable = false,
+    this.onlineUnavailableReason,
   });
 
   final String? value;
   final ValueChanged<String> onChanged;
   final bool enabled;
   final bool showRequiredError;
+
+  /// Server-decided: may this customer pay with GCash now (PayMongo TEST mode, demo accounts, Book Now only)?
+  final bool onlinePayAvailable;
+
+  /// Server-decided: Online Banking checkout is switched on (off until a sandbox bank payment is verified).
+  final bool onlineBankingAvailable;
+
+  /// Shown under GCash when it cannot be used (e.g. scheduled bookings).
+  final String? onlineUnavailableReason;
+
+  bool _available(String method) => switch (method) {
+        'cash' => true,
+        'gcash' => onlinePayAvailable,
+        _ => onlineBankingAvailable,
+      };
+
+  String? _note(String method) => switch (method) {
+        'gcash' when !onlinePayAvailable => onlineUnavailableReason ?? 'Online payment is not available for your account',
+        'bank_transfer' when !onlineBankingAvailable => 'Not available yet',
+        'gcash' || 'bank_transfer' => 'Pay now · TEST MODE, no real money',
+        _ => 'Pay the Team Leader after the tow',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +71,9 @@ class PaymentMethodSelector extends StatelessWidget {
           _PaymentOptionTile(
             key: Key('payment_option_${option.value}'),
             label: option.label,
+            note: _note(option.value),
             selected: value == option.value,
-            onTap: enabled ? () => onChanged(option.value) : null,
+            onTap: enabled && _available(option.value) ? () => onChanged(option.value) : null,
           ),
           const SizedBox(height: 8),
         ],
@@ -62,9 +90,13 @@ class PaymentMethodSelector extends StatelessWidget {
             ),
           ),
         Text(
-          'This only records how you plan to pay. Nothing is charged now — '
-          'you pay after the service is completed. You will not be asked for '
-          'a GCash number, bank account, or card details.',
+          value == 'gcash' || value == 'bank_transfer'
+              ? 'You pay now on PayMongo\'s secure page (TEST MODE — no real money). '
+                  'Your booking is submitted only after the payment is verified.'
+              : 'Cash: your booking is submitted now and you pay the Team Leader '
+                  'after the tow. You will not be asked for a GCash number, bank '
+                  'account, or card details.',
+          key: const Key('payment_method_help'),
           style: GoogleFonts.inter(
             color: secondaryTextColor(context),
             fontSize: 12.5,
@@ -83,19 +115,24 @@ class _PaymentOptionTile extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.note,
   });
 
   final String label;
   final bool selected;
   final VoidCallback? onTap;
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
       selected: selected,
+      enabled: onTap != null,
       label: label,
-      child: InkWell(
+      child: Opacity(
+        opacity: onTap == null && !selected ? 0.55 : 1,
+        child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Container(
@@ -119,18 +156,32 @@ class _PaymentOptionTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        color: context.textPrimary,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (note != null)
+                      Text(
+                        note!,
+                        style: GoogleFonts.inter(
+                          color: secondaryTextColor(context),
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
+      ),
       ),
     );
   }

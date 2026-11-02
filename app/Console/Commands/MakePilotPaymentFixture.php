@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * Creates ONE synthetic customer + ONE synthetic finalized booking (status arrived_dropoff) for the
+ * Creates ONE synthetic customer + ONE synthetic booking awaiting payment (pay at booking) for the
  * PayMongo sandbox pilot. It writes data, so it refuses unless the default database is clearly a
  * throw-away one, and never in production. It touches no existing record.
  */
@@ -26,7 +26,7 @@ class MakePilotPaymentFixture extends Command
         {--amount=100.00 : Finalized amount in pesos (1.00 to 1000.00)}
         {--email=pilot.customer@gmail.com : Email for the dedicated synthetic test customer}';
 
-    protected $description = 'Create a synthetic test customer and arrived_dropoff booking for the PayMongo sandbox pilot (isolated databases only)';
+    protected $description = 'Create a synthetic test customer and pay-at-booking (awaiting payment) booking for the PayMongo sandbox pilot (isolated databases only)';
 
     public function handle(SandboxGuard $guard, PayableResolver $resolver): int
     {
@@ -90,7 +90,7 @@ class MakePilotPaymentFixture extends Command
                 'vat_amount' => 0,
                 'final_total' => $amount,
                 'service_type' => 'book_now',
-                'status' => 'arrived_dropoff',
+                'status' => Booking::STATUS_AWAITING_PAYMENT,
                 'preferred_payment_method' => 'gcash',
             ]), function (Booking $booking) {
                 $booking->is_demo = true;

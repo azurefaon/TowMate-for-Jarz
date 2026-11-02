@@ -49,7 +49,7 @@ function opcBooking(\App\Models\Customer $customer): Booking
         'customer_id' => $customer->id, 'truck_type_id' => $truck->id,
         'pickup_address' => 'A', 'dropoff_address' => 'B', 'distance_km' => 10,
         'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => 2100, 'vat_exclusive_total' => 2100,
-        'vat_amount' => 252.35, 'final_total' => 2352.35, 'service_type' => 'book_now', 'status' => 'arrived_dropoff',
+        'vat_amount' => 252.35, 'final_total' => 2352.35, 'service_type' => 'book_now', 'status' => Booking::STATUS_AWAITING_PAYMENT,
     ]), function (Booking $booking) {
         $booking->is_demo = true;
         $booking->save();
@@ -210,7 +210,8 @@ it('processes one webhook delivered several times at once exactly once', functio
     expect(PaymentWebhookEvent::where('provider_event_id', 'evt_race')->count())->toBe(1);
     expect(PaymentTransaction::where('status', 'paid')->count())->toBe(1);
     expect($transaction->fresh()->provider_payment_id)->toBe('pay_race');
-    expect($booking->fresh()->status)->toBe('arrived_dropoff');
+    expect($booking->fresh()->status)->toBe('confirmed'); // submitted exactly once despite the racing deliveries
+    expect(\App\Models\Quotation::where('source_booking_id', $booking->id)->count())->toBe(1);
 });
 
 it('records one payment once when it is delivered under two different event ids at once', function () {

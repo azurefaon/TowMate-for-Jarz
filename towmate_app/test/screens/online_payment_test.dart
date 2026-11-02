@@ -312,6 +312,81 @@ void main() {
     });
   });
 
+  group('OnlinePaymentStatusScreen — Pay & Submit (pay at booking)', () {
+    Map<String, dynamic> payAtBooking(String status, {bool submitted = false}) => {
+          ..._tx(status),
+          'pay_at_booking': true,
+          'booking_submitted': submitted,
+          'booking_status': submitted ? 'confirmed' : 'awaiting_payment',
+          if (submitted)
+            'bookings': [
+              {'booking_code': 'TM-00225', 'service_type': 'book_now', 'status': 'confirmed', 'preferred_payment_method': 'gcash', 'is_current': true},
+            ],
+        };
+
+    testWidgets('paid but not yet submitted keeps verifying and shows no success', (tester) async {
+      final backend = _Backend()..transaction = payAtBooking('paid');
+      await _run(tester, backend, () async {
+        await tester.pumpWidget(_statusScreen(_FakeLauncher()));
+        await _settle(tester);
+
+        expect(find.byKey(const Key('payment_status_label')), findsOneWidget);
+        expect(find.text('Verifying Payment'), findsOneWidget);
+        expect(find.text('Booking Successful'), findsNothing);
+        expect(find.text('Not submitted yet'), findsOneWidget);
+      });
+    });
+
+    testWidgets('moves to BOOKING SUCCESSFUL only when the server reports the booking submitted', (tester) async {
+      var submittedCallbacks = 0;
+      final backend = _Backend()..transaction = payAtBooking('pending', submitted: false);
+      await _run(tester, backend, () async {
+        await tester.pumpWidget(MaterialApp(
+          home: OnlinePaymentStatusScreen(
+            bookingCode: 'TM-00225',
+            launcher: _FakeLauncher(),
+            pollInterval: const Duration(seconds: 3),
+            onSubmitted: () => submittedCallbacks++,
+          ),
+        ));
+        await _settle(tester);
+        expect(find.text('Booking Successful'), findsNothing);
+
+        backend.transaction = payAtBooking('paid', submitted: true);
+        await tester.pump(const Duration(seconds: 3));
+        await _settle(tester);
+        await tester.pumpAndSettle(); // the status screen is replaced, not stacked under the success screen
+
+        expect(find.byType(OnlinePaymentStatusScreen), findsNothing);
+        expect(find.text('Booking Successful'), findsOneWidget);
+        expect(find.text('TEST PAYMENT — No real money will be charged.'), findsOneWidget);
+        expect(find.text('TM-00225'), findsOneWidget);
+        expect(submittedCallbacks, 1);
+        expect(find.textContaining('Submit'), findsNothing); // no second Submit button
+      });
+    });
+
+    testWidgets('a cancelled payment says the booking was not submitted and offers Try again or Back to Review', (tester) async {
+      final backend = _Backend()..transaction = payAtBooking('cancelled');
+      await _run(tester, backend, () async {
+        await tester.pumpWidget(_statusScreen(_FakeLauncher()));
+        await _settle(tester);
+
+        expect(find.textContaining('Your booking has not been submitted'), findsOneWidget);
+        expect(find.text('Try again'), findsOneWidget);
+        expect(find.text('Back to Review'), findsOneWidget);
+        expect(find.text('Booking Successful'), findsNothing);
+      });
+    });
+
+    testWidgets('parses the submission facts and the submitted bookings', (tester) async {
+      final tx = OnlinePaymentTransaction.fromJson(payAtBooking('paid', submitted: true));
+      expect(tx.payAtBooking, isTrue);
+      expect(tx.bookingSubmitted, isTrue);
+      expect(tx.bookings.single.bookingCode, 'TM-00225');
+    });
+  });
+
   group('OnlinePaymentStatusScreen', () {
     testWidgets('pending stays Payment Pending and never turns Paid on its own', (tester) async {
       final backend = _Backend()..transaction = _tx('pending', withUrl: true);

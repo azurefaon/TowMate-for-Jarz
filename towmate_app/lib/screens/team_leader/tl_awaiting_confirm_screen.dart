@@ -46,7 +46,9 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
   bool _hasSig = false;
   bool _loading = false;
   String? _error;
-  String? _selectedPayment;
+  // The Team Leader only ever collects cash. GCash / Online Banking are paid by the customer in the app when booking;
+  // such bookings never reach this form (the drop-off screen offers COMPLETE TASK instead).
+  static const String _selectedPayment = 'cash';
   final _cashReceivedCtrl = TextEditingController();
   final _cashFocusNode = FocusNode();
 
@@ -56,13 +58,7 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
 
   final Set<int> _expandedVehicles = {};
 
-  static const _paymentOptions = [
-    (value: 'cash',          label: 'Cash',         icon: Icons.payments_rounded),
-    (value: 'gcash',         label: 'GCash',        icon: Icons.account_balance_wallet_rounded),
-    (value: 'bank_transfer', label: 'Bank Transfer', icon: Icons.account_balance_rounded),
-  ];
-
-  bool get _needsProof => _selectedPayment != null;
+  bool get _needsProof => true;
 
   double get _amountDue =>
       widget.task.isGroupBooking && widget.task.groupTotal != null
@@ -94,10 +90,15 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
 
   bool get _canSubmit {
     if (!_hasSig) return false;
-    if (_selectedPayment == null) return false;
     if (_needsProof && !_proofUploaded) return false;
-    if (_selectedPayment == 'cash' && !_cashCovers) return false;
+    if (!_cashCovers) return false;
     return true;
+  }
+
+  /// Cash above the amount due is change for the customer; below it cannot be submitted.
+  double? get _change {
+    final val = double.tryParse(_rawCashValue);
+    return val != null && val > _amountDue ? val - _amountDue : null;
   }
 
   @override
@@ -207,15 +208,11 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
       setState(() => _error = 'Customer signature is required.');
       return;
     }
-    if (_selectedPayment == null) {
-      setState(() => _error = 'Please select a payment method.');
-      return;
-    }
     if (_needsProof && !_proofUploaded) {
-      setState(() => _error = 'Please upload payment proof.');
+      setState(() => _error = 'Please upload the payment photo.');
       return;
     }
-    if (_selectedPayment == 'cash' && !_cashCovers) {
+    if (!_cashCovers) {
       setState(() => _error =
           'Cash received must cover the final total of ${formatPeso(_amountDue)}.');
       return;
@@ -227,8 +224,8 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
       final sigBytes = await _exportSignature();
 
       final res = await TeamLeaderService.completeTask(
-          widget.task.bookingCode, sigBytes, _selectedPayment!,
-          cashReceived: _selectedPayment == 'cash' ? _rawCashValue : null);
+          widget.task.bookingCode, sigBytes, _selectedPayment,
+          cashReceived: _rawCashValue);
       if (!mounted) return;
       if (res['success'] == true) {
         final updated = res['task'] as TaskModel? ??
@@ -296,7 +293,7 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Customer Verification',
+          'Cash Payment Form',
           style: GoogleFonts.inter(
             color: context.textPrimary,
             fontSize: 26,
@@ -573,55 +570,9 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardTitle(context, 'Payment Method'),
-          const SizedBox(height: 10),
-          Row(
-            children: _paymentOptions.map((option) {
-              final selected = _selectedPayment == option.value;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() {
-                    _selectedPayment = option.value;
-                    if (option.value == 'cash') {
-                      _paymentProof = null;
-                      _proofUploaded = false;
-                    } else {
-                      _cashReceivedCtrl.clear();
-                    }
-                  }),
-                  child: Container(
-                    margin: EdgeInsets.only(
-                      right: option.value == 'bank_transfer' ? 0 : 8,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: selected ? TmColors.yellow : context.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selected ? TmColors.yellow : context.divider,
-                        width: selected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Text(
-                      option.label,
-                      style: GoogleFonts.inter(
-                        color: selected ? TmColors.black : context.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          if (_selectedPayment == 'cash') ...[
-            const SizedBox(height: 14),
-            Divider(height: 1, thickness: 1, color: context.divider),
-            const SizedBox(height: 12),
-            _cashSection(context),
-          ],
+          _cardTitle(context, 'Cash Payment'),
+          const SizedBox(height: 12),
+          _cashSection(context),
           if (_needsProof) ...[
             const SizedBox(height: 14),
             Divider(height: 1, thickness: 1, color: context.divider),
@@ -638,7 +589,7 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Cash Received (₱)',
+          'Amount Received (₱)',
           style: GoogleFonts.inter(
             color: context.textPrimary,
             fontSize: 13,
@@ -674,7 +625,12 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
         ),
         const SizedBox(height: 5),
         Text(
-          'Must be at least ${formatPeso(_amountDue)}.',
+          _change != null
+              ? 'Amount due ${formatPeso(_amountDue)} · change to give ${formatPeso(_change!)}'
+              : (_cashReceivedCtrl.text.isNotEmpty && !_cashCovers)
+                  ? 'Less than the amount due of ${formatPeso(_amountDue)}. Collect the full amount.'
+                  : 'Amount due ${formatPeso(_amountDue)}.',
+          key: const Key('cash_amount_hint'),
           style: GoogleFonts.inter(
             color: (_cashReceivedCtrl.text.isNotEmpty && !_cashCovers)
                 ? TmColors.error
@@ -694,7 +650,7 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
           children: [
             Flexible(
               child: Text(
-                'Payment Proof',
+                'Payment Photo',
                 style: GoogleFonts.inter(
                   color: context.textPrimary,
                   fontSize: 13,
@@ -720,7 +676,7 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
           uploading: _uploadingProof,
           uploaded: _proofUploaded,
           file: _paymentProof,
-          placeholder: 'Tap to upload proof',
+          placeholder: 'Tap to upload the payment photo',
           onTap: _uploadingProof ? null : _showProofSource,
         ),
       ],
@@ -906,7 +862,7 @@ class _TlAwaitingConfirmScreenState extends State<TlAwaitingConfirmScreen> {
                 child: CircularProgressIndicator(color: TmColors.black, strokeWidth: 2),
               )
             : Text(
-                'Complete Task',
+                'Submit to Dispatcher',
                 style: GoogleFonts.inter(
                   color: TmColors.black,
                   fontSize: 16,

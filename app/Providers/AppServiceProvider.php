@@ -251,6 +251,24 @@ class AppServiceProvider extends ServiceProvider
 
         Booking::observe(DispatcherNotificationObserver::class);
 
+        // Push "New Towing Assignment" to the assigned Team Leader, only once the assignment has committed. One hook
+        // covers every assignment path; a Team Leader taking a task themselves is not notified.
+        Booking::updated(function (Booking $booking) {
+            if ($booking->status !== 'assigned' || ! $booking->assigned_team_leader_id
+                || ! $booking->isDirty(['status', 'assigned_team_leader_id', 'assigned_at'])
+                || (int) Auth::id() === (int) $booking->assigned_team_leader_id) {
+                return;
+            }
+
+            $bookingId = $booking->id;
+            \Illuminate\Support\Facades\DB::afterCommit(function () use ($bookingId) {
+                $committed = Booking::find($bookingId);
+                if ($committed) {
+                    app(\App\Services\Push\TeamLeaderAssignmentPush::class)->notify($committed);
+                }
+            });
+        });
+
         $this->app->terminating(function () {
             AuditObserver::flush();
         });

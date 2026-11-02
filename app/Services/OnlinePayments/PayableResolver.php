@@ -17,6 +17,10 @@ class PayableResolver
 {
     public function resolve(Booking $booking): Payable
     {
+        if ($booking->isUnsubmitted() && $booking->group_code) {
+            return $this->unsubmittedGroup($booking);
+        }
+
         $quotation = $this->groupQuotation($booking);
 
         if (! $quotation) {
@@ -49,6 +53,34 @@ class PayableResolver
         return new Payable(
             'group',
             $anchor->id,
+            $members->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            $active->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            $members->mapWithKeys(fn (Booking $member) => [$member->id => number_format((float) $member->final_total, 2, '.', '')])->all(),
+            (int) $booking->customer_id,
+            $totalPesos,
+            $this->centavosOrZero($totalPesos),
+        );
+    }
+
+    /**
+     * A multi-vehicle request paid at booking: it has no quotation yet, so the total is every vehicle's server-priced
+     * final_total, anchored on the first (primary) booking. Once submitted, the accepted quotation lists the same
+     * members with no group fee or discount, so the normalized-group branch resolves to the same anchor and total.
+     */
+    private function unsubmittedGroup(Booking $booking): Payable
+    {
+        $members = Booking::includingUnsubmitted()
+            ->where('group_code', $booking->group_code)
+            ->where('customer_id', $booking->customer_id)
+            ->orderBy('id')
+            ->get();
+
+        $active = $members->reject(fn (Booking $member) => in_array($member->status, ['cancelled', Booking::STATUS_PAYMENT_ABANDONED], true));
+        $totalPesos = number_format(max(round($active->sum(fn (Booking $member) => (float) $member->final_total), 2), 0), 2, '.', '');
+
+        return new Payable(
+            'group',
+            (int) $members->first()->id,
             $members->pluck('id')->map(fn ($id) => (int) $id)->all(),
             $active->pluck('id')->map(fn ($id) => (int) $id)->all(),
             $members->mapWithKeys(fn (Booking $member) => [$member->id => number_format((float) $member->final_total, 2, '.', '')])->all(),
