@@ -280,15 +280,16 @@ it('refuses to run in an environment that is not on the sandbox allow-list', fun
     Http::assertNothingSent();
 });
 
-it('does not let an ordinary customer start a test checkout, and says nothing about why', function () {
-    $tester = pmsCustomerUser();
-    $ordinary = pmsCustomerUser();
-    pmsEnable($tester);
+it('does not let a staff account start a test checkout, and says nothing about why', function () {
+    $customer = pmsCustomerUser();
+    $staff = User::factory()->create(['role_id' => pmsRole(2, 'Dispatcher')->id, 'status' => 'active']);
+    Customer::create(['user_id' => $staff->id, 'full_name' => $staff->name, 'phone' => '09170000001', 'email' => $staff->email]);
+    pmsEnable($customer, $staff); // even on the demo list, a non-Customer role is refused
     Http::fake();
-    $booking = pmsBookingFor($ordinary);
+    $booking = pmsBookingFor($staff->fresh());
 
     // A plain, generic 404: nothing hints that a sandbox exists or why this user was turned away.
-    pmsCheckout($this, $ordinary, $booking)->assertNotFound()
+    pmsCheckout($this, $staff->fresh(), $booking)->assertNotFound()
         ->assertExactJson(['success' => false, 'message' => 'Not found.', 'reason' => 'not_found']);
 
     Http::assertNothingSent();
@@ -1757,20 +1758,16 @@ it("never offers Pay Now on a submitted booking: online payment is only made whe
     "online banking preference" => [["status" => "on_the_way", "preferred_payment_method" => "bank_transfer"]],
 ]);
 
-it("says nothing about online payment to anyone outside the sandbox allow-list, or while it is disabled", function () {
-    $tester = pmsCustomerUser();
-    $ordinary = pmsCustomerUser();
-    $booking = pmsBookingFor($ordinary, ["status" => "requested"]);
+it("says nothing about online payment while it is disabled or not configured", function () {
+    $customer = pmsCustomerUser();
+    $booking = pmsBookingFor($customer, ["status" => "requested"]);
 
     // Feature off (the default): no block at all, and the detail endpoint still works as before.
-    expect(pmsDetail($this, $ordinary, $booking))->toHaveKey("online_payment")->and(pmsDetail($this, $ordinary, $booking)["online_payment"])->toBeNull();
+    expect(pmsDetail($this, $customer, $booking))->toHaveKey("online_payment")->and(pmsDetail($this, $customer, $booking)["online_payment"])->toBeNull();
 
-    pmsEnable($tester); // on, but this customer is not allow-listed
-    expect(pmsDetail($this, $ordinary, $booking)["online_payment"])->toBeNull();
-
-    pmsEnable($tester, $ordinary);
-    config(["paymongo.secret_key" => ""]); // allow-listed but not configured: still nothing to show
-    expect(pmsDetail($this, $ordinary, $booking)["online_payment"])->toBeNull();
+    pmsEnable();
+    config(["paymongo.secret_key" => ""]); // on but not configured: still nothing to show
+    expect(pmsDetail($this, $customer, $booking)["online_payment"])->toBeNull();
 });
 
 it("keeps a booking that is still awaiting payment out of the customer booking detail", function () {
@@ -1950,16 +1947,14 @@ it('requires the test webhook secret in production', function () {
     pmsAsEnvironment($this, 'production', fn () => expect(pmsDetail($this, $user, pmsBookingFor($user, ['status' => 'requested']))['online_payment'])->toBeNull());
 });
 
-it('never lets a normal customer start a sandbox payment in production', function () {
-    $demo = pmsCustomerUser();
+it('never lets a real (non-demo) booking be paid through the sandbox in production', function () {
     $normal = pmsCustomerUser();
-    pmsEnableProduction($demo);
+    pmsEnableProduction();
     pmsFakeGateway();
-    $booking = pmsBookingFor($normal);
+    $booking = pmsBookingFor($normal); // not marked demo: only Pay & Submit marks a booking demo
 
     pmsAsEnvironment($this, 'production', function () use ($normal, $booking) {
-        expect(pmsDetail($this, $normal, pmsBookingFor($normal, ['status' => 'requested']))['online_payment'])->toBeNull();
-        pmsCheckout($this, $normal, $booking)->assertNotFound();
+        pmsCheckout($this, $normal, $booking)->assertStatus(409)->assertJsonPath('reason', 'not_demo_booking');
     });
 
     Http::assertNothingSent();

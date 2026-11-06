@@ -35,10 +35,10 @@ class OnlinePaymentService
 
     public function availableFor(?User $user): bool
     {
-        return $this->guard->enabled() && $this->guard->userAllowed($user);
+        return $this->guard->enabled() && $this->guard->customerEligible($user);
     }
 
-    /** Step 3 "Pay & Submit" can actually run for this user: enabled, allow-listed, and fully configured. */
+    /** Step 3 "Pay & Submit" can actually run for this user: enabled, an active Customer, and fully configured. */
     public function canPayAtBooking(?User $user): bool
     {
         return $this->availableFor($user) && ! $this->guard->credentialsProblem() && ! $this->guard->webhookSecretProblem();

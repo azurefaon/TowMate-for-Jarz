@@ -350,19 +350,109 @@ it('submits an earlier attempt that turns out to be paid instead of creating a s
     expect(Booking::includingUnsubmitted()->count())->toBe(1);
 });
 
-it('offers Pay & Submit only to allow-listed demo accounts, for GCash Book Now requests', function () {
-    $demo = pbfCustomer();
-    $normal = pbfCustomer();
-    pbfEnable($demo);
+it('lets any active Customer pay online without a demo allow-list, however they sign in', function (array $account) {
+    $original = pbfCustomer(); // the original demo account stays allow-listed
+    $other = pbfCustomer();
+    $other->forceFill($account)->save();
+    pbfEnable($original);
+    Sanctum::actingAs($other, ['*']);
 
-    Sanctum::actingAs($normal, ['*']);
-    $this->getJson('/api/v1/online-payment/availability')->assertOk()->assertJsonPath('data.available', false)->assertJsonPath('data.channels.bank_transfer', false);
-    pbfPayAndSubmit($this, $normal)->assertStatus(422)->assertJsonPath('reason', 'online_payment_unavailable');
+    $this->getJson('/api/v1/online-payment/availability')->assertOk()->assertJsonPath('data.available', true)->assertJsonPath('data.channels.gcash', true);
+    $code = pbfPayAndSubmit($this, $other)->assertCreated()->assertJsonPath('payment.status', 'pending')->json('booking_code');
+    $transaction = PaymentTransaction::firstOrFail();
 
-    Sanctum::actingAs($demo, ['*']);
-    $this->getJson('/api/v1/online-payment/availability')->assertOk()->assertJsonPath('data.available', true)->assertJsonPath('data.channels.gcash', true)->assertJsonPath('data.channels.bank_transfer', false);
-    pbfSubmit($this, $demo, ['preferred_payment_method' => 'bank_transfer', 'pay_online' => 1])->assertStatus(422);
-    pbfSubmit($this, $demo, ['preferred_payment_method' => 'gcash', 'pay_online' => 1, 'service_type' => 'schedule', 'scheduled_date' => now()->addDays(2)->toDateString(), 'scheduled_time' => '10:00'])->assertStatus(422);
+    pbfPaidWebhook($this, $transaction)->assertOk()->assertJsonPath('outcome', 'paid');
+    pbfPaidWebhook($this, $transaction)->assertOk()->assertJsonPath('outcome', 'replay');
+
+    $booking = Booking::where('booking_code', $code)->firstOrFail();
+    expect($booking->status)->toBe('confirmed');
+    expect($booking->is_demo)->toBeTrue();
+    expect(Booking::includingUnsubmitted()->count())->toBe(1);
+    expect(Booking::query()->excludingDemo()->count())->toBe(0);
+})->with([
+    'email and password' => [['auth_provider' => 'password']],
+    'Google Sign-In' => [['auth_provider' => 'google', 'google_sub' => 'google-sub-pbf-0001']],
+]);
+
+it('still lets the original demo account pay online', function () {
+    $original = pbfCustomer();
+    pbfEnable($original);
+
+    pbfPayAndSubmit($this, $original)->assertCreated()->assertJsonPath('payment.status', 'pending');
+    expect(Booking::includingUnsubmitted()->firstOrFail()->is_demo)->toBeTrue();
+});
+
+it('marks every vehicle of a non-allow-listed Customer online group as demo', function () {
+    $user = pbfCustomer();
+    pbfEnable();
+    $payload = pbfRequestPayload();
+    Sanctum::actingAs($user, ['*']);
+
+    $this->post('/api/v1/bookings', $payload + [
+        'preferred_payment_method' => 'gcash', 'pay_online' => 1,
+        'extra_vehicles' => json_encode([['vehicle_type_id' => $payload['vehicle_type_id']]]),
+        'extra_vehicle_images' => [0 => [UploadedFile::fake()->image('pbf-extra.jpg', 300, 300)]],
+    ], ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('payment.status', 'pending');
+
+    expect(Booking::includingUnsubmitted()->pluck('is_demo')->all())->toBe([true, true]);
+});
+
+it('keeps a Cash booking real for a Customer who is not a demo account, and it can never be paid online', function () {
+    $user = pbfCustomer();
+    pbfEnable();
+
+    $code = pbfSubmit($this, $user, ['preferred_payment_method' => 'cash'])->assertCreated()->json('booking_code');
+
+    $booking = Booking::where('booking_code', $code)->firstOrFail();
+    expect($booking->is_demo)->toBeFalse();
+    expect($booking->status)->toBe('requested');
+    expect(Booking::query()->excludingDemo()->count())->toBe(1);
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/checkout", ['method' => 'gcash'])->assertStatus(409);
+    expect(PaymentTransaction::count())->toBe(0);
+});
+
+it('refuses online payment for staff roles and disabled accounts', function (string $role, array $state) {
+    $user = pbfCustomer();
+    $user->forceFill(['role_id' => pbfRole($role === 'Customer' ? 5 : 2, $role)->id] + $state)->save();
+    pbfEnable($user); // being on the demo list does not override this
+    $guardUser = $user->fresh();
+
+    expect(app(\App\Services\OnlinePayments\OnlinePaymentService::class)->canPayAtBooking($guardUser))->toBeFalse();
+
+    Sanctum::actingAs($guardUser, ['*']);
+    expect(pbfPayAndSubmit($this, $guardUser)->status())->toBeIn([401, 403, 422]);
+    expect(Booking::includingUnsubmitted()->count())->toBe(0);
+    expect(PaymentTransaction::count())->toBe(0);
+})->with([
+    'dispatcher' => ['Dispatcher', []],
+    'inactive customer' => ['Customer', ['status' => 'inactive']],
+    'archived customer' => ['Customer', ['archived_at' => '2026-11-01 00:00:00']],
+]);
+
+it('requires a signed-in user for availability and booking', function () {
+    pbfEnable();
+
+    $this->getJson('/api/v1/online-payment/availability')->assertUnauthorized();
+    $this->postJson('/api/v1/bookings', ['pay_online' => 1])->assertUnauthorized();
+});
+
+it('still refuses a live key for every Customer', function () {
+    $user = pbfCustomer();
+    pbfEnable();
+    config(['paymongo.secret_key' => 'sk_live_must_never_be_used_123']);
+    Sanctum::actingAs($user, ['*']);
+
+    $this->getJson('/api/v1/online-payment/availability')->assertJsonPath('data.available', false);
+    pbfPayAndSubmit($this, $user)->assertStatus(422)->assertJsonPath('reason', 'online_payment_unavailable');
+    Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'paymongo'));
+});
+
+it('keeps Pay & Submit to GCash Book Now requests', function () {
+    $user = pbfCustomer();
+    pbfEnable();
+
+    pbfSubmit($this, $user, ['preferred_payment_method' => 'bank_transfer', 'pay_online' => 1])->assertStatus(422);
+    pbfSubmit($this, $user, ['preferred_payment_method' => 'gcash', 'pay_online' => 1, 'service_type' => 'schedule', 'scheduled_date' => now()->addDays(2)->toDateString(), 'scheduled_time' => '10:00'])->assertStatus(422);
 
     expect(Booking::includingUnsubmitted()->count())->toBe(0);
     expect(PaymentTransaction::count())->toBe(0);

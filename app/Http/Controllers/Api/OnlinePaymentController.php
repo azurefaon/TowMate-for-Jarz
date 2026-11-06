@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 
 /**
  * PayMongo SANDBOX checkout for the signed-in customer. Every action is limited to the customer's
- * own booking and to allow-listed test users; anyone else gets a plain 404.
+ * own booking and to active Customer accounts; anyone else gets a plain 404.
  */
 class OnlinePaymentController extends Controller
 {
