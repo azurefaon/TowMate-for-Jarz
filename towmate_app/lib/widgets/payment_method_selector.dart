@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
+import '../models/online_payment_model.dart';
 import 'quotation_price_cards.dart';
 
 /// How the customer pays, stored as bookings.preferred_payment_method. Backend identifiers on the left;
 /// `bank_transfer` is shown as "Online Banking".
 ///  - Cash: submitted at once; the Team Leader collects cash after the tow.
 ///  - GCash: "Pay & Submit" on PayMongo's TEST checkout; the booking is submitted after the verified payment.
-///  - Online Banking: shown, but not available (no verified PayMongo test checkout for it).
+///  - Online Banking: "Pay & Submit" on the chosen bank's PayMongo TEST page, like GCash, when the server offers banks.
 const List<({String value, String label})> kPreferredPaymentMethods = [
   (value: 'cash', label: 'Cash'),
   (value: 'gcash', label: 'GCash'),
@@ -31,6 +32,9 @@ class PaymentMethodSelector extends StatelessWidget {
     this.onlinePayAvailable = false,
     this.onlineBankingAvailable = false,
     this.onlineUnavailableReason,
+    this.banks = const [],
+    this.selectedBank,
+    this.onBankChanged,
   });
 
   final String? value;
@@ -38,14 +42,19 @@ class PaymentMethodSelector extends StatelessWidget {
   final bool enabled;
   final bool showRequiredError;
 
-  /// Server-decided: may this customer pay with GCash now (PayMongo TEST mode, demo accounts, Book Now only)?
+  /// Server-decided: may this customer pay with GCash now (PayMongo TEST mode, Book Now only)?
   final bool onlinePayAvailable;
 
-  /// Server-decided: Online Banking checkout is switched on (off until a sandbox bank payment is verified).
+  /// Server-decided: Online Banking is switched on and has banks to offer.
   final bool onlineBankingAvailable;
 
   /// Shown under GCash when it cannot be used (e.g. scheduled bookings).
   final String? onlineUnavailableReason;
+
+  /// The banks shown under Online Banking while it is selected.
+  final List<OnlineBank> banks;
+  final String? selectedBank;
+  final ValueChanged<String>? onBankChanged;
 
   bool _available(String method) => switch (method) {
         'cash' => true,
@@ -76,6 +85,19 @@ class PaymentMethodSelector extends StatelessWidget {
             onTap: enabled && _available(option.value) ? () => onChanged(option.value) : null,
           ),
           const SizedBox(height: 8),
+          if (option.value == 'bank_transfer' && value == 'bank_transfer')
+            for (final bank in banks) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 24),
+                child: _PaymentOptionTile(
+                  key: Key('bank_option_${bank.code}'),
+                  label: bank.label,
+                  selected: selectedBank == bank.code,
+                  onTap: enabled ? () => onBankChanged?.call(bank.code) : null,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
         ],
         if (showRequiredError && value == null)
           Padding(

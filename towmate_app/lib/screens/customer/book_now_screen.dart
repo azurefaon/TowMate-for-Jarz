@@ -75,10 +75,12 @@ class _BookNowScreenState extends State<BookNowScreen> {
   bool _submitting = false;
   String? _bookingError;
 
-  // Customer's payment method. Deliberately no default: the customer must pick one. Cash submits at once; GCash is
-  // "Pay & Submit" (PayMongo TEST checkout) and only when the server allows it for this account.
+  // Customer's payment method. Deliberately no default: the customer must pick one. Cash submits at once; GCash and
+  // Online Banking are "Pay & Submit" (PayMongo TEST mode) and only when the server allows them for this account.
   String? _preferredPaymentMethod;
   Set<String> _onlineChannels = const {};
+  List<OnlineBank> _onlineBanks = const [];
+  String? _selectedBank;
 
   // Pay & Submit attempt for the current draft: retried on the SAME booking (never a second one) until it is paid.
   String? _pendingPaidBookingCode;
@@ -111,10 +113,11 @@ class _BookNowScreenState extends State<BookNowScreen> {
   }
 
   Future<void> _loadOnlinePayAvailability() async {
-    final channels = await ApiService.fetchOnlinePaymentChannels();
+    final options = await ApiService.fetchOnlinePaymentOptions();
     if (!mounted) return;
     setState(() {
-      _onlineChannels = channels;
+      _onlineChannels = options.channels;
+      _onlineBanks = options.banks;
       if (_preferredPaymentMethod != 'cash' && !_canPayOnlineWith(_preferredPaymentMethod)) _preferredPaymentMethod = null;
     });
   }
@@ -123,6 +126,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
   bool _canPayOnlineWith(String? method) => _serviceType == 'book_now' && _onlineChannels.contains(method);
 
   bool get _payOnline => _preferredPaymentMethod != 'cash' && _canPayOnlineWith(_preferredPaymentMethod);
+
+  /// The bank for this payment; only Online Banking has one.
+  String? get _bank => _preferredPaymentMethod == 'bank_transfer' ? _selectedBank : null;
 
   /// Identifies the draft a Pay & Submit attempt belongs to: an edited draft is a different booking.
   String get _draftKey => [
@@ -929,6 +935,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
           extraVehicleImagePaths: extraVehicleImagePaths,
           preferredPaymentMethod: _preferredPaymentMethod,
           payOnline: payOnline,
+          bank: payOnline ? _bank : null,
         );
 
     if (_payOnline) {
@@ -976,7 +983,7 @@ class _BookNowScreenState extends State<BookNowScreen> {
 
     if (_pendingPaidBookingCode != null && _pendingPaidDraftKey == _draftKey) {
       // Retry on the same booking: the server reuses an open session or opens a new one; never a second booking.
-      final started = await ApiService.startOnlineCheckout(_pendingPaidBookingCode!, method: _preferredPaymentMethod ?? 'gcash');
+      final started = await ApiService.startOnlineCheckout(_pendingPaidBookingCode!, method: _preferredPaymentMethod ?? 'gcash', bank: _bank);
       if (!mounted) return;
       if (started['success'] != true && started['reason'] != 'already_paid') {
         return fail((started['message'] as String?) ?? 'Could not start the payment. Please try again.');
@@ -1392,6 +1399,9 @@ class _BookNowScreenState extends State<BookNowScreen> {
                 ? 'Available for Book Now only'
                 : null,
             onChanged: (m) => setState(() => _preferredPaymentMethod = m),
+            banks: _onlineBanks,
+            selectedBank: _selectedBank,
+            onBankChanged: (bank) => setState(() => _selectedBank = bank),
           ),
         ),
         if (_bookingError != null)
@@ -1594,10 +1604,15 @@ class _BookNowScreenState extends State<BookNowScreen> {
       };
     } else {
       final bool pricingReady = !_loadingPricing && _pricingPreview != null;
+      final bool needsBank = _preferredPaymentMethod == 'bank_transfer' && _selectedBank == null;
       if (_preferredPaymentMethod == null) {
         hint = 'Choose a payment method to continue';
+      } else if (needsBank) {
+        hint = 'Choose your bank to continue';
+      } else if (_submitting && _bank != null) {
+        hint = 'Redirecting to Bank';
       }
-      onTap = (_submitting || !pricingReady || _preferredPaymentMethod == null)
+      onTap = (_submitting || !pricingReady || _preferredPaymentMethod == null || needsBank)
           ? null
           : _submitBooking;
     }

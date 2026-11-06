@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One online-payment attempt (a PayMongo Checkout Session) for a booking or a whole group.
+ * One online-payment attempt for a booking or a whole group: a PayMongo Checkout Session (GCash) or Payment Intent
+ * (Online Banking), whose id is kept in provider_checkout_session_id.
  * Evidence only: it never changes a booking's status or any payment_method column.
  */
 class PaymentTransaction extends Model
@@ -49,6 +50,12 @@ class PaymentTransaction extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /** The bank chosen for an Online Banking attempt (a config paymongo.online_banks key); null for any other method. */
+    public function bank(): ?string
+    {
+        return $this->payable_snapshot['bank'] ?? null;
     }
 
     public function isOpen(): bool

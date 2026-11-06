@@ -45,6 +45,7 @@ class OnlinePaymentTransaction {
     required this.amount,
     required this.currency,
     required this.method,
+    this.bank,
     this.expiresAt,
     this.paidAt,
     this.checkoutUrl,
@@ -62,6 +63,9 @@ class OnlinePaymentTransaction {
   final String amount;
   final String currency;
   final String method;
+
+  /// Online Banking only: the bank chosen for this attempt, so a retry can use it again.
+  final String? bank;
   final DateTime? expiresAt;
   final DateTime? paidAt;
 
@@ -87,6 +91,7 @@ class OnlinePaymentTransaction {
       amount: json['amount']?.toString() ?? '0.00',
       currency: json['currency'] as String? ?? 'PHP',
       method: json['method'] as String? ?? 'gcash',
+      bank: json['bank'] as String?,
       expiresAt: DateTime.tryParse(json['expires_at'] as String? ?? ''),
       paidAt: DateTime.tryParse(json['paid_at'] as String? ?? ''),
       checkoutUrl: json['checkout_url'] as String?,
@@ -99,6 +104,46 @@ class OnlinePaymentTransaction {
               .map(BookingGroupSibling.fromJson)
               .toList() ??
           const [],
+    );
+  }
+}
+
+/// A bank offered for Online Banking. The server decides which banks can really be paid with.
+class OnlineBank {
+  const OnlineBank({required this.code, required this.label});
+
+  final String code;
+  final String label;
+
+  factory OnlineBank.fromJson(Map<String, dynamic> json) =>
+      OnlineBank(code: json['code'] as String? ?? '', label: json['label'] as String? ?? '');
+}
+
+/// What Step 3 may offer as "Pay & Submit" for this account. Online Banking is offered only with at least one bank.
+class OnlinePaymentOptions {
+  const OnlinePaymentOptions({this.channels = const {}, this.banks = const []});
+
+  /// A subset of {'gcash', 'bank_transfer'}.
+  final Set<String> channels;
+  final List<OnlineBank> banks;
+
+  factory OnlinePaymentOptions.fromJson(Map<String, dynamic> json) {
+    if (json['available'] != true) return const OnlinePaymentOptions();
+
+    final channels = json['channels'];
+    final banks = (json['banks'] as List?)
+            ?.whereType<Map<String, dynamic>>()
+            .map(OnlineBank.fromJson)
+            .where((bank) => bank.code.isNotEmpty)
+            .toList() ??
+        const <OnlineBank>[];
+
+    return OnlinePaymentOptions(
+      channels: {
+        if (channels is! Map<String, dynamic> || channels['gcash'] == true) 'gcash',
+        if (banks.isNotEmpty) 'bank_transfer',
+      },
+      banks: banks,
     );
   }
 }

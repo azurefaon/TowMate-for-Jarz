@@ -47,13 +47,20 @@ return [
     'http_timeout_seconds' => 15,
 
     // TowMate method => PayMongo payment_method_types value.
-    // `bank_transfer` (Online Banking) is OFF unless PAYMONGO_ONLINE_BANKING_CHANNEL names a PayMongo channel
-    // (e.g. `dob`). The TEST account accepts Checkout Sessions for dob / dob_ubp / brankas_* (probed 2026-11-02), but no
-    // sandbox bank payment has been completed end to end yet, so it stays off until one is.
+    // `bank_transfer` (Online Banking) is OFF unless PAYMONGO_ONLINE_BANKING_CHANNEL is `dob`. Banks are paid through a
+    // Payment Intent, not a Checkout Session (see online_banks).
     'channels' => array_filter([
         'gcash' => 'gcash',
         'bank_transfer' => env('PAYMONGO_ONLINE_BANKING_CHANNEL') ?: null,
     ]),
+
+    // Online Banking banks offered for the channel above: TowMate id => label and PayMongo Payment Method details.
+    // TEST mode needs PayMongo's test_bank_* codes: the real `bpi` / `ubp` codes dead-end on the sandbox bank page.
+    // BDO, Landbank and Metrobank (`brankas`) are refused for this account (payment_method_not_allowed, 2026-11-06).
+    'online_banks' => [
+        'bpi' => ['label' => 'BPI', 'type' => 'dob', 'bank_code' => 'test_bank_one'],
+        'ubp' => ['label' => 'UnionBank', 'type' => 'dob', 'bank_code' => 'test_bank_two'],
+    ],
 
     // PayMongo sessions stay `active` until expired through the API, so TowMate owns the deadline.
     'session_ttl_minutes' => (int) env('PAYMONGO_SESSION_TTL_MINUTES', 30),

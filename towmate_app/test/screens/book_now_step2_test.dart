@@ -226,6 +226,7 @@ http.Client _client({
   double routeDistanceKm = 8.48,
   List<String>? bookingPosts,
   bool onlinePayAvailable = false,
+  List<Map<String, String>> onlineBanks = const [],
 }) {
   return MockClient((request) async {
     final url = request.url.toString();
@@ -234,7 +235,7 @@ http.Client _client({
       return _json({'message': 'Booking rejected in test.'}, status: 422);
     }
     if (request.url.path.endsWith('/v1/online-payment/availability')) {
-      return _json({'success': true, 'data': {'available': onlinePayAvailable}});
+      return _json({'success': true, 'data': {'available': onlinePayAvailable, 'banks': onlineBanks}});
     }
     if (url.contains('router.project-osrm.org')) {
       return _json({
@@ -313,6 +314,7 @@ Future<void> _pumpToStep2(
   List<String>? bookingPosts,
   Future<void> Function()? onReview,
   bool onlinePayAvailable = false,
+  List<Map<String, String>> onlineBanks = const [],
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -377,6 +379,7 @@ Future<void> _pumpToStep2(
       routeDistanceKm: routeDistanceKm,
       bookingPosts: bookingPosts,
       onlinePayAvailable: onlinePayAvailable,
+      onlineBanks: onlineBanks,
     ),
   );
 }
@@ -545,6 +548,47 @@ void main() {
       expect(find.text('Choose a payment method to continue'), findsOneWidget);
       expect(find.text('Pay & Submit'), findsNothing);
       expect(posts, isEmpty);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Online Banking needs a chosen bank, then Pay & Submit sends that bank and never an amount', (
+      tester,
+    ) async {
+      final posts = <String>[];
+      await _pumpToStep2(
+        tester,
+        bookingPosts: posts,
+        onlinePayAvailable: true,
+        onlineBanks: const [
+          {'code': 'bpi', 'label': 'BPI'},
+          {'code': 'ubp', 'label': 'UnionBank'},
+        ],
+        onReview: () async {
+          await _pickPayment(tester, 'bank_transfer');
+          expect(find.text('Choose your bank to continue'), findsOneWidget);
+          await tester.ensureVisible(find.text('Pay & Submit'));
+          await tester.tap(find.text('Pay & Submit'));
+          await _settle(tester);
+          expect(posts, isEmpty);
+
+          final bank = find.byKey(const Key('bank_option_bpi'));
+          await tester.ensureVisible(bank);
+          await tester.tap(bank);
+          await _settle(tester);
+          expect(find.text('Choose your bank to continue'), findsNothing);
+
+          await tester.ensureVisible(find.text('Pay & Submit'));
+          await tester.tap(find.text('Pay & Submit'));
+          await _settle(tester);
+        },
+      );
+
+      expect(posts, hasLength(1));
+      expect(posts.single, contains('name="preferred_payment_method"\r\n\r\nbank_transfer'));
+      expect(posts.single, contains('name="pay_online"\r\n\r\n1'));
+      expect(posts.single, contains('name="bank"\r\n\r\nbpi'));
+      expect(posts.single.contains('amount'), isFalse); // the server prices it
 
       await tester.pumpWidget(const SizedBox());
     });

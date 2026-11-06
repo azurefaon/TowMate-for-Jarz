@@ -447,7 +447,7 @@ it('still refuses a live key for every Customer', function () {
     Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'paymongo'));
 });
 
-it('keeps Pay & Submit to GCash Book Now requests', function () {
+it('keeps Pay & Submit to the switched-on channels, for Book Now requests', function () {
     $user = pbfCustomer();
     pbfEnable();
 
@@ -456,21 +456,6 @@ it('keeps Pay & Submit to GCash Book Now requests', function () {
 
     expect(Booking::includingUnsubmitted()->count())->toBe(0);
     expect(PaymentTransaction::count())->toBe(0);
-});
-
-it('keeps Online Banking off by default, and uses only the configured bank channel once it is switched on', function () {
-    $user = pbfCustomer();
-    pbfEnable($user);
-    Sanctum::actingAs($user, ['*']);
-    $this->getJson('/api/v1/online-payment/availability')->assertJsonPath('data.channels.bank_transfer', false);
-
-    config(['paymongo.channels' => ['gcash' => 'gcash', 'bank_transfer' => 'dob']]);
-    $this->getJson('/api/v1/online-payment/availability')->assertJsonPath('data.channels.bank_transfer', true);
-    pbfSubmit($this, $user, ['preferred_payment_method' => 'bank_transfer', 'pay_online' => 1])->assertCreated()
-        ->assertJsonPath('payment.method', 'bank_transfer');
-
-    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/v2/checkout_sessions') && $r['data']['attributes']['payment_method_types'] === ['dob']);
-    expect(Booking::includingUnsubmitted()->value('status'))->toBe(Booking::STATUS_AWAITING_PAYMENT);
 });
 
 // ───────────────────────── Team Leader: online-paid ─────────────────────────
@@ -672,4 +657,559 @@ it('lets a Team Leader register a device token for assignment pushes', function 
     $this->postJson('/api/v1/device-tokens', ['token' => 'tl-registered-device-0000000000001', 'platform' => 'android'])->assertOk();
 
     expect(DeviceToken::where('user_id', $teamLeader->id)->value('token'))->toBe('tl-registered-device-0000000000001');
+});
+
+// ───────────────────────── Online Banking (PayMongo Payment Intent) ─────────────────────────
+
+/**
+ * PayMongo's Payment Intent API, as the TEST account answers it: `intent` is what a retrieve reports ('open', 'paid',
+ * 'failed', 'cancelled') and `cancel` / `attach` / `method` replace those responses.
+ */
+function pbfFakeBank(array $over = []): void
+{
+    static $created = 0; // survives re-installing the fake, so a retry gets a new intent id
+    Http::swap(new \Illuminate\Http\Client\Factory());
+
+    Http::fake(function (HttpRequest $request) use ($over, &$created) {
+        $url = $request->url();
+
+        if (str_ends_with($url, '/v1/payment_intents')) {
+            return Http::response(['data' => ['id' => 'pi_test_pbf_' . (++$created), 'attributes' => ['client_key' => 'pi_client_key', 'status' => 'awaiting_payment_method', 'livemode' => false]]], 200);
+        }
+        if (str_ends_with($url, '/v1/payment_methods')) {
+            return $over['method'] ?? Http::response(['data' => ['id' => 'pm_test_pbf_' . $created, 'attributes' => []]], 200);
+        }
+        if (str_ends_with($url, '/attach')) {
+            return $over['attach'] ?? Http::response(['data' => ['attributes' => [
+                'status' => 'awaiting_next_action',
+                'livemode' => false,
+                'next_action' => ['type' => 'redirect', 'redirect' => ['url' => 'https://dob.paymongo.test/test?id=' . $created]],
+            ]]], 200);
+        }
+        if (str_ends_with($url, '/cancel')) {
+            return $over['cancel'] ?? Http::response(['data' => ['attributes' => ['status' => 'cancelled']]], 200);
+        }
+
+        $intentId = basename(parse_url($url, PHP_URL_PATH));
+        $transaction = PaymentTransaction::where('provider_checkout_session_id', $intentId)->first();
+        $state = $over['intent'] ?? 'open';
+
+        return Http::response(['data' => ['id' => $intentId, 'attributes' => [
+            'status' => ['open' => 'awaiting_next_action', 'paid' => 'succeeded', 'failed' => 'awaiting_payment_method', 'cancelled' => 'cancelled'][$state],
+            'livemode' => $over['livemode'] ?? false,
+            'metadata' => ['payment_transaction' => $over['reference'] ?? $transaction?->reference],
+            'last_payment_error' => $state === 'failed' ? ['code' => 'bank_declined'] : null,
+            'payments' => $state === 'paid' ? [['id' => 'pay_pbf_bank_' . $transaction?->id, 'attributes' => ['status' => 'paid', 'amount' => $over['amount'] ?? $transaction?->amount_centavos, 'currency' => 'PHP', 'livemode' => false]]] : [],
+        ]]], 200);
+    });
+}
+
+function pbfEnableBanks(User ...$allowed): void
+{
+    pbfEnable(...$allowed);
+    config([
+        'paymongo.channels' => ['gcash' => 'gcash', 'bank_transfer' => 'dob'],
+        'paymongo.checkout_url_hosts' => ['paymongo.test'],
+    ]);
+}
+
+function pbfPayByBank($test, User $user, string $bank = 'bpi', array $overrides = [])
+{
+    return pbfSubmit($test, $user, ['preferred_payment_method' => 'bank_transfer', 'pay_online' => 1, 'bank' => $bank] + $overrides);
+}
+
+function pbfBankEvent($test, PaymentTransaction $transaction, array $attributes = [], string $eventId = 'evt_pbf_bank', string $type = 'payment.paid', ?string $signatureSecret = null)
+{
+    $transaction->refresh();
+    $raw = json_encode(['data' => ['id' => $eventId, 'type' => 'event', 'attributes' => [
+        'type' => $type,
+        'livemode' => false,
+        'data' => ['id' => 'pay_pbf_bank_' . $transaction->id, 'type' => 'payment', 'attributes' => $attributes + [
+            'status' => $type === 'payment.paid' ? 'paid' : 'failed',
+            'amount' => $transaction->amount_centavos,
+            'currency' => 'PHP',
+            'livemode' => false,
+            'payment_intent_id' => $transaction->provider_checkout_session_id,
+            'metadata' => ['payment_transaction' => $transaction->reference],
+            'source' => ['type' => 'dob', 'provider' => 'test_bank_one'],
+        ]],
+    ]]]);
+    $t = (string) time();
+
+    return $test->call('POST', '/api/webhooks/paymongo', [], [], [], [
+        'CONTENT_TYPE' => 'application/json',
+        'HTTP_PAYMONGO_SIGNATURE' => "t={$t},te=" . hash_hmac('sha256', $t . '.' . $raw, $signatureSecret ?? PBF_WEBHOOK_SECRET) . ',li=',
+    ], $raw);
+}
+
+function pbfIntentsOpened(): int
+{
+    return collect(Http::recorded())->filter(fn ($pair) => str_ends_with($pair[0]->url(), '/v1/payment_intents'))->count();
+}
+
+it('offers banks only when Online Banking is switched on, and keeps it hidden from APK 1.0.13', function () {
+    $user = pbfCustomer();
+    pbfEnable($user);
+    Sanctum::actingAs($user, ['*']);
+
+    $this->getJson('/api/v1/online-payment/availability')->assertJsonPath('data.banks', []);
+
+    config(['paymongo.channels' => ['gcash' => 'gcash', 'bank_transfer' => 'dob']]);
+    $response = $this->getJson('/api/v1/online-payment/availability')
+        ->assertJsonPath('data.banks', [['code' => 'bpi', 'label' => 'BPI'], ['code' => 'ubp', 'label' => 'UnionBank']])
+        ->assertJsonPath('data.channels.gcash', true);
+
+    // 1.0.13 reads `channels`: it must keep showing Online Banking as not available, because it cannot choose a bank.
+    expect($response->json('data.channels'))->not->toHaveKey('bank_transfer');
+});
+
+it('offers no banks to an account that may not pay online', function () {
+    $staff = pbfCustomer();
+    $staff->forceFill(['role_id' => pbfRole(2, 'Dispatcher')->id])->save();
+    pbfEnableBanks();
+    Sanctum::actingAs($staff->fresh(), ['*']);
+
+    $this->getJson('/api/v1/online-payment/availability')->assertJsonPath('data.available', false)->assertJsonPath('data.banks', []);
+});
+
+it('opens a Payment Intent for the exact server total with the chosen bank, and leaves the booking hidden', function (string $bank, string $bankCode) {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+
+    $response = pbfPayByBank($this, $user, $bank, ['amount' => 1, 'final_total' => 1])->assertCreated()
+        ->assertJsonPath('payment.status', 'pending')
+        ->assertJsonPath('payment.method', 'bank_transfer')
+        ->assertJsonPath('payment.bank', $bank);
+
+    expect($response->json('payment.checkout_url'))->toStartWith('https://dob.paymongo.test/');
+
+    $transaction = PaymentTransaction::firstOrFail();
+    $booking = Booking::includingUnsubmitted()->firstOrFail();
+    expect($transaction->bank())->toBe($bank);
+    expect($transaction->provider_checkout_session_id)->toStartWith('pi_');
+    expect($transaction->amount_centavos)->toBe((int) round((float) $booking->final_total * 100));
+    expect($booking->status)->toBe(Booking::STATUS_AWAITING_PAYMENT);
+    expect($booking->is_demo)->toBeTrue();
+    expect(Booking::where('booking_code', $booking->booking_code)->exists())->toBeFalse();
+
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/v1/payment_intents')
+        && $r['data']['attributes']['amount'] === $transaction->amount_centavos
+        && $r['data']['attributes']['currency'] === 'PHP'
+        && $r['data']['attributes']['payment_method_allowed'] === ['dob']
+        && $r['data']['attributes']['metadata']['payment_transaction'] === $transaction->reference);
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/v1/payment_methods')
+        && $r['data']['attributes']['type'] === 'dob' && $r['data']['attributes']['details']['bank_code'] === $bankCode);
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/attach')
+        && str_starts_with($r['data']['attributes']['return_url'], 'https://www.jarztowing.com/pay/return/success?booking='));
+    Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'checkout_sessions'));
+})->with([
+    'BPI' => ['bpi', 'test_bank_one'],
+    'UnionBank' => ['ubp', 'test_bank_two'],
+]);
+
+it('refuses Online Banking without a bank it can really pay with, and creates nothing', function (array $input) {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+
+    pbfSubmit($this, $user, ['preferred_payment_method' => 'bank_transfer', 'pay_online' => 1] + $input)
+        ->assertStatus(422)->assertJsonPath('reason', 'online_payment_unavailable');
+
+    expect(Booking::includingUnsubmitted()->count())->toBe(0);
+    Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'paymongo'));
+})->with([
+    'no bank' => [[]],
+    'BDO, refused for this account' => [['bank' => 'bdo']],
+    'unknown' => [['bank' => 'test_bank_one']],
+]);
+
+it('stays off while the channel is unset, even when a bank is named', function () {
+    $user = pbfCustomer();
+    pbfEnable($user);
+    pbfFakeBank();
+
+    pbfPayByBank($this, $user)->assertStatus(422);
+    expect(Booking::includingUnsubmitted()->count())->toBe(0);
+});
+
+it('submits the booking exactly once from a signed payment.paid event, for any active Customer', function (array $account) {
+    pbfConfigureFcm();
+    $user = pbfCustomer();
+    $user->forceFill($account)->save();
+    pbfEnableBanks();
+    pbfFakeBank();
+
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+    $transaction = PaymentTransaction::firstOrFail();
+
+    pbfBankEvent($this, $transaction)->assertOk()->assertJsonPath('outcome', 'paid');
+    pbfBankEvent($this, $transaction)->assertOk()->assertJsonPath('outcome', 'replay');
+    pbfBankEvent($this, $transaction, eventId: 'evt_pbf_bank_again')->assertOk()->assertJsonPath('outcome', 'already_paid');
+
+    $booking = Booking::where('booking_code', $code)->firstOrFail();
+    expect($booking->status)->toBe('confirmed');
+    expect($booking->is_demo)->toBeTrue();
+    expect($transaction->fresh()->status)->toBe('paid');
+    expect(Quotation::count())->toBe(1);
+    expect((int) round((float) Quotation::firstOrFail()->estimated_price * 100))->toBe($transaction->amount_centavos);
+    expect(DispatcherNotification::where('type', DispatcherNotification::TYPE_NEW_BOOK_NOW)->count())->toBe(1);
+    expect(AuditLog::where('action', 'prepaid_booking_submitted')->count())->toBe(1);
+    expect(Booking::query()->excludingDemo()->count())->toBe(0); // never Owner revenue
+})->with([
+    'email and password' => [['auth_provider' => 'password']],
+    'Google Sign-In' => [['auth_provider' => 'google', 'google_sub' => 'google-sub-pbf-bank-1']],
+]);
+
+it('ignores a forged or unsigned bank event', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    pbfPayByBank($this, $user)->assertCreated();
+    $transaction = PaymentTransaction::firstOrFail();
+
+    pbfBankEvent($this, $transaction, signatureSecret: 'whsk_forged_secret')->assertStatus(401)->assertJsonPath('outcome', 'invalid_signature');
+
+    expect($transaction->fresh()->status)->toBe('pending');
+    expect(Booking::includingUnsubmitted()->value('status'))->toBe(Booking::STATUS_AWAITING_PAYMENT);
+});
+
+it('submits from the server asking PayMongo when the webhook is late, and the return link alone proves nothing', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+
+    // The customer is back from the bank page, but PayMongo has no payment: still pending, still hidden.
+    $this->get("/pay/return/success?booking={$code}")->assertOk();
+    $this->getJson("/api/v1/bookings/{$code}/online-payment")->assertOk()
+        ->assertJsonPath('data.status', 'pending')->assertJsonPath('data.booking_submitted', false);
+    expect(Booking::where('booking_code', $code)->exists())->toBeFalse();
+
+    Cache::flush();
+    pbfFakeBank(['intent' => 'paid']);
+    $this->getJson("/api/v1/bookings/{$code}/online-payment")->assertOk()
+        ->assertJsonPath('data.status', 'paid')->assertJsonPath('data.booking_submitted', true)->assertJsonPath('data.bank', 'bpi');
+
+    expect(Booking::where('booking_code', $code)->value('status'))->toBe('confirmed');
+    expect(Quotation::count())->toBe(1);
+});
+
+it('keeps a pending bank payment undispatchable, and reopening it replaces the single-use link', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $response = pbfPayByBank($this, $user)->assertCreated();
+    $code = $response->json('booking_code');
+    $first = PaymentTransaction::firstOrFail();
+
+    $again = $this->postJson("/api/v1/bookings/{$code}/online-payment/checkout", ['method' => 'bank_transfer', 'bank' => 'bpi'])->assertCreated();
+
+    expect($again->json('data.checkout_url'))->not->toBe($response->json('payment.checkout_url'));
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), "/v1/payment_intents/{$first->provider_checkout_session_id}/cancel"));
+    expect($first->fresh()->status)->toBe('expired');
+    expect($first->fresh()->flag)->toBe('bank_link_replaced');
+    expect(PaymentTransaction::where('status', 'pending')->count())->toBe(1);
+    expect(Booking::includingUnsubmitted()->count())->toBe(1);
+    expect(Booking::where('booking_code', $code)->exists())->toBeFalse();
+    expect(DispatcherNotification::count())->toBe(0);
+});
+
+it('does not replace a bank link when that attempt was already paid', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+
+    pbfFakeBank(['intent' => 'paid']);
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/checkout", ['method' => 'bank_transfer', 'bank' => 'bpi'])->assertStatus(409);
+
+    expect(pbfIntentsOpened())->toBe(0);
+    expect(PaymentTransaction::firstOrFail()->status)->toBe('paid');
+    expect(Booking::where('booking_code', $code)->value('status'))->toBe('confirmed');
+});
+
+it('ends a failed bank attempt and retries with a new intent on the same booking', function (string $how) {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+    $first = PaymentTransaction::firstOrFail();
+
+    if ($how === 'webhook') {
+        pbfBankEvent($this, $first, ['failed_code' => 'bank_declined'], 'evt_pbf_bank_failed', 'payment.failed')->assertOk()->assertJsonPath('outcome', 'failure_recorded');
+    } else {
+        Cache::flush();
+        pbfFakeBank(['intent' => 'failed']);
+        $this->getJson("/api/v1/bookings/{$code}/online-payment")->assertOk()->assertJsonPath('data.status', 'failed');
+    }
+
+    expect($first->fresh()->status)->toBe('failed');
+    expect($first->fresh()->failure_code)->toBe('bank_declined');
+    expect(Booking::where('booking_code', $code)->exists())->toBeFalse();
+
+    pbfFakeBank();
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/checkout", ['method' => 'bank_transfer', 'bank' => 'ubp'])
+        ->assertCreated()->assertJsonPath('data.status', 'pending')->assertJsonPath('data.bank', 'ubp');
+
+    expect(PaymentTransaction::count())->toBe(2);
+    expect(Booking::includingUnsubmitted()->count())->toBe(1);
+})->with(['webhook', 'status check']);
+
+it('cancels a bank attempt at PayMongo, leaves the booking unsubmitted and allows a retry', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+    $intentId = PaymentTransaction::firstOrFail()->provider_checkout_session_id;
+
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/cancel")->assertOk()->assertJsonPath('data.status', 'cancelled');
+
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), "/v1/payment_intents/{$intentId}/cancel"));
+    expect(Booking::where('booking_code', $code)->exists())->toBeFalse();
+
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/checkout", ['method' => 'bank_transfer', 'bank' => 'bpi'])->assertCreated();
+    expect(PaymentTransaction::where('status', 'pending')->count())->toBe(1);
+});
+
+it('does not claim cancelled when PayMongo refuses because the bank payment went through', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+
+    pbfFakeBank(['intent' => 'paid', 'cancel' => Http::response(['errors' => [['code' => 'resource_processing_state']]], 400)]);
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/cancel")->assertOk()->assertJsonPath('data.status', 'paid');
+
+    expect(Booking::where('booking_code', $code)->value('status'))->toBe('confirmed');
+});
+
+it('sends a bank payment that lands after the attempt was closed to review, never to dispatch', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+    $transaction = PaymentTransaction::firstOrFail();
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/cancel")->assertOk();
+
+    pbfBankEvent($this, $transaction)->assertOk()->assertJsonPath('outcome', 'review_paid_after_close');
+
+    expect($transaction->fresh()->status)->toBe('review');
+    expect(Booking::where('booking_code', $code)->exists())->toBeFalse();
+});
+
+it('never accepts bank evidence that does not match what was asked for', function (array $attributes, string $outcome) {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+    $transaction = PaymentTransaction::firstOrFail();
+
+    pbfBankEvent($this, $transaction, $attributes)->assertOk()->assertJsonPath('outcome', $outcome);
+
+    expect($transaction->fresh()->status)->not->toBe('paid');
+    expect(Booking::where('booking_code', $code)->exists())->toBeFalse();
+    expect(Quotation::count())->toBe(0);
+})->with([
+    'short amount' => [['amount' => 100], 'review_amount_mismatch'],
+    'wrong currency' => [['currency' => 'USD'], 'review_currency_mismatch'],
+    'another reference' => [['metadata' => ['payment_transaction' => 'TMP-SOMEONE-ELSE']], 'review_reference_mismatch'],
+    'no reference' => [['metadata' => []], 'review_reference_mismatch'],
+    'live payment' => [['livemode' => true], 'live_payment_rejected'],
+    'not actually paid' => [['status' => 'pending'], 'no_paid_payment_in_event'],
+]);
+
+it('sends a retrieved intent with another reference to review', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+
+    Cache::flush();
+    pbfFakeBank(['intent' => 'paid', 'reference' => 'TMP-SOMEONE-ELSE']);
+    $this->getJson("/api/v1/bookings/{$code}/online-payment")->assertOk()->assertJsonPath('data.status', 'review');
+
+    expect(Booking::where('booking_code', $code)->exists())->toBeFalse();
+});
+
+it('does not trust an intent PayMongo reports as live, or a bank link off PayMongo', function (array $attach) {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank(['attach' => Http::response(['data' => ['attributes' => $attach]], 200)]);
+
+    $response = pbfPayByBank($this, $user)->assertCreated();
+
+    expect($response->json('payment'))->toBeNull();
+    expect(PaymentTransaction::firstOrFail()->status)->toBe('failed');
+    expect(Booking::where('booking_code', $response->json('booking_code'))->exists())->toBeFalse();
+})->with([
+    'live' => [['status' => 'awaiting_next_action', 'livemode' => true, 'next_action' => ['redirect' => ['url' => 'https://dob.paymongo.test/x']]]],
+    'foreign host' => [['status' => 'awaiting_next_action', 'livemode' => false, 'next_action' => ['redirect' => ['url' => 'https://evil.example/x']]]],
+    'no redirect' => [['status' => 'awaiting_payment_method', 'livemode' => false]],
+]);
+
+it('keeps the booking hidden when PayMongo refuses the bank', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank(['method' => Http::response(['errors' => [['code' => 'payment_method_not_allowed', 'detail' => 'not allowed']]], 400)]);
+
+    $response = pbfPayByBank($this, $user)->assertCreated();
+
+    expect($response->json('payment'))->toBeNull();
+    expect(PaymentTransaction::firstOrFail()->failure_code)->toBe('provider_rejected:payment_method_not_allowed');
+    expect(Booking::where('booking_code', $response->json('booking_code'))->exists())->toBeFalse();
+});
+
+it('closes the open attempt at PayMongo when the customer moves to another bank', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+    $first = PaymentTransaction::firstOrFail();
+
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/checkout", ['method' => 'bank_transfer', 'bank' => 'ubp'])->assertCreated()->assertJsonPath('data.bank', 'ubp');
+
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), "/v1/payment_intents/{$first->provider_checkout_session_id}/cancel"));
+    expect($first->fresh()->status)->toBe('expired');
+    expect($first->fresh()->flag)->toBe('superseded_channel');
+    expect(PaymentTransaction::where('status', 'pending')->count())->toBe(1);
+});
+
+it('never opens a second payment when the attempt being replaced was already paid', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+
+    pbfFakeBank(['intent' => 'paid']);
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/checkout", ['method' => 'bank_transfer', 'bank' => 'ubp'])->assertStatus(409);
+
+    expect(pbfIntentsOpened())->toBe(0);
+    expect(PaymentTransaction::count())->toBe(1);
+    expect(PaymentTransaction::firstOrFail()->status)->toBe('paid');
+    expect(Booking::where('booking_code', $code)->value('status'))->toBe('confirmed');
+});
+
+it('switches an open GCash attempt to a bank without reusing the GCash link', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    $code = pbfPayAndSubmit($this, $user)->assertCreated()->json('booking_code');
+
+    pbfFakeBank();
+    $this->postJson("/api/v1/bookings/{$code}/online-payment/checkout", ['method' => 'bank_transfer', 'bank' => 'bpi'])
+        ->assertCreated()->assertJsonPath('data.method', 'bank_transfer');
+
+    expect(PaymentTransaction::where('status', 'pending')->value('provider_checkout_session_id'))->toStartWith('pi_');
+});
+
+it('charges a group its whole total in one bank payment and submits every vehicle once', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $payload = pbfRequestPayload();
+    Sanctum::actingAs($user, ['*']);
+
+    $code = $this->post('/api/v1/bookings', $payload + [
+        'preferred_payment_method' => 'bank_transfer', 'pay_online' => 1, 'bank' => 'ubp',
+        'extra_vehicles' => json_encode([['vehicle_type_id' => $payload['vehicle_type_id']]]),
+        'extra_vehicle_images' => [0 => [UploadedFile::fake()->image('pbf-bank-extra.jpg', 300, 300)]],
+    ], ['Accept' => 'application/json'])->assertCreated()->json('booking_code');
+
+    $transaction = PaymentTransaction::firstOrFail();
+    $members = Booking::includingUnsubmitted()->get();
+    expect($members)->toHaveCount(2);
+    expect($transaction->amount_centavos)->toBe((int) round($members->sum(fn ($b) => (float) $b->final_total) * 100));
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/v1/payment_intents') && $r['data']['attributes']['amount'] === $transaction->amount_centavos);
+
+    pbfBankEvent($this, $transaction)->assertOk()->assertJsonPath('outcome', 'paid');
+
+    expect(Booking::query()->pluck('status')->unique()->all())->toBe(['confirmed']);
+    expect(Booking::query()->pluck('is_demo')->all())->toBe([true, true]);
+    expect(Quotation::count())->toBe(1);
+    expect($code)->toBe(Booking::query()->orderBy('id')->value('booking_code'));
+});
+
+it('lets the Team Leader complete a bank-paid booking directly, with nothing to collect', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+    pbfBankEvent($this, PaymentTransaction::firstOrFail())->assertJsonPath('outcome', 'paid');
+    [$booking, $teamLeader] = pbfAtDropoff(Booking::where('booking_code', $code)->firstOrFail());
+    Sanctum::actingAs($teamLeader, ['*']);
+
+    $this->getJson('/api/v1/team-leader/task')->assertOk()->assertJsonPath('data.payment.mode', 'online_prepaid');
+    $this->post("/api/v1/team-leader/task/{$booking->booking_code}/complete", [], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('data.status', 'completed');
+
+    $booking->refresh();
+    expect($booking->payment_method)->toBe('bank_transfer');
+    expect($booking->cash_received)->toBeNull();
+    expect(DispatcherNotification::where('type', DispatcherNotification::TYPE_VERIFICATION_REQUIRED)->count())->toBe(0);
+});
+
+it('leaves a GCash payment to its own event: payment.paid for it changes nothing, and GCash still submits', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    $code = pbfPayAndSubmit($this, $user)->assertCreated()->json('booking_code');
+    $transaction = PaymentTransaction::firstOrFail();
+
+    pbfBankEvent($this, $transaction, ['payment_intent_id' => 'pi_owned_by_the_checkout_session'], 'evt_pbf_gcash_payment')->assertOk()->assertJsonPath('outcome', 'not_a_bank_payment');
+    expect($transaction->fresh()->status)->toBe('pending');
+
+    pbfPaidWebhook($this, $transaction)->assertOk()->assertJsonPath('outcome', 'paid');
+    expect(Booking::where('booking_code', $code)->value('status'))->toBe('confirmed');
+    Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'payment_intents'));
+});
+
+it('expires an unpaid bank attempt at its deadline and closes it at PayMongo', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    pbfPayByBank($this, $user)->assertCreated();
+    $transaction = PaymentTransaction::firstOrFail();
+    $transaction->update(['expires_at' => now()->subMinute()]);
+
+    expect(app(\App\Services\OnlinePayments\OnlinePaymentService::class)->reconcile()['expired'])->toBe(1);
+
+    expect($transaction->fresh()->status)->toBe('expired');
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/cancel'));
+    expect(Booking::where('booking_code', Booking::includingUnsubmitted()->value('booking_code'))->exists())->toBeFalse();
+});
+
+it('finds the payment behind a missed webhook during reconciliation, before expiring the attempt', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    $code = pbfPayByBank($this, $user)->assertCreated()->json('booking_code');
+    PaymentTransaction::firstOrFail()->update(['expires_at' => now()->subMinute()]);
+
+    pbfFakeBank(['intent' => 'paid']);
+    expect(app(\App\Services\OnlinePayments\OnlinePaymentService::class)->reconcile()['paid'])->toBe(1);
+
+    expect(Booking::where('booking_code', $code)->value('status'))->toBe('confirmed');
+});
+
+it('closes an unpaid bank attempt at PayMongo when the customer starts a new booking', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    pbfFakeBank();
+    pbfPayByBank($this, $user)->assertCreated();
+    $first = PaymentTransaction::firstOrFail();
+
+    pbfPayByBank($this, $user, 'ubp')->assertCreated();
+
+    expect($first->fresh()->status)->toBe('cancelled');
+    Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), "/v1/payment_intents/{$first->provider_checkout_session_id}/cancel"));
+    expect(PaymentTransaction::where('status', 'pending')->count())->toBe(1);
+});
+
+it('still refuses a live key for Online Banking', function () {
+    $user = pbfCustomer();
+    pbfEnableBanks();
+    config(['paymongo.secret_key' => 'sk_live_must_never_be_used_123']);
+    pbfFakeBank();
+
+    pbfPayByBank($this, $user)->assertStatus(422);
+
+    Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'paymongo'));
 });

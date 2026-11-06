@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:towmate_app/models/booking_model.dart';
+import 'package:towmate_app/models/online_payment_model.dart';
 import 'package:towmate_app/widgets/payment_method_selector.dart';
 
 void main() {
@@ -80,6 +81,41 @@ void main() {
     await tester.tap(find.text('Online Banking'));
     await tester.pump();
     expect(chosen, 'bank_transfer');
+  });
+
+  testWidgets('banks appear only under a selected Online Banking, and the tapped bank is reported', (tester) async {
+    const banks = [OnlineBank(code: 'bpi', label: 'BPI'), OnlineBank(code: 'ubp', label: 'UnionBank')];
+    String? method = 'gcash';
+    String? bank;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: StatefulBuilder(
+          builder: (context, setState) => PaymentMethodSelector(
+            value: method,
+            onlinePayAvailable: true,
+            onlineBankingAvailable: true,
+            banks: banks,
+            selectedBank: bank,
+            onChanged: (v) => setState(() => method = v),
+            onBankChanged: (v) => setState(() => bank = v),
+          ),
+        ),
+      ),
+    ));
+
+    expect(find.text('BPI'), findsNothing);
+    expect(find.text('UnionBank'), findsNothing);
+
+    await tester.tap(find.text('Online Banking'));
+    await tester.pump();
+    expect(find.text('BPI'), findsOneWidget);
+    expect(find.text('UnionBank'), findsOneWidget);
+
+    await tester.tap(find.text('UnionBank'));
+    await tester.pump();
+    expect(bank, 'ubp');
+    expect(method, 'bank_transfer');
   });
 
   testWidgets('disabled selector ignores taps', (tester) async {
