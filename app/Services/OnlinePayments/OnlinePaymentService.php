@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * PayMongo SANDBOX checkout: the customer pays when submitting a Book Now request (Step 3 "Pay & Submit").
+ * PayMongo SANDBOX checkout: the customer pays when submitting a Book Now request (Step 3 "Pay & Submit"). GCash uses
+ * a hosted Checkout Session; Online Banking uses a Payment Intent. Both end in the same applyPaid() and finalizePrepaid().
  *
  * Hard rules this class enforces:
  *  - a booking paid this way stays `awaiting_payment` (invisible to dispatch) until the payment is verified, and is
@@ -47,7 +48,25 @@ class OnlinePaymentService
     /** A TowMate payment method that is wired to a PayMongo channel (GCash; Online Banking only when configured). */
     public function channelAvailable(?string $method): bool
     {
+        if ($method === 'bank_transfer') {
+            return $this->onlineBanks() !== [];
+        }
+
         return $method !== null && is_string(config('paymongo.channels.' . $method)) && config('paymongo.channels.' . $method) !== '';
+    }
+
+    /** @return array<string, array{label: string, type: string, bank_code: string}>  the banks of the configured channel; none while it is off */
+    public function onlineBanks(): array
+    {
+        $channel = config('paymongo.channels.bank_transfer');
+
+        return array_filter((array) config('paymongo.online_banks'), fn (array $bank) => $bank['type'] === $channel);
+    }
+
+    /** A bank payment: the id is a PayMongo Payment Intent, not a Checkout Session. */
+    protected function isBankIntent(?string $providerId): bool
+    {
+        return is_string($providerId) && str_starts_with($providerId, 'pi_');
     }
 
     // ── Checkout ────────────────────────────────────────────────────────────
@@ -57,13 +76,18 @@ class OnlinePaymentService
      *
      * @throws OnlinePaymentException
      */
-    public function initiate(User $user, string $bookingCode, string $method): array
+    public function initiate(User $user, string $bookingCode, string $method, ?string $bank = null): array
     {
         $this->assertAvailable($user);
 
         $channel = config('paymongo.channels.' . $method);
         if (! is_string($channel) || $channel === '') {
             throw new OnlinePaymentException('That payment channel is not available yet.', 422, 'channel_unavailable');
+        }
+
+        $bank = $method === 'bank_transfer' ? $bank : null;
+        if ($method === 'bank_transfer' && ! array_key_exists((string) $bank, $this->onlineBanks())) {
+            throw new OnlinePaymentException('Please choose your bank.', 422, 'bank_required');
         }
 
         $customer = Customer::where('user_id', $user->id)->first();
@@ -75,10 +99,19 @@ class OnlinePaymentService
             throw new OnlinePaymentException('Booking not found.', 404, 'not_found');
         }
 
+        // Moving to another method or bank closes the open attempt, and so does asking for a bank page again (a bank link
+        // works only once), so first make sure it was not already paid.
+        $payable = $this->resolver->resolve($booking);
+        $open = PaymentTransaction::where('payable_type', $payable->type)->where('payable_id', $payable->anchorId)
+            ->where('status', PaymentTransaction::STATUS_PENDING)->first();
+        if ($open && ($open->method !== $method || $open->bank() !== $bank || $this->isBankIntent($open->provider_checkout_session_id))) {
+            $this->syncWithProvider($open);
+        }
+
         $staleSessionId = null;
 
         try {
-            [$transaction, $created] = DB::transaction(function () use ($booking, $customer, $user, $method, &$staleSessionId) {
+            [$transaction, $created] = DB::transaction(function () use ($booking, $customer, $user, $method, $bank, &$staleSessionId) {
                 // Lock every vehicle of the payable (ascending id, like the Team Leader flow) before deciding anything.
                 $ids = $this->resolver->resolve($booking)->memberIds;
                 Booking::includingUnsubmitted()->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
@@ -104,15 +137,24 @@ class OnlinePaymentService
                 if ($pending) {
                     $sameAmount = (int) $pending->amount_centavos === $payable->totalCentavos;
 
-                    if ($sameAmount && $pending->expires_at && $pending->expires_at->isFuture()) {
+                    $sameChannel = $pending->method === $method && $pending->bank() === $bank;
+
+                    $singleUse = $this->isBankIntent($pending->provider_checkout_session_id);
+
+                    if ($sameAmount && $sameChannel && ! $singleUse && $pending->expires_at && $pending->expires_at->isFuture()) {
                         return [$pending, false];
                     }
 
-                    // Out of time, or the total moved since it was opened: never reuse a session for a superseded amount.
+                    // Out of time, the total moved, another method or bank was chosen, or a used bank link: never reuse it.
                     $staleSessionId = $pending->provider_checkout_session_id;
                     $pending->update([
                         'status' => PaymentTransaction::STATUS_EXPIRED,
-                        'flag' => $sameAmount ? 'ttl_elapsed' : 'superseded_total',
+                        'flag' => match (true) {
+                            ! $sameAmount => 'superseded_total',
+                            ! $sameChannel => 'superseded_channel',
+                            $pending->expires_at?->isFuture() => 'bank_link_replaced',
+                            default => 'ttl_elapsed',
+                        },
                     ]);
                 }
 
@@ -127,7 +169,7 @@ class OnlinePaymentService
                     'method' => $method,
                     'amount_centavos' => $payable->totalCentavos,
                     'currency' => 'PHP',
-                    'payable_snapshot' => $payable->snapshot() + ['pay_at_booking' => true],
+                    'payable_snapshot' => $payable->snapshot() + array_filter(['pay_at_booking' => true, 'bank' => $bank]),
                     'status' => PaymentTransaction::STATUS_PENDING,
                     'livemode' => false,
                     'expires_at' => now()->addMinutes((int) config('paymongo.session_ttl_minutes', 30)),
@@ -177,21 +219,37 @@ class OnlinePaymentService
 
     protected function openSession(PaymentTransaction $transaction, string $channel, Booking $booking): PaymentTransaction
     {
+        $metadata = [
+            'payment_transaction' => $transaction->reference,
+            'payable_type' => $transaction->payable_type,
+            'payable_id' => (string) $transaction->payable_id,
+        ];
+        $description = 'Towing service ' . $booking->booking_code;
+        $successUrl = config('paymongo.success_url') ?: $this->returnUrl('success', $booking);
+
         try {
-            $session = $this->gateway->createCheckoutSession([
-                'amount_centavos' => $transaction->amount_centavos,
-                'name' => 'TowMate towing service',
-                'description' => 'Towing service ' . $booking->booking_code,
-                'reference' => $transaction->reference,
-                'payment_method_types' => [$channel],
-                'metadata' => [
-                    'payment_transaction' => $transaction->reference,
-                    'payable_type' => $transaction->payable_type,
-                    'payable_id' => (string) $transaction->payable_id,
-                ],
-                'success_url' => config('paymongo.success_url') ?: $this->returnUrl('success', $booking),
-                'cancel_url' => config('paymongo.cancel_url') ?: $this->returnUrl('cancelled', $booking),
-            ]);
+            if ($transaction->method === 'bank_transfer') {
+                $bank = $this->onlineBanks()[$transaction->bank()];
+                $session = $this->gateway->createBankPayment([
+                    'amount_centavos' => $transaction->amount_centavos,
+                    'description' => $description,
+                    'type' => $bank['type'],
+                    'bank_code' => $bank['bank_code'],
+                    'metadata' => $metadata,
+                    'return_url' => $successUrl, // the only return link a bank has; never evidence of payment
+                ]);
+            } else {
+                $session = $this->gateway->createCheckoutSession([
+                    'amount_centavos' => $transaction->amount_centavos,
+                    'name' => 'TowMate towing service',
+                    'description' => $description,
+                    'reference' => $transaction->reference,
+                    'payment_method_types' => [$channel],
+                    'metadata' => $metadata,
+                    'success_url' => $successUrl,
+                    'cancel_url' => config('paymongo.cancel_url') ?: $this->returnUrl('cancelled', $booking),
+                ]);
+            }
         } catch (GatewayException $e) {
             // Only our own coarse code is stored or logged: the provider's wording could echo anything.
             $failureCode = match (true) {
@@ -333,6 +391,7 @@ class OnlinePaymentService
             'reference' => $transaction->reference,
             'status' => $transaction->status,
             'method' => $transaction->method,
+            'bank' => $transaction->bank(),
             'amount' => Money::centavosToPesos($transaction->amount_centavos),
             'currency' => $transaction->currency,
             'expires_at' => $transaction->expires_at?->toIso8601String(),
@@ -379,8 +438,8 @@ class OnlinePaymentService
             'reason' => $reason,
             'amount' => $payable->totalPesos,
             'currency' => 'PHP',
-            'method' => 'gcash',
-            'method_label' => Booking::preferredPaymentMethodLabel('gcash'),
+            'method' => $latest?->method ?? 'gcash',
+            'method_label' => Booking::preferredPaymentMethodLabel($latest?->method ?? 'gcash'),
             'is_group' => $payable->type === 'group',
             'transaction' => $latest ? $this->presentTransaction($latest) : null,
         ];
@@ -399,7 +458,7 @@ class OnlinePaymentService
 
         if ($transaction->provider_checkout_session_id) {
             try {
-                $this->gateway->expireCheckoutSession($transaction->provider_checkout_session_id);
+                $this->closeAtProvider($transaction->provider_checkout_session_id);
             } catch (GatewayException $e) {
                 // A payment may be in flight. Do not claim "cancelled" unless the provider agrees.
                 $this->reconcileOne($transaction);
@@ -498,6 +557,7 @@ class OnlinePaymentService
 
             [$outcome, $transactionId] = match ($type) {
                 'checkout_session.payment.paid' => $this->onPaid($resource, $eventId),
+                'payment.paid' => $this->onBankPaid($resource, $eventId),
                 'payment.failed' => $this->onPaymentFailed($resource, $eventId),
                 default => ['ignored_event_type', null],
             };
@@ -562,6 +622,46 @@ class OnlinePaymentService
         return [$this->applyPaid($transaction, $paid['id'], $amount, $eventId, $integrity), $transaction->id];
     }
 
+    /**
+     * A bank payment. PayMongo sends this event for every payment, GCash included; those belong to the Checkout Session
+     * event above, so only a payment on one of our Payment Intents is handled here.
+     *
+     * @return array{0: string, 1: ?int}
+     */
+    protected function onBankPaid(array $payment, string $eventId): array
+    {
+        $intentId = $payment['attributes']['payment_intent_id'] ?? null;
+        $transaction = $this->isBankIntent($intentId) && preg_match('/^pi_\w+$/', $intentId)
+            ? PaymentTransaction::where('provider_checkout_session_id', $intentId)->lockForUpdate()->first()
+            : null;
+
+        if (! $transaction) {
+            return ['not_a_bank_payment', null];
+        }
+
+        $paymentId = $payment['id'] ?? null;
+        $amount = $payment['attributes']['amount'] ?? null;
+
+        if (! is_string($paymentId) || ! preg_match('/^pay_\w+$/', $paymentId)
+            || ($payment['attributes']['status'] ?? null) !== 'paid' || ! is_int($amount) || $amount <= 0) {
+            return ['no_paid_payment_in_event', $transaction->id];
+        }
+
+        if (($payment['attributes']['livemode'] ?? null) !== false) {
+            return ['live_payment_rejected', $transaction->id];
+        }
+
+        // Matched by the intent id above AND the reference we sent in its metadata.
+        $integrity = null;
+        if (($payment['attributes']['metadata']['payment_transaction'] ?? null) !== $transaction->reference) {
+            $integrity = 'reference_mismatch';
+        } elseif (($payment['attributes']['currency'] ?? null) !== 'PHP') {
+            $integrity = 'currency_mismatch';
+        }
+
+        return [$this->applyPaid($transaction, $paymentId, $amount, $eventId, $integrity), $transaction->id];
+    }
+
     /** @return array{0: string, 1: ?int} */
     protected function onPaymentFailed(array $payment, string $eventId): array
     {
@@ -577,10 +677,14 @@ class OnlinePaymentService
         // One failed attempt does not end a hosted session (the customer may retry), so the
         // transaction stays open; we only remember why the last attempt failed.
         if ($transaction->isOpen()) {
+            // A failed bank payment does end its Payment Intent attempt: the bank link is dead, so a retry starts afresh.
+            $endsAttempt = $this->isBankIntent($transaction->provider_checkout_session_id)
+                && ($payment['attributes']['payment_intent_id'] ?? null) === $transaction->provider_checkout_session_id;
+
             $transaction->update([
                 'failure_code' => Str::limit((string) ($payment['attributes']['failed_code'] ?? 'payment_failed'), 60, ''),
                 'last_event_id' => $eventId,
-            ]);
+            ] + ($endsAttempt ? ['status' => PaymentTransaction::STATUS_FAILED] : []));
         }
 
         return ['failure_recorded', $transaction->id];
@@ -721,7 +825,7 @@ class OnlinePaymentService
 
         if ($sessionId) {
             try {
-                $this->gateway->expireCheckoutSession($sessionId);
+                $this->closeAtProvider($sessionId);
             } catch (GatewayException $e) {
                 // 400 = already expired / paid / being paid; anything else = we cannot tell. Keep it open and look again later.
                 if ($e->httpStatus !== 400) {
@@ -753,7 +857,9 @@ class OnlinePaymentService
         }
 
         try {
-            $session = $this->gateway->retrieveCheckoutSession($sessionId);
+            $session = $this->isBankIntent($sessionId)
+                ? $this->gateway->retrieveBankPayment($sessionId)
+                : $this->gateway->retrieveCheckoutSession($sessionId);
         } catch (GatewayException) {
             return null;
         }
@@ -764,11 +870,18 @@ class OnlinePaymentService
 
         $paid = collect($session['payments'])->firstWhere('status', 'paid');
         if (! $paid || ! preg_match('/^pay_\w+$/', $paid['id']) || $paid['amount'] <= 0) {
+            if ($this->isBankIntent($sessionId)) {
+                $this->closeEndedBankAttempt($transaction, $session);
+            }
+
             return null;
         }
 
-        // A reference that is present but different, or a non-PHP currency, goes to review.
-        $integrity = ($session['reference'] ?? null) !== null && $session['reference'] !== $transaction->reference
+        // A reference that is different (for a bank, or missing), or a non-PHP currency, goes to review.
+        $referenceDiffers = $session['reference'] !== $transaction->reference
+            && ($session['reference'] !== null || $this->isBankIntent($sessionId));
+
+        $integrity = $referenceDiffers
             ? 'reference_mismatch'
             : ($paid['currency'] !== 'PHP' ? 'currency_mismatch' : null);
 
@@ -779,6 +892,23 @@ class OnlinePaymentService
         }
 
         return 'paid';
+    }
+
+    /**
+     * A Payment Intent that is back to `awaiting_payment_method` has no live bank attempt: a failed one returns there, and
+     * so does one abandoned until its bank session ends. The customer retries with a new attempt.
+     */
+    protected function closeEndedBankAttempt(PaymentTransaction $transaction, array $intent): void
+    {
+        $update = match ($intent['status']) {
+            'awaiting_payment_method' => ['status' => PaymentTransaction::STATUS_FAILED, 'failure_code' => Str::limit($intent['failure'] ?? 'bank_attempt_ended', 60, '')],
+            'cancelled' => ['status' => PaymentTransaction::STATUS_CANCELLED],
+            default => null,
+        };
+
+        if ($update !== null) {
+            PaymentTransaction::whereKey($transaction->id)->where('status', PaymentTransaction::STATUS_PENDING)->update($update);
+        }
     }
 
     // ── Pay at booking: submission, abandoned attempts, Team Leader collection ──
@@ -924,7 +1054,7 @@ class OnlinePaymentService
 
                 if ($open->provider_checkout_session_id) {
                     try {
-                        $this->gateway->expireCheckoutSession($open->provider_checkout_session_id);
+                        $this->closeAtProvider($open->provider_checkout_session_id);
                     } catch (GatewayException) {
                         throw new OnlinePaymentException('Your earlier online payment is still being processed. Please wait a moment and try again.', 409, 'payment_in_progress');
                     }
@@ -993,10 +1123,20 @@ class OnlinePaymentService
         return ['mode' => 'online_review'] + $state;
     }
 
+    /** @throws GatewayException */
+    protected function closeAtProvider(string $providerId): void
+    {
+        if ($this->isBankIntent($providerId)) {
+            $this->gateway->cancelBankPayment($providerId);
+        } else {
+            $this->gateway->expireCheckoutSession($providerId);
+        }
+    }
+
     protected function tryExpire(string $sessionId): void
     {
         try {
-            $this->gateway->expireCheckoutSession($sessionId);
+            $this->closeAtProvider($sessionId);
         } catch (GatewayException) {
             // Best effort: the local record is already closed, and a late payment would land in `review`.
         }
