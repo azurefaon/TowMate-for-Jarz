@@ -37,6 +37,17 @@ class SandboxGuard
         return in_array((string) app()->environment(), (array) config('paymongo.allowed_environments'), true);
     }
 
+    /**
+     * Who may pay online: any active Customer account, however it signs in (email/password or Google). Staff and
+     * disabled accounts never can. Money stays TEST-only through enabled() and credentialsProblem(); each booking paid
+     * this way is marked is_demo, so it stays out of real revenue.
+     */
+    public function customerEligible(?User $user): bool
+    {
+        return $user !== null && $user->canUseApi() && $user->role?->name === 'Customer';
+    }
+
+    /** A dedicated demo account: EVERY booking it makes, Cash included, is marked is_demo (see Booking::creating). */
     public function userAllowed(?User $user): bool
     {
         if (! $user) {

@@ -601,6 +601,11 @@ class CustomerBookingController extends Controller
                 'extra_vehicles'   => !empty($pricedBookNowExtras) ? $pricedBookNowExtras : null,
             ]);
 
+            // A PayMongo TEST booking is never real revenue, whoever makes it. Book Now siblings copy this marker below.
+            if ($payOnline && ! $booking->is_demo) {
+                $booking->forceFill(['is_demo' => true])->saveQuietly();
+            }
+
             $booking->update(['booking_code' => 'TM-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT)]);
 
             $primaryPaths = $this->bookingService->storeVehiclePhotosFor($booking, 0, $primaryFiles);

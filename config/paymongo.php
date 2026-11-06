@@ -28,10 +28,11 @@ return [
     'allowed_environments' => $csv(env('PAYMONGO_SANDBOX_ENVIRONMENTS', 'local,testing,staging')) ?: ['local', 'testing'],
 
     // Production is refused even when listed above. The capstone demo opts in here, explicitly and separately; it
-    // still runs TEST MODE only (live keys are always rejected) and only for the allow-listed demo accounts.
+    // still runs TEST MODE only (live keys are always rejected), and bookings paid this way are marked is_demo.
     'allow_production' => filter_var(env('PAYMONGO_SANDBOX_ALLOW_PRODUCTION', false), FILTER_VALIDATE_BOOLEAN),
 
-    // Only these accounts may start a test checkout (emails and/or numeric user ids). Blank = nobody.
+    // Dedicated demo accounts (emails and/or numeric user ids): every booking they make is marked is_demo, Cash included.
+    // Paying online does not need this list: any active Customer may, and that booking alone is marked is_demo.
     'test_user_emails' => $csv(env('PAYMONGO_SANDBOX_TEST_USER_EMAILS', '')),
     'test_user_ids' => array_map('intval', $csv(env('PAYMONGO_SANDBOX_TEST_USER_IDS', ''))),
 
