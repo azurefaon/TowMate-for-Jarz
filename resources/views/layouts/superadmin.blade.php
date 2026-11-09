@@ -325,6 +325,13 @@
                     ['label' => 'Activity Report', 'route' => 'superadmin.reports.activity', 'active' => ['superadmin.reports.activity*']],
                 ],
             ],
+            'Finance' => [
+                'label' => 'Finance',
+                'icon' => 'wallet',
+                'items' => [
+                    ['label' => 'Unit Funds', 'route' => 'superadmin.finance.unit-funds.index', 'active' => ['superadmin.finance.unit-funds.*']],
+                ],
+            ],
         ];
 
         foreach ($sidebarGroups as $key => $group) {

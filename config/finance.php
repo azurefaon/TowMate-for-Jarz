@@ -10,18 +10,25 @@ return [
     'week_length_days' => 6,   // Monday..Saturday
 
     /*
-    | Expense categories (key => English label).
-    | PROVISIONAL: the client's specified list has not been added to the repository yet.
-    | Replace these with the client's categories before Phase 3 goes live. The database stores the key
-    | as text, so changing this list does not need a migration.
+    | Expense categories (key => English label), as confirmed by the client.
+    | The database stores the key as text.
     */
     'expense_categories' => [
-        'fuel' => 'Fuel',
+        'fuel_diesel' => 'Fuel / Diesel',
         'toll' => 'Toll',
         'parking' => 'Parking',
-        'maintenance' => 'Maintenance and repairs',
-        'meals' => 'Meals',
-        'other' => 'Other',
+        'food_travel_allowance' => 'Food / Travel Allowance',
+        'maintenance' => 'Maintenance',
+        'repairs' => 'Repairs',
+        'parts_equipment' => 'Parts / Equipment',
+        'assistance_other_unit' => 'Assistance from Another Unit',
+        'other' => 'Other Expenses',
+    ],
+
+    // Unit fund issuance kinds.
+    'issue_kinds' => [
+        'initial' => 'Initial funds',
+        'additional' => 'Additional funds',
     ],
 
     // Who paid for the expense. These values are enforced by a database CHECK constraint.

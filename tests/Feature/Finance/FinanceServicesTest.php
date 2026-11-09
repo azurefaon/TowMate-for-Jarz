@@ -24,7 +24,7 @@ function finExpenseData(int $unitId, array $overrides = []): array
         'unit_id' => $unitId,
         'amount' => '250.05',
         'expense_date' => now()->toDateString(),
-        'category' => 'fuel',
+        'category' => 'fuel_diesel',
         'funding_source' => 'unit_fund',
     ], $overrides);
 }
@@ -35,7 +35,7 @@ it('records an issuance once per idempotency key and audits it', function () {
     $owner = finOwner();
     $unit = finUnit();
     $key = (string) Str::uuid();
-    $data = ['unit_id' => $unit->id, 'amount' => '1000.10', 'entry_date' => now()->toDateString()];
+    $data = ['unit_id' => $unit->id, 'issue_kind' => 'initial', 'amount' => '1000.10', 'entry_date' => now()->toDateString()];
 
     $first = app(UnitFundService::class)->issue($owner, $data, $key);
     $replay = app(UnitFundService::class)->issue($owner, $data, $key);
@@ -56,7 +56,7 @@ it('keeps issued funds, expenses and returns separate and computes the balance e
     $unit = finUnit();
     $funds = app(UnitFundService::class);
 
-    $funds->issue($owner, ['unit_id' => $unit->id, 'amount' => '1000.10', 'entry_date' => now()->toDateString()], (string) Str::uuid());
+    $funds->issue($owner, ['unit_id' => $unit->id, 'amount' => '1000.10', 'issue_kind' => 'initial', 'entry_date' => now()->toDateString()], (string) Str::uuid());
 
     $expenses = app(ExpenseService::class);
     $expense = $expenses->submit($owner, finExpenseData($unit->id), (string) Str::uuid());
@@ -67,13 +67,13 @@ it('keeps issued funds, expenses and returns separate and computes the balance e
     expect($funds->balance($unit->id)->toString())->toBe('650.05');
 
     expect(fn () => $funds->recordReturn($owner, ['unit_id' => $unit->id, 'amount' => '650.06', 'entry_date' => now()->toDateString()], (string) Str::uuid()))
-        ->toThrow(FinanceException::class, 'larger than the unit fund balance');
+        ->toThrow(FinanceException::class, 'larger than the unit');
 });
 
 it('voids a fund entry with a reason instead of deleting it', function () {
     $owner = finOwner();
     $unit = finUnit();
-    $entry = app(UnitFundService::class)->issue($owner, ['unit_id' => $unit->id, 'amount' => '300', 'entry_date' => now()->toDateString()], (string) Str::uuid());
+    $entry = app(UnitFundService::class)->issue($owner, ['unit_id' => $unit->id, 'amount' => '300', 'issue_kind' => 'initial', 'entry_date' => now()->toDateString()], (string) Str::uuid());
 
     expect(fn () => app(UnitFundService::class)->void($owner, $entry, '  '))->toThrow(FinanceException::class);
 
@@ -288,7 +288,7 @@ it('cannot void a statement that has recorded payouts, but can after the payout 
 it('blocks permanent deletion of a unit that has finance history', function () {
     $owner = finOwner();
     $unit = finUnit();
-    app(UnitFundService::class)->issue($owner, ['unit_id' => $unit->id, 'amount' => '100', 'entry_date' => now()->toDateString()], (string) Str::uuid());
+    app(UnitFundService::class)->issue($owner, ['unit_id' => $unit->id, 'amount' => '100', 'issue_kind' => 'initial', 'entry_date' => now()->toDateString()], (string) Str::uuid());
     $unit->forceFill(['archived_at' => now()])->save();
 
     $this->actingAs($owner)

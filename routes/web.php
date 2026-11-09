@@ -263,6 +263,18 @@ Route::prefix('superadmin')
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
         Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
 
+        // Owner Finance. The role:1 group above plus per-ability Gates; services re-check authorization.
+        Route::prefix('finance')->name('finance.')->group(function () {
+            $unitFunds = \App\Http\Controllers\SuperAdmin\Finance\UnitFundController::class;
+            Route::get('/unit-funds', [$unitFunds, 'index'])->middleware('can:finance.view')->name('unit-funds.index');
+            Route::middleware(['can:finance.funds.manage', 'throttle:30,1'])->group(function () use ($unitFunds) {
+                Route::post('/unit-funds/issuances', [$unitFunds, 'storeIssuance'])->name('unit-funds.issue');
+                Route::post('/unit-funds/returns', [$unitFunds, 'storeReturn'])->name('unit-funds.return');
+                Route::post('/unit-funds/{entry}/correct', [$unitFunds, 'correct'])->whereNumber('entry')->name('unit-funds.correct');
+                Route::post('/unit-funds/{entry}/void', [$unitFunds, 'void'])->whereNumber('entry')->name('unit-funds.void');
+            });
+        });
+
         Route::patch('users/{id}/unlock', [UserManagementController::class, 'unlockCustomer'])->name('users.unlock');
 
         Route::resource('truck-types', TruckTypeController::class);

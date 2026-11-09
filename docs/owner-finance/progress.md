@@ -13,7 +13,8 @@ Spec: [spec.md](spec.md).
 | Date | Step | Result |
 |---|---|---|
 | 2026-11-09 | Phase 0: repository inspection and spec | Done |
-| 2026-11-09 | Phase 1: database and authorization foundation | Done. See "Phase 1 verification" below |
+| 2026-11-09 | Phase 1: database and authorization foundation | Done (`77ac792f`). See "Phase 1 verification" below |
+| 2026-11-10 | Phase 2: Unit Funds | Done. See "Phase 2 verification" below |
 
 ## Phases
 
@@ -24,25 +25,30 @@ Spec: [spec.md](spec.md).
   - `FinanceAccess` Gates.
   - Services: `UnitFundService`, `ExpenseService`, `CommissionPolicyService`, `CommissionStatementService` (lifecycle and approval only), `PayoutService`.
   - A finance audit category, and a guard on unit force-delete.
-- [ ] **Phase 2: Finance routes and read-only screens.**
-  - Owner Finance routes (`/superadmin/finance/*`, `role:1` + `can:`) and the sidebar section.
-  - The Overview and Jobs & Collections pages, using a shared collections query that reuses the `ReportMetricsService` predicate and group allocation.
-  - A consistency test against the Revenue page.
-- [ ] **Phase 3: Unit Funds and Expenses screens.**
-  - Owner fund issue, return and void.
-  - The Team Leader expense submission path (API or app), the Dispatcher verification queue, the Owner approval queue, and an authorised evidence download route.
-  - *Needs the client's final expense category list (config only).*
-- [ ] **Phase 4: Job crew capture.**
+- [x] **Phase 2: Unit Funds (Owner).**
+  - The Owner page `/superadmin/finance/unit-funds`, with a Finance sidebar group.
+  - Issue initial or additional funds and record returned funds, each with date, amount, unit, receiving or returning person, reference and remarks.
+  - The backend ledger: Opening + Issued − Advance-funded spending − Returned = Remaining.
+  - Carry-forward between periods, filters by unit and date, movement history, balance summary, and a column for expenses awaiting review.
+  - Corrections (void plus linked replacement) and voids with a reason.
+- [ ] **Phase 3: Expenses.**
+  - The Team Leader submission path (API or app) and the Dispatcher verification queue.
+  - The Owner approval queue and an authorised evidence download route.
+  - Unit-fund spending then flows automatically into the Unit Funds ledger, which already reads approved `unit_fund` expenses.
+  - The confirmed categories are in `config/finance.php`.
+- [ ] **Phase 4: Jobs & Collections, and Overview.**
+  - A read-only collections query that reuses the `ReportMetricsService` predicate and group allocation, plus a consistency test against the Revenue page.
+- [ ] **Phase 5: Job crew capture.**
   - Write `finance_job_personnel` when payment is confirmed (an additive hook).
   - A flagged backfill for past jobs.
   - The Owner review of flagged rows.
   - *The `commission_role` mapping needs C4.*
-- [ ] **Phase 5: Weekly Commission computation.**
+- [ ] **Phase 6: Weekly Commission computation.**
   - Generate revenue allocations and lines from the confirmed policy.
   - The approve and payout screens.
   - *Blocked by C1–C6.*
-- [ ] **Phase 6: Overview and Reports exports.**
-- [ ] **Phase 7: Verification and client walkthrough.**
+- [ ] **Phase 7: Reports exports.**
+- [ ] **Phase 8: Verification and client walkthrough.**
 
 ## Phase 1 verification
 
@@ -73,14 +79,49 @@ The finance tests cover:
 
 Not done in Phase 1 (by design): no screens or routes, no migration on the dev or production databases, no push or deploy.
 
+## Phase 2: what was built
+
+| Part | Detail |
+|---|---|
+| Migration `2026_11_11_000000_add_unit_fund_details_to_finance_fund_entries` | Adds `issue_kind` (`initial` or `additional`; CHECK: issuances only), `external_reference`, and `corrects_entry_id`. Partial unique indexes allow one recorded initial issuance per unit and one active correction per entry. The new columns are added to the immutability trigger |
+| `UnitFundLedger` | Backend balances from NUMERIC aggregates: **Opening + Issued − Advance-funded spending − Returned = Remaining**. Opening = everything dated before the period, so balances carry forward with no period closing. Spending = APPROVED expenses with `funding_source = unit_fund`. Pending review (submitted or verified) is reported separately and not deducted. Collections and payouts are never included |
+| `UnitFundService` (extended) | Initial issuance only once per unit; additional only after initial; no issuing to archived units. Returns are refused when they exceed the balance today, the balance on the return date, or today's balance minus pending unit-fund expenses. No future dates. Amounts must be exact two-place strings. `correct()` voids the original (`Corrected: <reason>`) and records a linked replacement in one transaction, and refuses a correction that would make the balance negative. Voiding initial funds is blocked once additional funds exist (correct it instead) |
+| `UnitFundController` + `UnitFundEntryRequest` | `GET /superadmin/finance/unit-funds` (`can:finance.view`) and POST issue / return / `{entry}/correct` / `{entry}/void` (`can:finance.funds.manage`, throttled), all inside the `role:1` group. Validation keeps amounts as strings (commas and ₱ are stripped; at most two decimals). Business errors come back as a form error without saving |
+| UI `superadmin/finance/unit-funds/index.blade.php` + `public/superadmin/css/finance.css` | Built from the existing `ob-`/`oa-` Owner components. "Issue funds" and "Record returned funds" panels; unit and Mon–Sat period filters (defaults to this week); six summary cards; a per-unit balance table with totals and an "Awaiting review" column; paginated movement history showing voided entries struck through with reason, voider and replacement, plus inline Correct or void. Double-click protection on the page and a one-time idempotency key per form on the server |
+| Config | Expense categories replaced with the client's confirmed list (9 categories); `issue_kinds` added |
+
+## Phase 2 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Unit/Finance tests/Feature/Finance` | **91 passed** (440 assertions), including 32 new Unit Funds tests |
+| `pest tests/Feature/SuperAdmin tests/Feature/Security` (Owner sidebar, role boundary and security regression) | **1008 passed** |
+| Full suite `pest` | **3227 passed, 0 failed**, 52 risky (pre-existing); 1,370 s |
+
+The Unit Funds tests (`tests/Feature/Finance/UnitFundsTest.php`) cover:
+- **The client's scenario:** issue 3,000.00, spend 2,950.00 (spending fixture until Phase 3), return 50.00, leaving exactly 0.00. The page shows the same figures, and a further 0.01 return is refused.
+- **Carry-forward:** last week 3,000.00 − 1,000.25 = 1,999.75; this week's opening is 1,999.75, then +500.00 = 2,499.75.
+- **Duplicates:** the same form posted twice gives 1 row and 1 audit entry; the same key with a different amount is refused; a second initial issuance is refused; additional funds before initial are refused.
+- **Authorization:** Dispatcher, Team Leader, Driver, Customer and System Admin get 403 on view, issue, return, void and correct; guests are redirected to login; nothing is written.
+- **Invalid input:** 0, 0.00, negative, 12.345, text, 1e3 and empty are rejected; "3,000.50" is stored exactly; future dates and a missing person are rejected.
+- **Unsupported returns:** over the balance; a unit with no funds; dated before the issuance; over the cash left after pending reviews are set aside.
+- **Corrections:** the linked replacement is recorded, the original stays in history unchanged, and the history page shows both links; a correction that would go negative is refused; voids require a reason and stay visible; voiding initial funds is blocked once additional funds exist.
+- **Separation, filters and exactness:** customer collections are excluded; filters work by unit and date; the default is the current week; the sidebar links to the page; 0.10 + 0.20 = 0.30.
+
+Not done in Phase 2: no browser screenshot review (the page was verified through rendered-HTML tests only), no migration on the dev or production databases, no push or deploy.
+
 ## Open client decisions
 
-Only the commission interpretation is still open: C1–C6 in [spec.md §6](spec.md#6-commission-pending-client-confirmation). Unit Funds and Expenses are not blocked. The only outstanding item for them is the client's category list, which goes in `config/finance.php`.
+- Commission interpretation C1–C6 ([spec.md §6](spec.md#6-commission-pending-client-confirmation)).
+- **Sunday activity (new, minor):** reporting weeks are Monday–Saturday. Fund movements dated on a Sunday are still counted in balances (they carry into the next week's opening), and the default view includes today when today is Sunday. The client should confirm whether Sunday movements belong to the preceding week or the following week in reports.
+
+Unit Funds and Expenses are not blocked. The expense categories are confirmed and configured.
 
 ## Known risks and notes
 
 - The crew is stored only on `Unit` as live data. Past jobs need a backfill flagged `needs_review`.
-- `ReportMetricsService` sums with floats. Phase 2 adds a consistency test, and that service will only be changed if a real mismatch is found.
+- `ReportMetricsService` sums with floats. Phase 4 (Jobs & Collections) adds a consistency test, and that service will only be changed if a real mismatch is found.
+- Expenses with `funding_source = unit_fund` count as spending on their `expense_date` once approved. If an approval lands after the period has been reviewed, that period's figures change. This is intended (it reflects actual spending dates), but the Owner should know.
 - `ActiveBookingsController::updateStatus()` can set `completed` without `completed_at`. Finance requires `completed_at`.
 - `cash_received` is the cash tendered, not the amount collected.
 - The finance tables use FK `RESTRICT` to bookings and units. `UnitController::forceDelete` now refuses units with finance history. The dev seeding commands (`SeedTlDemo*`, `SeedQuotationTestScenarios`) delete bookings and would be blocked only if those bookings had finance rows, which they never do.

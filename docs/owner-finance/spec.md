@@ -19,7 +19,8 @@ Rules that apply to every page:
 ### Confirmed by the client (2026-11-09)
 - **Reporting and commission week: Monday to Saturday** (`config('finance.week_*')`, enforced by the DB CHECK `fcs_week`).
 - **Expense flow: Team Leader submits → Dispatcher verifies → Owner approves.** The Owner may also enter and approve a company expense directly.
-- **Expense categories are specified by the client.** The list is not in the repo yet, so `config/finance.php` holds a PROVISIONAL list. It must be replaced before Phase 3 goes live. Categories are stored as text, so changing the list needs no migration.
+- **Expense categories** (confirmed, in `config/finance.php`): Fuel / Diesel, Toll, Parking, Food / Travel Allowance, Maintenance, Repairs, Parts / Equipment, Assistance from Another Unit, Other Expenses.
+- **Unit fund balance:** Opening Balance + Funds Issued − Actual Advance-Funded Spending − Funds Returned = Remaining Balance. Outstanding funds carry across periods.
 - Unit Funds and Expenses are **not** blocked on any client decision.
 
 ## 2. Existing architecture (verified in the repo)
@@ -107,7 +108,11 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
 
 - **Overview**: separate cards for collections, issued funds, returned funds, expenses, commission earned, and payouts. Only one card, clearly labelled "Net position", combines figures, and its formula is shown.
 - **Jobs & Collections**: read-only; completed and verified jobs, amount, method, unit, crew, documents.
-- **Unit Funds**: issue funds, record returned funds, void; balance = issued − returned − approved unit-fund expenses.
+- **Unit Funds** (built in Phase 2, `/superadmin/finance/unit-funds`):
+  - Issue initial or additional funds and record returned funds, each with date, amount, unit, person, reference and remarks.
+  - `UnitFundLedger` computes Opening + Issued − Advance-funded spending (approved `unit_fund` expenses) − Returned = Remaining, and the opening balance carries forward.
+  - Expenses awaiting review are shown but not deducted, and are set aside from what a unit can return.
+  - Corrections void the original and record a linked replacement.
 - **Expenses**: the Team Leader → Dispatcher → Owner queue, evidence viewer, approve, reject and void.
 - **Weekly Commission**: choose a week (Mon–Sat), prepare (after C1–C6), approve, record payouts.
 - **Reports**: PDF and XLSX exports.

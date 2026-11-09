@@ -22,6 +22,7 @@ function finFundRow(array $overrides = []): FundEntry
     return FundEntry::create(array_merge([
         'idempotency_key' => (string) Str::uuid(),
         'entry_type' => 'issuance',
+        'issue_kind' => 'additional',
         'unit_id' => finUnit()->id,
         'amount' => '500.00',
         'entry_date' => now()->toDateString(),
@@ -34,7 +35,7 @@ function finExpenseRow(array $overrides = []): Expense
     return Expense::create(array_merge([
         'idempotency_key' => (string) Str::uuid(),
         'unit_id' => finUnit()->id,
-        'category' => 'fuel',
+        'category' => 'fuel_diesel',
         'amount' => '250.00',
         'expense_date' => now()->toDateString(),
         'funding_source' => 'unit_fund',

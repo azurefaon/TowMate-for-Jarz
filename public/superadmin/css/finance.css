@@ -1,0 +1,163 @@
+/* Owner Finance pages. Builds on bookings.css (ob-*) and analytics.css (oa-*). */
+
+.fin-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.fin-header-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.fin-flash {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid;
+    font-size: 14px;
+}
+
+.fin-flash svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.fin-flash ul { margin: 4px 0 0; padding-left: 18px; }
+.fin-flash--success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.fin-flash--error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+
+.fin-form-card[hidden] { display: none; }
+
+.fin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px 16px;
+}
+
+.fin-grid--compact { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 12px; }
+
+.fin-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ob-text, #171717);
+    min-width: 0;
+}
+
+.fin-field small { font-weight: 400; color: var(--ob-body, #525252); }
+.fin-field--wide { grid-column: 1 / -1; }
+
+.fin-field input,
+.fin-field textarea,
+.fin-field select {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #d4d4d4;
+    border-radius: 10px;
+    font: inherit;
+    font-weight: 400;
+    color: var(--ob-text, #171717);
+    background: #fff;
+    box-sizing: border-box;
+}
+
+.fin-field textarea { min-height: 64px; resize: vertical; }
+
+.fin-field input:focus-visible,
+.fin-field textarea:focus-visible,
+.fin-field select:focus-visible {
+    outline: 2px solid var(--ob-text, #171717);
+    outline-offset: 1px;
+}
+
+.fin-radios { border: 0; margin: 0; padding: 0; }
+.fin-radios legend { font-size: 13px; font-weight: 600; margin-bottom: 6px; padding: 0; }
+.fin-radios label { display: flex; align-items: center; gap: 8px; font-weight: 400; min-height: 32px; }
+.fin-radios input { width: auto; min-height: 0; }
+
+.fin-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.fin-table td { vertical-align: top; }
+.fin-table tfoot th,
+.fin-table tfoot td { border-top: 2px solid #e5e5e5; font-weight: 700; padding-top: 12px; }
+.fin-strong { font-weight: 700; }
+.fin-negative { color: #b91c1c; }
+
+.fin-ref { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+.fin-type { font-weight: 600; }
+.fin-type--return { color: #1d4ed8; }
+
+.fin-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f5f5f5;
+    color: #525252;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.fin-tag--void { background: #fee2e2; color: #991b1b; }
+
+.fin-pending {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.fin-voided td { color: #a3a3a3; }
+.fin-voided .fin-strong { text-decoration: line-through; }
+.fin-voided .fin-void-note { color: #525252; }
+
+.fin-actions { min-width: 150px; }
+
+.fin-details > summary { list-style: none; cursor: pointer; }
+.fin-details > summary::-webkit-details-marker { display: none; }
+
+.fin-details-body {
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    background: #fafafa;
+    min-width: min(520px, 80vw);
+}
+
+.fin-void-form { margin-top: 14px; padding-top: 14px; border-top: 1px dashed #d4d4d4; }
+.fin-help { margin: 0 0 10px; font-size: 13px; color: var(--ob-body, #525252); }
+.fin-btn-danger { color: #b91c1c; border-color: #fecaca; }
+.fin-pager { margin-top: 14px; }
+
+.fin-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .fin-header-actions { width: 100%; }
+    .fin-header-actions .oa-btn { flex: 1 1 auto; }
+    .fin-details-body { min-width: 0; }
+}

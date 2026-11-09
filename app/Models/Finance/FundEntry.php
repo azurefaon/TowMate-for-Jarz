@@ -24,9 +24,31 @@ class FundEntry extends Model
     protected $attributes = ['status' => self::STATUS_RECORDED];
 
     protected $fillable = [
-        'idempotency_key', 'entry_type', 'unit_id', 'team_leader_user_id', 'counterparty_name', 'amount',
-        'entry_date', 'issuance_id', 'notes', 'recorded_by',
+        'idempotency_key', 'entry_type', 'issue_kind', 'unit_id', 'team_leader_user_id', 'counterparty_name',
+        'external_reference', 'amount', 'entry_date', 'issuance_id', 'corrects_entry_id', 'notes', 'recorded_by',
     ];
+
+    public function correctedEntry(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'corrects_entry_id');
+    }
+
+    public function correction(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(self::class, 'corrects_entry_id')->where('status', self::STATUS_RECORDED);
+    }
+
+    public function voider(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function typeLabel(): string
+    {
+        return $this->entry_type === self::TYPE_RETURN
+            ? 'Funds returned'
+            : (config('finance.issue_kinds')[$this->issue_kind] ?? 'Funds issued');
+    }
 
     protected $casts = [
         'amount' => MoneyCast::class,

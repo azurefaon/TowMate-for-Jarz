@@ -59,7 +59,7 @@ it('refuses Owner-only service actions for every other role', function (int $rol
     $unit = finUnit();
 
     $attempts = [
-        'issue funds' => fn () => app(UnitFundService::class)->issue($actor, ['unit_id' => $unit->id, 'amount' => '100', 'entry_date' => now()->toDateString()], (string) Str::uuid()),
+        'issue funds' => fn () => app(UnitFundService::class)->issue($actor, ['unit_id' => $unit->id, 'amount' => '100', 'issue_kind' => 'initial', 'entry_date' => now()->toDateString()], (string) Str::uuid()),
         'record returned funds' => fn () => app(UnitFundService::class)->recordReturn($actor, ['unit_id' => $unit->id, 'amount' => '100', 'entry_date' => now()->toDateString()], (string) Str::uuid()),
         'draft policy' => fn () => app(CommissionPolicyService::class)->createDraft($actor, 'X', ['company' => '60', 'driver' => '12', 'team_leader' => '10', 'rider' => '10', 'crew_mate' => '8']),
         'activate policy' => fn () => app(CommissionPolicyService::class)->activate($actor, CommissionPolicy::sole(), now()->toDateString()),
@@ -71,7 +71,7 @@ it('refuses Owner-only service actions for every other role', function (int $rol
     }
 
     // Approval and payout recording, against real records.
-    $expense = app(ExpenseService::class)->submit($owner, ['unit_id' => $unit->id, 'amount' => '50', 'expense_date' => now()->toDateString(), 'category' => 'fuel', 'funding_source' => 'company_direct'], (string) Str::uuid());
+    $expense = app(ExpenseService::class)->submit($owner, ['unit_id' => $unit->id, 'amount' => '50', 'expense_date' => now()->toDateString(), 'category' => 'fuel_diesel', 'funding_source' => 'company_direct'], (string) Str::uuid());
     expect(fn () => app(ExpenseService::class)->approve($actor, $expense))->toThrow(AuthorizationException::class);
 
     $policy = finActivePolicy($owner);
