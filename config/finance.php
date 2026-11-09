@@ -25,17 +25,38 @@ return [
         'other' => 'Other Expenses',
     ],
 
-    // Unit fund issuance kinds.
+    /*
+    | Unit fund issuance kinds. Units normally receive operating funds per day, so there is no limit on how
+    | many issuances a unit gets. The stored keys are unchanged from Phase 2; only the labels changed.
+    */
     'issue_kinds' => [
-        'initial' => 'Initial funds',
+        'initial' => 'Daily operating funds',
         'additional' => 'Additional funds',
     ],
 
-    // Who paid for the expense. These values are enforced by a database CHECK constraint.
+    /*
+    | How an expense was paid. One expense may be split across several sources (mixed funding); the splits
+    | always sum exactly to the expense amount. Only 'unit_fund' reduces a unit fund balance.
+    | These values are enforced by database CHECK constraints.
+    */
     'funding_sources' => [
-        'unit_fund' => 'Unit fund (cash issued to the unit)',
-        'company_direct' => 'Paid directly by the company',
-        'crew_out_of_pocket' => 'Crew out of pocket (to be reimbursed)',
+        'unit_fund' => 'Issued unit funds',
+        'company_direct' => 'Direct company payment',
+        'personal_advance' => 'Personal advance',
+    ],
+
+    'expense_scopes' => [
+        'job' => 'Job expense',
+        'unit' => 'Unit / monthly expense',
+    ],
+
+    /*
+    | Rules still awaiting client confirmation. Expenses affected by them are recorded and shown with a flag,
+    | but no automatic allocation, reimbursement or deduction is made.
+    */
+    'pending_rules' => [
+        'monthly_allocation' => 'Monthly maintenance allocation across jobs is pending client confirmation.',
+        'personal_advance_reimbursement' => 'Personal advance reimbursement rules are pending client confirmation. No Team Leader debt is created.',
     ],
 
     'payout_methods' => [
@@ -45,10 +66,13 @@ return [
     ],
 
     // Expense evidence: private disk only, served through an authorised route.
+    // Receipt and payment evidence is REQUIRED before Dispatcher verification and Owner approval (the approval rule is also a DB trigger).
     'evidence' => [
         'disk' => 'local',
         'directory' => 'finance/expenses',
         'max_kilobytes' => 8192,
+        'max_files_per_upload' => 5,
         'mimes' => ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+        'extensions' => ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
     ],
 ];

@@ -33,6 +33,11 @@
                 <i data-lucide="circle-check" aria-hidden="true"></i><span>{{ session('success') }}</span>
             </div>
         @endif
+        @if (session('warning'))
+            <div class="fin-flash fin-flash--warning" role="status">
+                <i data-lucide="triangle-alert" aria-hidden="true"></i><span>{{ session('warning') }}</span>
+            </div>
+        @endif
         @if ($errors->any())
             <div class="fin-flash fin-flash--error" role="alert">
                 <i data-lucide="circle-alert" aria-hidden="true"></i>
@@ -402,7 +407,7 @@
                 btn.addEventListener('click', function () { btn.closest('[data-fin-panel]').hidden = true; });
             });
 
-            // Suggest "Initial" for a unit with no initial funds yet, and "Additional" otherwise. The server enforces it.
+            // Suggest "Daily operating funds" for the unit's first hand-over today and "Additional funds" otherwise. Either is allowed.
             const unitSelect = document.querySelector('[data-fin-unit]');
             if (unitSelect) {
                 unitSelect.addEventListener('change', function () {

@@ -83,6 +83,21 @@ class UnitFundService extends FinanceSupport
         });
     }
 
+    /**
+     * Other recorded entries with the same unit, type, date and amount. Daily issuances are normal, so this is
+     * only a hint shown to the Owner after recording, never a block.
+     */
+    public function similarEntries(FundEntry $entry): int
+    {
+        return FundEntry::recorded()
+            ->whereKeyNot($entry->id)
+            ->where('unit_id', $entry->unit_id)
+            ->where('entry_type', $entry->entry_type)
+            ->whereDate('entry_date', $entry->entry_date)
+            ->where('amount', $entry->amount)
+            ->count();
+    }
+
     /** Remaining unit fund balance (today, or as of a date). */
     public function balance(int $unitId, ?string $asOf = null): Money
     {
@@ -119,15 +134,8 @@ class UnitFundService extends FinanceSupport
 
                 $corrected = $beforeCreate ? $beforeCreate() : null;
 
-                if ($type === FundEntry::TYPE_ISSUANCE) {
-                    $hasInitial = FundEntry::recorded()->where('unit_id', $unitId)->where('issue_kind', 'initial')->exists();
-                    if ($issueKind === 'initial' && $hasInitial) {
-                        throw new FinanceException('This unit already has initial funds recorded. Record additional funds instead.');
-                    }
-                    if ($issueKind === 'additional' && ! $hasInitial) {
-                        throw new FinanceException('Record the initial funds for this unit before additional funds.');
-                    }
-                }
+                // Units receive operating funds per day: any number of issuances on any date is allowed.
+                // Double submissions are stopped by the idempotency key; outstanding cash simply carries forward.
 
                 $issuanceId = null;
                 if ($type === FundEntry::TYPE_RETURN) {
@@ -207,14 +215,11 @@ class UnitFundService extends FinanceSupport
         }
 
         $linked = FundEntry::where('issuance_id', $entry->id)->recorded()->exists()
-            || Expense::where('fund_entry_id', $entry->id)->whereNotIn('status', [Expense::STATUS_REJECTED, Expense::STATUS_VOIDED])->exists();
+            || Expense::where('fund_entry_id', $entry->id)->whereNotIn('status', [Expense::STATUS_REJECTED, Expense::STATUS_VOIDED])->exists()
+            || \App\Models\Finance\ExpenseFunding::where('fund_entry_id', $entry->id)
+                ->whereHas('expense', fn ($q) => $q->whereNotIn('status', [Expense::STATUS_REJECTED, Expense::STATUS_VOIDED]))->exists();
         if ($linked) {
             throw new FinanceException('Void the returns and expenses linked to this issuance first.');
-        }
-
-        if ($entry->issue_kind === 'initial' && ! $forCorrection
-            && FundEntry::recorded()->where('unit_id', $entry->unit_id)->where('issue_kind', 'additional')->exists()) {
-            throw new FinanceException('This unit has additional funds recorded after the initial funds. Correct the initial entry instead of voiding it.');
         }
 
         // A plain void must not leave the unit holding negative cash. A correction is checked when its replacement is recorded.

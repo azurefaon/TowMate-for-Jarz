@@ -52,6 +52,14 @@
 
         </nav>
 
+        <div class="menu-label">Finance</div>
+        <nav class="menu">
+            <a href="{{ route('admin.expense-review.index') }}"
+                class="menu-item {{ request()->routeIs('admin.expense-review.*') ? 'active' : '' }}">
+                <span>Expense Review</span>
+            </a>
+        </nav>
+
     </div>
 
     <form id="logoutForm" action="{{ route('logout') }}" method="POST" style="display:none;">

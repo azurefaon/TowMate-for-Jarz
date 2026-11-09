@@ -26,6 +26,7 @@ function finExpenseData(int $unitId, array $overrides = []): array
         'expense_date' => now()->toDateString(),
         'category' => 'fuel_diesel',
         'funding_source' => 'unit_fund',
+        'description' => 'Diesel for the tow',
     ], $overrides);
 }
 
@@ -52,6 +53,7 @@ it('records an issuance once per idempotency key and audits it', function () {
 });
 
 it('keeps issued funds, expenses and returns separate and computes the balance exactly', function () {
+    Storage::fake('local');
     $owner = finOwner();
     $unit = finUnit();
     $funds = app(UnitFundService::class);
@@ -59,7 +61,7 @@ it('keeps issued funds, expenses and returns separate and computes the balance e
     $funds->issue($owner, ['unit_id' => $unit->id, 'amount' => '1000.10', 'issue_kind' => 'initial', 'entry_date' => now()->toDateString()], (string) Str::uuid());
 
     $expenses = app(ExpenseService::class);
-    $expense = $expenses->submit($owner, finExpenseData($unit->id), (string) Str::uuid());
+    $expense = $expenses->submit($owner, finExpenseData($unit->id), (string) Str::uuid(), [UploadedFile::fake()->image('receipt.jpg')]);
     $expenses->approve($owner, $expense); // the Owner's own entry can be approved directly
 
     $funds->recordReturn($owner, ['unit_id' => $unit->id, 'amount' => '100.00', 'entry_date' => now()->toDateString()], (string) Str::uuid());
@@ -87,13 +89,14 @@ it('voids a fund entry with a reason instead of deleting it', function () {
 // ---------- Expenses: Team Leader -> Dispatcher -> Owner ----------
 
 it('follows the Team Leader to Dispatcher to Owner expense flow', function () {
+    Storage::fake('local');
     $owner = finOwner();
     $dispatcher = finUser(2);
     $teamLeader = finUser(3);
     $unit = finUnit($teamLeader);
     $service = app(ExpenseService::class);
 
-    $expense = $service->submit($teamLeader, finExpenseData($unit->id), (string) Str::uuid());
+    $expense = $service->submit($teamLeader, finExpenseData($unit->id), (string) Str::uuid(), [UploadedFile::fake()->image('receipt.jpg')]);
     expect($expense->status)->toBe('submitted');
 
     expect(fn () => $service->approve($owner, $expense))->toThrow(FinanceException::class, 'Dispatcher must verify');
@@ -112,6 +115,7 @@ it('follows the Team Leader to Dispatcher to Owner expense flow', function () {
 });
 
 it('stops a Team Leader from submitting for another unit and a Dispatcher from approving', function () {
+    Storage::fake('local');
     $teamLeader = finUser(3);
     $otherUnit = finUnit(finUser(3));
     $service = app(ExpenseService::class);
@@ -120,7 +124,7 @@ it('stops a Team Leader from submitting for another unit and a Dispatcher from a
         ->toThrow(FinanceException::class, 'their own unit');
 
     $ownUnit = finUnit($teamLeader);
-    $expense = $service->submit($teamLeader, finExpenseData($ownUnit->id), (string) Str::uuid());
+    $expense = $service->submit($teamLeader, finExpenseData($ownUnit->id), (string) Str::uuid(), [UploadedFile::fake()->image('receipt.jpg')]);
     $dispatcher = finUser(2);
     $service->verify($dispatcher, $expense);
 
@@ -136,7 +140,7 @@ it('validates category and funding source against the configured lists', functio
         ->and(fn () => app(ExpenseService::class)->submit($owner, finExpenseData($unit->id, ['funding_source' => 'customer_cash']), (string) Str::uuid()))
         ->toThrow(FinanceException::class, 'funding source')
         ->and(fn () => app(ExpenseService::class)->submit($owner, finExpenseData($unit->id, ['amount' => 12.5]), (string) Str::uuid()))
-        ->toThrow(InvalidArgumentException::class);
+        ->toThrow(FinanceException::class, 'valid amount');
 });
 
 it('stores evidence on the private disk, rejects duplicates and locks evidence after approval', function () {

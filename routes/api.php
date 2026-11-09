@@ -132,6 +132,13 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
             Route::post('next-offer/{offer}/decline',  [TLNextTaskController::class, 'decline'])->whereNumber('offer')->middleware('throttle:tl-task-mutate');
             Route::put('location',                [TLLocationController::class, 'update'])->middleware('throttle:tl-location');
 
+            // Expenses: Team Leaders submit for their own unit; Dispatchers verify; the Owner approves.
+            Route::get('expenses/options',        [\App\Http\Controllers\Api\TeamLeader\TLExpenseController::class, 'options']);
+            Route::get('expenses',                [\App\Http\Controllers\Api\TeamLeader\TLExpenseController::class, 'index']);
+            Route::post('expenses',               [\App\Http\Controllers\Api\TeamLeader\TLExpenseController::class, 'store'])->middleware('throttle:tl-upload')->name('api.tl.expenses.store');
+            Route::post('expenses/{expense}/evidence', [\App\Http\Controllers\Api\TeamLeader\TLExpenseController::class, 'uploadEvidence'])->whereNumber('expense')->middleware('throttle:tl-upload');
+            Route::get('expenses/{expense}/evidence/{evidence}', [\App\Http\Controllers\Api\TeamLeader\TLExpenseController::class, 'evidence'])->whereNumber(['expense', 'evidence']);
+
             // LOCAL/DEMO ONLY - fails closed (404) outside local/testing; see TlDemoFixture.
             Route::post('demo/task/{booking}/simulate-arrival', [TLDemoController::class, 'simulateArrival'])->middleware('throttle:tl-task-mutate');
         });

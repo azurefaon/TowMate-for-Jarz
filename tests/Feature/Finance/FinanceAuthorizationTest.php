@@ -71,7 +71,7 @@ it('refuses Owner-only service actions for every other role', function (int $rol
     }
 
     // Approval and payout recording, against real records.
-    $expense = app(ExpenseService::class)->submit($owner, ['unit_id' => $unit->id, 'amount' => '50', 'expense_date' => now()->toDateString(), 'category' => 'fuel_diesel', 'funding_source' => 'company_direct'], (string) Str::uuid());
+    $expense = app(ExpenseService::class)->submit($owner, ['unit_id' => $unit->id, 'amount' => '50', 'expense_date' => now()->toDateString(), 'category' => 'fuel_diesel', 'funding_source' => 'company_direct', 'description' => 'Office supplies'], (string) Str::uuid());
     expect(fn () => app(ExpenseService::class)->approve($actor, $expense))->toThrow(AuthorizationException::class);
 
     $policy = finActivePolicy($owner);

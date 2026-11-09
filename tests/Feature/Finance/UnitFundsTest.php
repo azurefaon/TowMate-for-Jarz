@@ -12,7 +12,8 @@ use Illuminate\Support\Str;
 require_once __DIR__ . '/finance_helpers.php';
 
 /**
- * Spending fixture until Phase 3 delivers the Expenses screens: a unit-fund expense row in the given status.
+ * Low-level spending fixture: a unit-fund expense row (with its funding split and a receipt row) in the given
+ * status, written directly so the Unit Funds ledger can be tested on its own. ExpensesTest covers the real flow.
  */
 function finSpend(Unit $unit, string $amount, string $date, string $status = 'approved'): Expense
 {
@@ -20,10 +21,18 @@ function finSpend(Unit $unit, string $amount, string $date, string $status = 'ap
         'idempotency_key' => (string) Str::uuid(),
         'unit_id' => $unit->id,
         'category' => 'fuel_diesel',
+        'description' => 'Diesel',
+        'expense_scope' => 'unit',
+        'coverage_month' => CarbonImmutable::parse($date)->startOfMonth()->toDateString(),
         'amount' => $amount,
         'expense_date' => $date,
         'funding_source' => 'unit_fund',
         'submitted_at' => now(),
+    ]);
+    \App\Models\Finance\ExpenseFunding::create(['expense_id' => $expense->id, 'source' => 'unit_fund', 'amount' => $amount]);
+    \App\Models\Finance\ExpenseEvidence::create([
+        'expense_id' => $expense->id, 'disk' => 'local', 'path' => 'finance/expenses/' . $expense->id . '/' . Str::uuid() . '.jpg',
+        'mime_type' => 'image/jpeg', 'size_bytes' => 100, 'sha256' => hash('sha256', (string) Str::uuid()),
     ]);
 
     if ($status === 'approved') {
@@ -167,12 +176,37 @@ it('records a double-submitted form only once', function () {
     expect(FundEntry::count())->toBe(1);
 });
 
-it('allows only one initial issuance per unit', function () {
+it('accepts daily operating funds for the same unit on consecutive days and carries what is left', function () {
     $unit = finUnit();
-    finIssue($unit, '3000', finToday());
+    $day1 = CarbonImmutable::parse(finToday())->subDays(2)->toDateString();
+    $day2 = CarbonImmutable::parse(finToday())->subDay()->toDateString();
+    $day3 = finToday();
 
-    expect(fn () => finIssue($unit, '1000', finToday(), 'initial'))->toThrow(FinanceException::class, 'already has initial funds');
-    expect(fn () => finIssue(finUnit(), '1000', finToday(), 'additional'))->toThrow(FinanceException::class, 'initial funds for this unit before');
+    finIssue($unit, '3000', $day1, 'initial');
+    finSpend($unit, '2800', $day1);
+    finIssue($unit, '3000', $day2, 'initial');          // the next day's operating funds: not blocked
+    finSpend($unit, '3100', $day2);
+    finIssue($unit, '500', $day2, 'additional');        // a top-up on the same day
+    finIssue($unit, '3000', $day3, 'initial');
+
+    expect(FundEntry::where('unit_id', $unit->id)->recorded()->count())->toBe(4)
+        ->and(finRow($unit, $day2, $day2)['opening']->toString())->toBe('200.00')     // day 1 leftover carried forward
+        ->and(finRow($unit, $day2, $day2)['remaining']->toString())->toBe('600.00')   // 200 + 3000 + 500 - 3100
+        ->and(finRow($unit, $day3, $day3)['remaining']->toString())->toBe('3600.00')
+        ->and(FundEntry::where('unit_id', $unit->id)->orderBy('entry_date')->orderBy('id')->pluck('entry_date')->map->toDateString()->all())
+        ->toBe([$day1, $day2, $day2, $day3]);
+
+    // "Additional" funds on a day with no earlier issuance are allowed too; no forced daily settlement exists.
+    expect(finIssue(finUnit(), '1000', finToday(), 'additional')->amount)->toBe('1000.00');
+});
+
+it('flags, but does not block, a second identical issuance on the same day', function () {
+    $owner = finOwner();
+    $unit = finUnit();
+    $this->actingAs($owner)->post(route('superadmin.finance.unit-funds.issue'), finIssuePayload($unit))->assertSessionHasNoErrors()->assertSessionMissing('warning');
+    $this->actingAs($owner)->post(route('superadmin.finance.unit-funds.issue'), finIssuePayload($unit))->assertSessionHasNoErrors()->assertSessionHas('warning');
+
+    expect(FundEntry::where('unit_id', $unit->id)->count())->toBe(2);
 });
 
 // ---------- Authorization ----------
@@ -344,12 +378,13 @@ it('voids an entry with a reason and keeps it in the history', function () {
         ->assertSee('fin-tag--void', false);
 });
 
-it('blocks voiding initial funds once additional funds exist', function () {
+it('still blocks voiding an issuance when that would leave negative cash', function () {
     $unit = finUnit();
-    $initial = finIssue($unit, '3000', finToday());
+    $first = finIssue($unit, '3000', finToday());
     finIssue($unit, '500', finToday(), 'additional');
+    finSpend($unit, '3200', finToday());
 
-    expect(fn () => app(UnitFundService::class)->void(finOwnerCached(), $initial, 'Mistake'))->toThrow(FinanceException::class, 'Correct the initial entry');
+    expect(fn () => app(UnitFundService::class)->void(finOwnerCached(), $first, 'Mistake'))->toThrow(FinanceException::class, 'negative');
 });
 
 // ---------- Separation and filters ----------

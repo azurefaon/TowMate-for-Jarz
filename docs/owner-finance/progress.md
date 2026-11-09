@@ -14,7 +14,8 @@ Spec: [spec.md](spec.md).
 |---|---|---|
 | 2026-11-09 | Phase 0: repository inspection and spec | Done |
 | 2026-11-09 | Phase 1: database and authorization foundation | Done (`77ac792f`). See "Phase 1 verification" below |
-| 2026-11-10 | Phase 2: Unit Funds | Done. See "Phase 2 verification" below |
+| 2026-11-10 | Phase 2: Unit Funds | Done (`42245cb9`). See "Phase 2 verification" below |
+| 2026-11-10 | Phase 3: Expenses and receipt review, plus the Phase 2 daily-funds correction | Done. See "Phase 3" below |
 
 ## Phases
 
@@ -31,11 +32,11 @@ Spec: [spec.md](spec.md).
   - The backend ledger: Opening + Issued − Advance-funded spending − Returned = Remaining.
   - Carry-forward between periods, filters by unit and date, movement history, balance summary, and a column for expenses awaiting review.
   - Corrections (void plus linked replacement) and voids with a reason.
-- [ ] **Phase 3: Expenses.**
-  - The Team Leader submission path (API or app) and the Dispatcher verification queue.
-  - The Owner approval queue and an authorised evidence download route.
-  - Unit-fund spending then flows automatically into the Unit Funds ledger, which already reads approved `unit_fund` expenses.
-  - The confirmed categories are in `config/finance.php`.
+- [x] **Phase 3: Expenses and receipt review.**
+  - The Owner Expenses page, the Dispatcher Expense Review queue, and Team Leader API endpoints.
+  - Mixed funding; job vs unit/monthly scope; required evidence on private storage; overspend warning; corrections and voids.
+  - Integrated with the Unit Funds ledger.
+  - Phase 2 correction: daily issuances are allowed.
 - [ ] **Phase 4: Jobs & Collections, and Overview.**
   - A read-only collections query that reuses the `ReportMetricsService` predicate and group allocation, plus a consistency test against the Revenue page.
 - [ ] **Phase 5: Job crew capture.**
@@ -110,12 +111,54 @@ The Unit Funds tests (`tests/Feature/Finance/UnitFundsTest.php`) cover:
 
 Not done in Phase 2: no browser screenshot review (the page was verified through rendered-HTML tests only), no migration on the dev or production databases, no push or deploy.
 
+## Phase 3: what was built
+
+| Part | Detail |
+|---|---|
+| Migration `2026_11_12_000000_expenses_review_and_mixed_funding` | **`finance_expense_fundings`**: one row per (expense, source) with source ∈ {`unit_fund`, `company_direct`, `personal_advance`}; amount > 0; writable only while the expense is `submitted`. **`finance_expenses`** gains `expense_scope` (`job` needs a booking; `unit` needs `coverage_month` = first of month), `unit_fund_shortfall`, and `corrects_expense_id`; `funding_source` is now the summary (`unit_fund` / `company_direct` / `personal_advance` / `mixed`). **Approval trigger:** an expense cannot become approved without at least one evidence row, or if its splits do not sum exactly to the amount. **Phase 2 correction:** the `ffe_one_initial_per_unit` index is dropped |
+| `ExpenseService` (rewritten) | Validated submission (category, description, exact amounts, no future date, scope and booking, own unit for Team Leaders). Funding splits must sum exactly. Shortfall snapshot = unit-fund part minus the unit's available cash (balance minus pending unit-fund expenses), recorded as a warning only. Evidence is required for verification and approval. Owner approval needs prior Dispatcher verification unless the Owner entered the expense. Owner corrections close the original (void if approved, reject if pending) and record a linked replacement, with receipts copied to new private files. Evidence is validated by detected MIME type plus extension, max 8 MB, SHA-256 de-duplicated, stored on the private `local` disk. `canAccess()` allows the Owner, Dispatchers, and the submitting or unit Team Leader only |
+| `UnitFundLedger` | Spending and pending amounts now come from the **`unit_fund` splits only** (joined to approved or pending expenses), so each approved expense is deducted exactly once, and company or personal-advance parts never reduce issued funds. Adds `available()` |
+| `UnitFundService` (correction) | No lifetime "one initial issuance" rule and no "additional only after initial" rule. Any number of issuances per day; the labels are now "Daily operating funds" and "Additional funds" (stored keys unchanged). A same-unit, same-day, same-amount issuance shows a warning but is not blocked. Duplicate protection (idempotency key), carry-forward and history are unchanged |
+| Owner page `/superadmin/finance/expenses` | Record expense (unit, job or unit/monthly, booking reference with suggestions, month covered, date, category, description, amount, three funding fields with a live total check and a live overspend hint in integer centavos, receipts). Filters: unit, booking, category, status, type, funding source, date. Six summary cards (awaiting Dispatcher, awaiting Owner, approved, and approved split by unit funds, company and personal). History with flags (missing evidence, shortfall, monthly allocation pending, personal advance pending), evidence links, review trail, Approve (disabled without evidence), Reject, Void, Correct, Upload |
+| Dispatcher page `/admin-dashboard/expense-review` | A queue of `submitted` expenses with receipts; Verify (optional note; disabled without receipt) or Reject (reason); a recently verified list. Sidebar: Finance → Expense Review |
+| Team Leader API `/api/v1/team-leader/expenses*` | `GET options` (categories, sources, scopes, the TL's unit and available funds), `GET` (own or own-unit list), `POST` (multipart with `receipts[]`; the unit is always the TL's own unit; 201 when new, 200 on idempotent replay; returns a shortfall warning), `POST {id}/evidence`, `GET {id}/evidence/{evidence}`. No new account types; Driver and Crew remain without logins |
+| Shared | `ResolvesFinancePeriod` trait (both finance pages), `ExpenseEvidenceStreamer` (private streaming with `nosniff`, `no-store`, sandbox CSP), `_flashes` partial, `public/superadmin/js/finance.js` |
+
+## Phase 3 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Unit/Finance tests/Feature/Finance` | **126 passed** (712 assertions), including 34 new tests in `ExpensesTest.php` |
+| Full suite `pest` | 3261 passed, 52 risky (pre-existing), **1 failed**: `Admin/UnitsAndLeadersTest` #67 (`UniqueConstraintViolationException`, full run only) |
+| That file run on its own, with and without the Phase 3 changes (`git stash -u`) | **98/98 pass both ways.** The failure is order-dependent flakiness (like the Phase 1 run) and is not caused by finance |
+
+`ExpensesTest.php` covers:
+- **Creation and validation:** creation with scope, funding, evidence and review trail; job expenses linked by booking code, with a missing or unknown booking refused; 9 invalid inputs rejected with nothing saved.
+- **Receipts:** txt, disguised PHP and over-8 MB files are rejected; PDF accepted. Evidence can be viewed by the Owner, a Dispatcher and the submitting Team Leader; another Team Leader, Driver, Customer and System Admin are refused; evidence from another expense returns 404.
+- **Evidence required:** verify and approve are refused without evidence in the service, over HTTP and by the database trigger; approval succeeds once a receipt is attached.
+- **The client's example (end to end):** 3,000 issued; the TL submits 2,950 through the API, the Dispatcher verifies, the Owner approves; it was pending and not deducted until approval; re-approval is refused; 50 returned; balance **0.00**.
+- **Mixed funding:** 1,000 = 600 unit + 300 company + 100 personal; one expense; unit balance −600 only; the summary cards split exactly; splits are locked after approval.
+- **Overspend:** 800 against 500 available is recorded with a 300.00 shortfall warning; balance −300; no debt or adjustment entry; returns are blocked; the TL API returns the shortfall.
+- **Personal advance and company-paid:** unit balance unchanged; reimbursement-pending flag shown.
+- **Monthly / unit expenses:** allocation-pending flag; the month covered is stored; the type filter works.
+- **Duplicates:** an Owner double-submit gives 1 expense, 1 split, 1 receipt and 1 audit entry; a changed replay is refused; a TL app double-submit gives 1 expense.
+- **Authorization:** 5 non-Owner roles get 403 on every Owner expense action; only Dispatchers can verify; only Team Leaders can use the TL API; a TL's unit cannot be overridden; a TL without a unit gets 422; guests are redirected or get 401.
+- **Dispatcher queue:** verify with a note, reject with a reason (required), and the item shows as awaiting the Owner.
+- **History:** correcting an approved expense voids the original, links a replacement and copies its receipt; the voided original is no longer deducted; the replacement is deducted only after approval. A voided expense stops deducting.
+- **Commission and filters:** returns do not touch commission data; filters work by unit, booking, category, status and date; sidebar links are present.
+
+`UnitFundsTest.php` was updated for the correction: daily funds on three consecutive days plus a same-day top-up (carry-forward 200.00 → 600.00 → 3,600.00, in date order); "additional" funds without a prior daily issuance are allowed; an identical same-day issuance shows a warning but is not blocked; a void that would leave negative cash is still blocked.
+
+Not done in Phase 3: no Flutter screens for the Team Leader expense endpoints (backend only); no browser screenshot review; no migration on the dev or production databases; no push or deploy.
+
 ## Open client decisions
 
 - Commission interpretation C1–C6 ([spec.md §6](spec.md#6-commission-pending-client-confirmation)).
-- **Sunday activity (new, minor):** reporting weeks are Monday–Saturday. Fund movements dated on a Sunday are still counted in balances (they carry into the next week's opening), and the default view includes today when today is Sunday. The client should confirm whether Sunday movements belong to the preceding week or the following week in reports.
-
-Unit Funds and Expenses are not blocked. The expense categories are confirmed and configured.
+- **Monthly maintenance allocation:** unit/monthly expenses are recorded, approved and deducted from unit funds when paid from them, but they are **not allocated** to jobs or commission. Each one is flagged "Monthly allocation rule pending client confirmation".
+- **Personal advance reimbursement:** recorded as a funding split and flagged. No reimbursement, payable or Team Leader debt is created.
+- **Overspending:** recorded as entered with a shortfall snapshot. Whether a negative unit balance should trigger anything (for example, top-up or deduction) is the client's decision; nothing automatic happens.
+- **Evidence exemptions:** every expense currently needs evidence before verification and approval (enforced by a DB trigger). If the client wants exemptions (for example, a toll with no receipt), that needs a rule decision and a migration.
+- **Sunday activity (minor):** reporting weeks are Monday–Saturday. Sunday-dated entries count in balances and carry into the next week; the default view includes today when today is Sunday. Which week Sunday belongs to in reports still needs confirming.
 
 ## Known risks and notes
 

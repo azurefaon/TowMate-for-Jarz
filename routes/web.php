@@ -194,6 +194,15 @@ Route::prefix('admin-dashboard')
         Route::post('/drivers/team-leaders/{teamLeader}/duty', [DriversController::class, 'setTeamLeaderDuty'])->name('drivers.team-leaders.duty');
         Route::post('/drivers/units/{unit}/slot-duty', [DriversController::class, 'setSlotDuty'])->name('drivers.units.slot-duty');
 
+        // Expense review: the Dispatcher step of Team Leader -> Dispatcher -> Owner.
+        Route::middleware('can:finance.expenses.verify')->group(function () {
+            $review = \App\Http\Controllers\Admin\ExpenseReviewController::class;
+            Route::get('/expense-review', [$review, 'index'])->name('expense-review.index');
+            Route::get('/expense-review/{expense}/evidence/{evidence}', [$review, 'evidence'])->whereNumber(['expense', 'evidence'])->name('expense-review.evidence');
+            Route::post('/expense-review/{expense}/verify', [$review, 'verify'])->whereNumber('expense')->middleware('throttle:30,1')->name('expense-review.verify');
+            Route::post('/expense-review/{expense}/reject', [$review, 'reject'])->whereNumber('expense')->middleware('throttle:30,1')->name('expense-review.reject');
+        });
+
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
         Route::post('/available-units', [AvailableUnitsController::class, 'store'])->name('available-units.store');
         Route::post('/units/{unit}/maintenance', [AvailableUnitsController::class, 'markMaintenance'])->name('units.maintenance');
@@ -272,6 +281,22 @@ Route::prefix('superadmin')
                 Route::post('/unit-funds/returns', [$unitFunds, 'storeReturn'])->name('unit-funds.return');
                 Route::post('/unit-funds/{entry}/correct', [$unitFunds, 'correct'])->whereNumber('entry')->name('unit-funds.correct');
                 Route::post('/unit-funds/{entry}/void', [$unitFunds, 'void'])->whereNumber('entry')->name('unit-funds.void');
+            });
+
+            $expenses = \App\Http\Controllers\SuperAdmin\Finance\ExpenseController::class;
+            Route::middleware('can:finance.view')->group(function () use ($expenses) {
+                Route::get('/expenses', [$expenses, 'index'])->name('expenses.index');
+                Route::get('/expenses/{expense}/evidence/{evidence}', [$expenses, 'evidence'])->whereNumber(['expense', 'evidence'])->name('expenses.evidence');
+            });
+            Route::middleware('throttle:30,1')->group(function () use ($expenses) {
+                Route::post('/expenses', [$expenses, 'store'])->middleware('can:finance.expenses.submit')->name('expenses.store');
+                Route::post('/expenses/{expense}/evidence', [$expenses, 'uploadEvidence'])->middleware('can:finance.view')->whereNumber('expense')->name('expenses.upload-evidence');
+                Route::middleware('can:finance.expenses.approve')->group(function () use ($expenses) {
+                    Route::post('/expenses/{expense}/approve', [$expenses, 'approve'])->whereNumber('expense')->name('expenses.approve');
+                    Route::post('/expenses/{expense}/reject', [$expenses, 'reject'])->whereNumber('expense')->name('expenses.reject');
+                    Route::post('/expenses/{expense}/void', [$expenses, 'void'])->whereNumber('expense')->name('expenses.void');
+                    Route::post('/expenses/{expense}/correct', [$expenses, 'correct'])->whereNumber('expense')->name('expenses.correct');
+                });
             });
         });
 

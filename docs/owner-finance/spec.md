@@ -21,6 +21,11 @@ Rules that apply to every page:
 - **Expense flow: Team Leader submits → Dispatcher verifies → Owner approves.** The Owner may also enter and approve a company expense directly.
 - **Expense categories** (confirmed, in `config/finance.php`): Fuel / Diesel, Toll, Parking, Food / Travel Allowance, Maintenance, Repairs, Parts / Equipment, Assistance from Another Unit, Other Expenses.
 - **Unit fund balance:** Opening Balance + Funds Issued − Actual Advance-Funded Spending − Funds Returned = Remaining Balance. Outstanding funds carry across periods.
+- **Operating funds are issued per unit per day.** There is no limit on issuances, and there is no forced daily settlement.
+- **Funding sources:** issued unit funds, direct company payment, and personal advance. One expense may mix them, and only the unit-fund part reduces issued funds.
+- **Overspending is allowed** and recorded as entered, with a warning. No Team Leader debt is created automatically.
+- **Evidence is required** before an expense can be verified or approved.
+- Still pending client confirmation: monthly maintenance allocation, and personal-advance reimbursement rules (flagged on each affected expense; nothing is automated).
 - Unit Funds and Expenses are **not** blocked on any client decision.
 
 ## 2. Existing architecture (verified in the repo)
@@ -113,7 +118,12 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
   - `UnitFundLedger` computes Opening + Issued − Advance-funded spending (approved `unit_fund` expenses) − Returned = Remaining, and the opening balance carries forward.
   - Expenses awaiting review are shown but not deducted, and are set aside from what a unit can return.
   - Corrections void the original and record a linked replacement.
-- **Expenses**: the Team Leader → Dispatcher → Owner queue, evidence viewer, approve, reject and void.
+- **Expenses** (built in Phase 3):
+  - Owner `/superadmin/finance/expenses`, Dispatcher `/admin-dashboard/expense-review`, and Team Leader API `/api/v1/team-leader/expenses`.
+  - Each expense records unit, booking (job) or month covered (unit/monthly), date, category, description, amount, funding splits (`finance_expense_fundings`, summing exactly to the amount), evidence on the private disk, status, reviewers and timestamps.
+  - Approval is blocked without evidence, and the database enforces this as well.
+  - Corrections close the original and record a linked replacement.
+  - `UnitFundLedger` deducts only approved `unit_fund` splits.
 - **Weekly Commission**: choose a week (Mon–Sat), prepare (after C1–C6), approve, record payouts.
 - **Reports**: PDF and XLSX exports.
 

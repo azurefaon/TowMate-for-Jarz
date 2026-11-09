@@ -38,9 +38,24 @@ function finExpenseRow(array $overrides = []): Expense
         'category' => 'fuel_diesel',
         'amount' => '250.00',
         'expense_date' => now()->toDateString(),
+        'expense_scope' => 'unit',
+        'coverage_month' => now()->startOfMonth()->toDateString(),
+        'description' => 'Diesel',
         'funding_source' => 'unit_fund',
         'submitted_at' => now(),
     ], $overrides));
+}
+
+/** Adds the funding split and a receipt row so the database will accept approval. */
+function finMakeApprovable(Expense $expense): Expense
+{
+    \App\Models\Finance\ExpenseFunding::create(['expense_id' => $expense->id, 'source' => 'unit_fund', 'amount' => $expense->fresh()->amount]);
+    \App\Models\Finance\ExpenseEvidence::create([
+        'expense_id' => $expense->id, 'disk' => 'local', 'path' => 'finance/expenses/' . $expense->id . '/' . Str::uuid() . '.jpg',
+        'mime_type' => 'image/jpeg', 'size_bytes' => 100, 'sha256' => hash('sha256', (string) Str::uuid()),
+    ]);
+
+    return $expense;
 }
 
 it('creates every finance table and seeds the initial rates as an unconfirmed draft', function () {
@@ -127,13 +142,14 @@ it('allows editing a submitted expense but freezes it once approved', function (
     DB::table('finance_expenses')->where('id', $expense->id)->update(['amount' => '275.00']);
     expect($expense->fresh()->amount)->toBe('275.00');
 
+    finMakeApprovable($expense);
     DB::table('finance_expenses')->where('id', $expense->id)->update(['status' => 'approved', 'approved_at' => now()]);
     finExpectDbRejects(fn () => DB::table('finance_expenses')->where('id', $expense->id)->update(['amount' => '1.00']), 'amount');
     finExpectDbRejects(fn () => DB::table('finance_expenses')->where('id', $expense->id)->update(['status' => 'submitted']), 'not allowed');
 });
 
 it('does not let an approver be swapped for another user', function () {
-    $expense = finExpenseRow();
+    $expense = finMakeApprovable(finExpenseRow());
     $owner = finOwner();
     DB::table('finance_expenses')->where('id', $expense->id)->update(['status' => 'approved', 'approved_at' => now(), 'approved_by' => $owner->id]);
 

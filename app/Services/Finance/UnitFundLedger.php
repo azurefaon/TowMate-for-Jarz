@@ -47,16 +47,19 @@ class UnitFundLedger
                 [$fromDate, $fromDate, $fromDate, $fromDate])
             ->get()->keyBy('unit_id');
 
-        $spending = DB::table('finance_expenses')
-            ->where('funding_source', 'unit_fund')
-            ->where('expense_date', '<=', $toDate)
-            ->when($unitId, fn ($q) => $q->where('unit_id', $unitId))
-            ->groupBy('unit_id')
-            ->selectRaw("unit_id,
-                COALESCE(SUM(amount) FILTER (WHERE status = 'approved' AND expense_date < ?), 0) AS spent_before,
-                COALESCE(SUM(amount) FILTER (WHERE status = 'approved' AND expense_date >= ?), 0) AS spent_in,
-                COALESCE(SUM(amount) FILTER (WHERE status IN ('submitted', 'verified')), 0) AS pending_amount,
-                COUNT(*) FILTER (WHERE status IN ('submitted', 'verified')) AS pending_count",
+        // Only the unit_fund split of each expense counts. One split row per (expense, source) means each
+        // approved expense is deducted exactly once, and company or personal-advance splits never touch the fund.
+        $spending = DB::table('finance_expense_fundings as f')
+            ->join('finance_expenses as e', 'e.id', '=', 'f.expense_id')
+            ->where('f.source', 'unit_fund')
+            ->where('e.expense_date', '<=', $toDate)
+            ->when($unitId, fn ($q) => $q->where('e.unit_id', $unitId))
+            ->groupBy('e.unit_id')
+            ->selectRaw("e.unit_id AS unit_id,
+                COALESCE(SUM(f.amount) FILTER (WHERE e.status = 'approved' AND e.expense_date < ?), 0) AS spent_before,
+                COALESCE(SUM(f.amount) FILTER (WHERE e.status = 'approved' AND e.expense_date >= ?), 0) AS spent_in,
+                COALESCE(SUM(f.amount) FILTER (WHERE e.status IN ('submitted', 'verified')), 0) AS pending_amount,
+                COUNT(*) FILTER (WHERE e.status IN ('submitted', 'verified')) AS pending_count",
                 [$fromDate, $fromDate])
             ->get()->keyBy('unit_id');
 
@@ -119,9 +122,17 @@ class UnitFundLedger
     /** Unit-fund expenses awaiting Dispatcher verification or Owner approval (not yet deducted). */
     public function pendingAmount(int $unitId): Money
     {
-        return Money::of((string) Expense::where('unit_id', $unitId)
-            ->where('funding_source', 'unit_fund')
-            ->whereIn('status', [Expense::STATUS_SUBMITTED, Expense::STATUS_VERIFIED])
-            ->sum('amount'));
+        return Money::of((string) DB::table('finance_expense_fundings as f')
+            ->join('finance_expenses as e', 'e.id', '=', 'f.expense_id')
+            ->where('f.source', 'unit_fund')
+            ->where('e.unit_id', $unitId)
+            ->whereIn('e.status', Expense::PENDING_STATUSES)
+            ->sum('f.amount'));
+    }
+
+    /** Cash the unit still holds after setting aside unit-fund expenses awaiting review (may be negative). */
+    public function available(int $unitId): Money
+    {
+        return $this->balance($unitId)->minus($this->pendingAmount($unitId));
     }
 }

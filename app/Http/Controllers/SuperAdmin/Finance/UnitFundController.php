@@ -23,6 +23,7 @@ use Illuminate\View\View;
 class UnitFundController extends Controller
 {
     use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+    use ResolvesFinancePeriod;
 
     public function __construct(private readonly UnitFundService $funds, private readonly UnitFundLedger $ledger)
     {
@@ -64,7 +65,7 @@ class UnitFundController extends Controller
             'unitId' => $unitId,
             'activeUnits' => $activeUnits,
             'filterUnits' => $filterUnits,
-            'unitsWithInitial' => FundEntry::recorded()->where('issue_kind', 'initial')->pluck('unit_id')->all(),
+            'unitsWithInitial' => FundEntry::recorded()->where('entry_type', 'issuance')->whereDate('entry_date', now(config('finance.timezone'))->toDateString())->pluck('unit_id')->unique()->values()->all(), // units already funded today: suggest "Additional"
             'today' => now(config('finance.timezone'))->toDateString(),
             'issueKey' => old('form') === 'issue' ? old('idempotency_key', (string) Str::uuid()) : (string) Str::uuid(),
             'returnKey' => old('form') === 'return' ? old('idempotency_key', (string) Str::uuid()) : (string) Str::uuid(),
@@ -75,6 +76,9 @@ class UnitFundController extends Controller
     {
         return $this->attempt($request, 'issue', function () use ($request) {
             $entry = $this->funds->issue($request->user(), $request->validated(), $request->validated('idempotency_key'));
+            if ($entry->wasRecentlyCreated && $this->funds->similarEntries($entry) > 0) {
+                session()->flash('warning', 'Another issuance with the same unit, date and amount is already recorded. If this was a second hand-over, no action is needed. If it was entered twice, void one of them.');
+            }
 
             return "Recorded {$entry->typeLabel()} of " . \App\Support\Money::of($entry->amount)->format() . " ({$entry->reference_code}).";
         });
@@ -124,41 +128,5 @@ class UnitFundController extends Controller
         }
 
         return back()->with('success', $message);
-    }
-
-    /** Defaults to the current reporting week (Monday to Saturday, Asia/Manila). */
-    private function resolvePeriod(Request $request): array
-    {
-        $tz = config('finance.timezone');
-        $parse = function (?string $value) use ($tz): ?CarbonImmutable {
-            if (! $value || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-                return null;
-            }
-            try {
-                return CarbonImmutable::createFromFormat('Y-m-d', $value, $tz)->startOfDay();
-            } catch (\Throwable) {
-                return null;
-            }
-        };
-
-        $from = $parse($request->query('from'));
-        $to = $parse($request->query('to'));
-
-        if (! $from && ! $to) {
-            $from = CarbonImmutable::now($tz)->startOfWeek(CarbonImmutable::MONDAY)->startOfDay();
-            $to = $from->addDays((int) config('finance.week_length_days') - 1);
-            // On a Sunday (outside the Mon–Sat week) include today so Sunday movements are still visible by default.
-            $today = CarbonImmutable::now($tz)->startOfDay();
-            if ($today->greaterThan($to)) {
-                $to = $today;
-            }
-        }
-        $from ??= $to;
-        $to ??= $from;
-        if ($from->greaterThan($to)) {
-            [$from, $to] = [$to, $from];
-        }
-
-        return [$from, $to];
     }
 }
