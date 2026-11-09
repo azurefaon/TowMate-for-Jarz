@@ -14,7 +14,7 @@ import 'booking_success_screen.dart';
 
 /// Where the customer lands after the hosted checkout. It shows ONLY what the Laravel backend has verified
 /// (signed PayMongo webhook, or the server asking PayMongo directly): the browser closing, a redirect, or the GCash app
-/// returning proves nothing here.
+/// or bank page returning proves nothing here.
 ///
 /// Pay & Submit: "Verifying payment" until the server reports the payment verified AND the booking submitted, then
 /// BOOKING SUCCESSFUL. A cancelled, failed or expired payment leaves the booking unsubmitted, with a retry.
@@ -172,7 +172,7 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
     if (_busy) return;
     setState(() => _busy = true);
 
-    final started = await ApiService.startOnlineCheckout(widget.bookingCode);
+    final started = await ApiService.startOnlineCheckout(widget.bookingCode, method: _transaction?.method ?? 'gcash', bank: _transaction?.bank);
     if (!mounted) return;
 
     final transaction = started['transaction'] as OnlinePaymentTransaction?;
@@ -335,7 +335,7 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
                   ..._actions(context, phase, tx),
                   const SizedBox(height: 20),
                   Text(
-                    'Payment is made on PayMongo\'s secure page. TowMate never sees or stores your GCash PIN, OTP or any account details.',
+                    'Payment is made on PayMongo\'s secure page. TowMate never sees or stores your GCash PIN, bank login, OTP or any account details.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(color: secondaryTextColor(context), fontSize: 12, height: 1.5),
                   ),
@@ -399,7 +399,8 @@ class _OnlinePaymentStatusScreenState extends State<OnlinePaymentStatusScreen> w
     return [
       if (phase == OnlinePaymentPhase.pending || phase == OnlinePaymentPhase.verifying) ...[
         if (canReopen)
-          _primary(context, 'Reopen payment page', _busy ? null : _reopen, const Key('payment_reopen')),
+          // A bank link works only once, so a bank page is reopened with a fresh link from the server.
+          _primary(context, 'Reopen payment page', _busy ? null : (tx?.bank != null ? _tryAgain : _reopen), const Key('payment_reopen')),
         const SizedBox(height: 10),
         _secondary(context, 'Check status', _checking ? null : () => _check(), const Key('payment_check')),
         const SizedBox(height: 10),

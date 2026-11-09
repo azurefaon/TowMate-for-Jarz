@@ -1271,14 +1271,14 @@ class ApiService {
 
   /// Starts (or resumes) the booking's hosted checkout. Only the payment channel is sent, never an amount.
   /// On success, `transaction` carries the open session including the one-time `checkoutUrl`.
-  static Future<Map<String, dynamic>> startOnlineCheckout(String code, {String method = 'gcash'}) async {
+  static Future<Map<String, dynamic>> startOnlineCheckout(String code, {String method = 'gcash', String? bank}) async {
     try {
       final token = await getToken();
       final response = await apiClient
           .post(
             Uri.parse('$baseUrl/v1/bookings/$code/online-payment/checkout'),
             headers: {..._headers, 'Authorization': 'Bearer $token'},
-            body: jsonEncode({'method': method}),
+            body: jsonEncode({'method': method, if (bank != null) 'bank': bank}),
           )
           .timeout(const Duration(seconds: 30));
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1296,9 +1296,9 @@ class ApiService {
     }
   }
 
-  /// Which payment methods Step 3 may offer as "Pay & Submit" for this account (server-decided; PayMongo TEST mode,
-  /// demo accounts only): a subset of {'gcash', 'bank_transfer'}. Any failure means none: Cash always works.
-  static Future<Set<String>> fetchOnlinePaymentChannels() async {
+  /// Which payment methods and banks Step 3 may offer as "Pay & Submit" for this account (server-decided; PayMongo
+  /// TEST mode). Any failure means none: Cash always works.
+  static Future<OnlinePaymentOptions> fetchOnlinePaymentOptions() async {
     try {
       final token = await getToken();
       final response = await apiClient
@@ -1307,17 +1307,12 @@ class ApiService {
             headers: {..._headers, 'Authorization': 'Bearer $token'},
           )
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode != 200) return const {};
+      if (response.statusCode != 200) return const OnlinePaymentOptions();
       final data = (jsonDecode(response.body) as Map<String, dynamic>)['data'];
-      if (data is! Map<String, dynamic> || data['available'] != true) return const {};
-      final channels = data['channels'];
-      if (channels is! Map<String, dynamic>) return const {'gcash'};
-      return {
-        for (final method in const ['gcash', 'bank_transfer'])
-          if (channels[method] == true) method,
-      };
+      if (data is! Map<String, dynamic>) return const OnlinePaymentOptions();
+      return OnlinePaymentOptions.fromJson(data);
     } catch (_) {
-      return const {};
+      return const OnlinePaymentOptions();
     }
   }
 
@@ -1486,6 +1481,7 @@ class ApiService {
     String? preferredPaymentMethod,
     // Step 3 "Pay & Submit": the booking stays unsubmitted until the payment is verified by the server.
     bool payOnline = false,
+    String? bank,
   }) async {
     try {
       final token = await getToken();
@@ -1509,6 +1505,7 @@ class ApiService {
         req.fields['preferred_payment_method'] = preferredPaymentMethod;
       }
       if (payOnline) req.fields['pay_online'] = '1';
+      if (bank != null) req.fields['bank'] = bank;
       if (scheduledDate != null) req.fields['scheduled_date'] = scheduledDate;
       if (scheduledTime != null) req.fields['scheduled_time'] = scheduledTime;
       if (extraVehicles.isNotEmpty) {

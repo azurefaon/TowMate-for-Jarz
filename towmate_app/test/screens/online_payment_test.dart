@@ -50,6 +50,7 @@ class _Backend {
   int startCalls = 0;
   int cancelCalls = 0;
   Map<String, dynamic>? startTransaction;
+  Map<String, dynamic> expectedStart = {'method': 'gcash'};
   bool startOk = true;
   int statusCode = 200;
 
@@ -59,7 +60,7 @@ class _Backend {
         if (path.endsWith('/online-payment/checkout')) {
           startCalls++;
           // The client may only name the channel; never an amount.
-          expect(jsonDecode(request.body), {'method': 'gcash'});
+          expect(jsonDecode(request.body), expectedStart);
           return startOk
               ? _json({'success': true, 'data': startTransaction ?? _tx('pending', withUrl: true)})
               : _json({'success': false, 'reason': 'not_eligible', 'message': 'Online payment is not available.'}, status: 422);
@@ -126,6 +127,23 @@ void main() {
   );
 
   group('online payment models', () {
+    test('Online Banking is offered only with banks, and an older server still offers GCash', () {
+      final both = OnlinePaymentOptions.fromJson({
+        'available': true,
+        'channels': {'gcash': true},
+        'banks': [
+          {'code': 'bpi', 'label': 'BPI'},
+          {'code': 'ubp', 'label': 'UnionBank'},
+        ],
+      });
+      expect(both.channels, {'gcash', 'bank_transfer'});
+      expect(both.banks.map((b) => b.label), ['BPI', 'UnionBank']);
+
+      expect(OnlinePaymentOptions.fromJson({'available': true, 'channels': {'gcash': true}, 'banks': []}).channels, {'gcash'});
+      expect(OnlinePaymentOptions.fromJson({'available': true}).channels, {'gcash'});
+      expect(OnlinePaymentOptions.fromJson({'available': false, 'banks': [{'code': 'bpi', 'label': 'BPI'}]}).channels, isEmpty);
+    });
+
     test('statuses map to phases and only a verified paid is paid', () {
       expect(OnlinePaymentStatus.parse('paid').isPaid, isTrue);
 
@@ -461,6 +479,50 @@ void main() {
         expect(backend.startCalls, 1);
         expect(launcher.opened, [_checkoutUrl]);
         expect(find.text('Payment Pending'), findsOneWidget);
+
+        await tester.pumpWidget(const SizedBox());
+      });
+    });
+
+    testWidgets('Try again on a failed bank payment keeps Online Banking and the same bank', (tester) async {
+      final backend = _Backend()
+        ..transaction = {..._tx('failed'), 'method': 'bank_transfer', 'bank': 'ubp'}
+        ..expectedStart = {'method': 'bank_transfer', 'bank': 'ubp'};
+      final launcher = _FakeLauncher();
+
+      await _run(tester, backend, () async {
+        await tester.pumpWidget(_statusScreen(launcher));
+        await _settle(tester);
+
+        backend.transaction = {..._tx('pending', withUrl: true), 'method': 'bank_transfer', 'bank': 'ubp'};
+        await tester.tap(find.byKey(const Key('payment_try_again')));
+        await _settle(tester);
+
+        expect(backend.startCalls, 1);
+        expect(launcher.opened, [_checkoutUrl]);
+
+        await tester.pumpWidget(const SizedBox());
+      });
+    });
+
+    testWidgets('reopening a bank page asks the server for a fresh link, because a bank link works only once', (tester) async {
+      const freshUrl = 'https://dob.paymongo.com/test?fresh=1';
+      final pending = {..._tx('pending', withUrl: true), 'method': 'bank_transfer', 'bank': 'bpi'};
+      final backend = _Backend()
+        ..transaction = pending
+        ..startTransaction = {...pending, 'checkout_url': freshUrl}
+        ..expectedStart = {'method': 'bank_transfer', 'bank': 'bpi'};
+      final launcher = _FakeLauncher();
+
+      await _run(tester, backend, () async {
+        await tester.pumpWidget(_statusScreen(launcher));
+        await _settle(tester);
+
+        await tester.tap(find.byKey(const Key('payment_reopen')));
+        await _settle(tester);
+
+        expect(backend.startCalls, 1);
+        expect(launcher.opened, [freshUrl]);
 
         await tester.pumpWidget(const SizedBox());
       });

@@ -18,6 +18,12 @@ use Illuminate\Support\Facades\Http;
  *                                         legacy sessions (so it should serve v2 sessions — unverified).
  *   POST /v1/checkout_sessions/{id}/expire  the page never mentions v2 — unverified for v2 sessions.
  *
+ * Online Banking uses a Payment Intent instead, the documented route for banks (a Checkout Session accepts bank
+ * channels the account cannot actually pay with):
+ *   POST /v1/payment_intents, POST /v1/payment_methods, POST /v1/payment_intents/{id}/attach
+ *   GET  /v1/payment_intents/{id}
+ *   POST /v1/payment_intents/{id}/cancel    not on the pages read, but verified against the TEST account (2026-11-06).
+ *
  * The create response's nesting is shown two ways in PayMongo's docs (`data.attributes.checkout_url`
  * in the API reference, flatter in the quick start), so both are read; anything that cannot be
  * confirmed as a TEST-mode session with a PayMongo https link is rejected rather than trusted.
@@ -96,6 +102,17 @@ class PayMongoCheckoutGateway implements OnlinePaymentGateway
             throw $this->unexpected($response);
         }
 
+        return [
+            'status' => (string) ($attributes['status'] ?? ''),
+            'livemode' => (bool) ($attributes['livemode'] ?? false),
+            'reference' => is_string($attributes['reference_number'] ?? null) ? $attributes['reference_number'] : null,
+            'payments' => $this->payments($attributes),
+        ];
+    }
+
+    /** @return array<int, array{id: string, status: string, amount: int, currency: string}> */
+    private function payments(array $attributes): array
+    {
         $payments = [];
         foreach ((array) ($attributes['payments'] ?? []) as $payment) {
             $payments[] = [
@@ -106,17 +123,84 @@ class PayMongoCheckoutGateway implements OnlinePaymentGateway
             ];
         }
 
-        return [
-            'status' => (string) ($attributes['status'] ?? ''),
-            'livemode' => (bool) ($attributes['livemode'] ?? false),
-            'reference' => is_string($attributes['reference_number'] ?? null) ? $attributes['reference_number'] : null,
-            'payments' => $payments,
-        ];
+        return $payments;
     }
 
     public function expireCheckoutSession(string $sessionId): void
     {
         $this->send(fn () => $this->http()->post($this->url('/v1/checkout_sessions/' . rawurlencode($sessionId) . '/expire')));
+    }
+
+    public function createBankPayment(array $params): array
+    {
+        $created = $this->send(fn () => $this->http()->post($this->url('/v1/payment_intents'), ['data' => ['attributes' => [
+            'amount' => $params['amount_centavos'], // centavos: 1.00 PHP = 100
+            'currency' => 'PHP',
+            'payment_method_allowed' => [$params['type']],
+            'description' => $params['description'],
+            'metadata' => $params['metadata'],
+        ]]]));
+
+        $intentId = $created->json('data.id');
+        $clientKey = $created->json('data.attributes.client_key');
+
+        if (! is_string($intentId) || ! preg_match('/^pi_\w+$/', $intentId) || ! is_string($clientKey) || $clientKey === '') {
+            throw $this->unexpected($created);
+        }
+
+        $method = $this->send(fn () => $this->http()->post($this->url('/v1/payment_methods'), ['data' => ['attributes' => [
+            'type' => $params['type'],
+            'details' => ['bank_code' => $params['bank_code']],
+        ]]]));
+
+        $methodId = $method->json('data.id');
+
+        if (! is_string($methodId) || ! preg_match('/^pm_\w+$/', $methodId)) {
+            throw $this->unexpected($method);
+        }
+
+        $attached = $this->send(fn () => $this->http()->post($this->url('/v1/payment_intents/' . rawurlencode($intentId) . '/attach'), ['data' => ['attributes' => [
+            'payment_method' => $methodId,
+            'client_key' => $clientKey,
+            'return_url' => $params['return_url'],
+        ]]]));
+
+        $bankUrl = $attached->json('data.attributes.next_action.redirect.url');
+        $livemode = $attached->json('data.attributes.livemode');
+
+        if ($attached->json('data.attributes.status') !== 'awaiting_next_action'
+            || ! is_string($bankUrl) || ! $this->isTrustedCheckoutUrl($bankUrl)
+            || ! is_bool($livemode)) {
+            throw $this->unexpected($attached);
+        }
+
+        return ['id' => $intentId, 'checkout_url' => $bankUrl, 'livemode' => $livemode];
+    }
+
+    public function retrieveBankPayment(string $intentId): array
+    {
+        $response = $this->send(fn () => $this->http()->get($this->url('/v1/payment_intents/' . rawurlencode($intentId))));
+
+        $attributes = $response->json('data.attributes');
+
+        if (! is_array($attributes)) {
+            throw $this->unexpected($response);
+        }
+
+        $failure = $attributes['last_payment_error']['code'] ?? null;
+
+        return [
+            'status' => (string) ($attributes['status'] ?? ''),
+            'livemode' => (bool) ($attributes['livemode'] ?? false),
+            'reference' => is_string($attributes['metadata']['payment_transaction'] ?? null) ? $attributes['metadata']['payment_transaction'] : null,
+            'payments' => $this->payments($attributes),
+            'failure' => is_string($failure) ? $failure : null,
+        ];
+    }
+
+    public function cancelBankPayment(string $intentId): void
+    {
+        $this->send(fn () => $this->http()->post($this->url('/v1/payment_intents/' . rawurlencode($intentId) . '/cancel')));
     }
 
     /** Only an https link on a PayMongo host (config paymongo.checkout_url_hosts) is ever handed to a customer. */
@@ -218,7 +302,7 @@ class PayMongoCheckoutGateway implements OnlinePaymentGateway
             is_int($value) || is_float($value) => 'number',
             $value === null => 'null',
             ! is_string($value) => 'other',
-            $key === 'checkout_url' => 'url host=' . $this->safe((string) parse_url($value, PHP_URL_HOST)),
+            in_array($key, ['checkout_url', 'url'], true) => 'url host=' . $this->safe((string) parse_url($value, PHP_URL_HOST)),
             $key === 'id' => 'string(len ' . strlen($value) . ', prefix ' . $this->safe(substr($value, 0, 3)) . ')',
             in_array($key, ['type', 'status', 'currency'], true) && preg_match('/^[a-z_.]{1,40}$/', $value) => 'string=' . $value,
             default => 'string(len ' . strlen($value) . ')',

@@ -373,6 +373,7 @@ class CustomerBookingController extends Controller
             'preferred_payment_method'         => ['nullable', 'string', Rule::in(array_keys(Booking::PREFERRED_PAYMENT_METHODS))],
             // Step 3 "Pay & Submit": pay online now; the booking is submitted only after the payment is verified.
             'pay_online'                       => 'nullable|boolean',
+            'bank'                             => 'nullable|string|max:20',
         ]);
 
         $payOnline = (bool) ($validated['pay_online'] ?? false);
@@ -383,6 +384,7 @@ class CustomerBookingController extends Controller
                 ! $onlinePayments->canPayAtBooking($request->user()) => 'Online payment is not available for your account. Please choose Cash.',
                 ! $onlinePayments->channelAvailable($validated['preferred_payment_method'] ?? null) => 'That payment method is not available for online payment yet. Please choose GCash or Cash.',
                 ($validated['service_type'] ?? 'book_now') !== 'book_now' => 'Online payment is available for Book Now requests only. Please choose Cash for a scheduled booking.',
+                ($validated['preferred_payment_method'] ?? null) === 'bank_transfer' && ! array_key_exists((string) ($validated['bank'] ?? ''), $onlinePayments->onlineBanks()) => 'Please choose your bank.',
                 default => null,
             };
             if ($refusal !== null) {
@@ -840,11 +842,12 @@ class CustomerBookingController extends Controller
         $message = 'Complete the payment to submit your booking.';
 
         try {
-            $transaction = $onlinePayments->initiate($request->user(), $booking->booking_code, (string) $booking->preferred_payment_method)['transaction'];
+            $transaction = $onlinePayments->initiate($request->user(), $booking->booking_code, (string) $booking->preferred_payment_method, $request->input('bank'))['transaction'];
             $payment = [
                 'reference'    => $transaction->reference,
                 'status'       => $transaction->status,
                 'method'       => $transaction->method,
+                'bank'         => $transaction->bank(),
                 'amount'       => \App\Services\OnlinePayments\Money::centavosToPesos($transaction->amount_centavos),
                 'currency'     => $transaction->currency,
                 'expires_at'   => $transaction->expires_at?->toIso8601String(),

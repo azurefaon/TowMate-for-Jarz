@@ -25,10 +25,11 @@ class OnlinePaymentController extends Controller
         // Only the payment channel is read from the client. The amount is rebuilt on the server.
         $validated = $request->validate([
             'method' => 'nullable|string|max:20',
+            'bank' => 'nullable|string|max:20',
         ]);
 
         return $this->respond(function () use ($request, $code, $validated) {
-            $result = $this->payments->initiate($request->user(), $code, $validated['method'] ?? 'gcash');
+            $result = $this->payments->initiate($request->user(), $code, $validated['method'] ?? 'gcash', $validated['bank'] ?? null);
             $transaction = $result['transaction'];
 
             return response()->json([
@@ -57,7 +58,11 @@ class OnlinePaymentController extends Controller
         });
     }
 
-    /** Step 3: may this customer use Pay & Submit, and with which channel? Server-decided; Online Banking is off unless configured. */
+    /**
+     * Step 3: may this customer use Pay & Submit, and with which channel? Server-decided; Online Banking is off unless
+     * configured. It is reported only as `banks`, never under `channels`: APK 1.0.13 reads `channels` and has no bank
+     * picker, so it keeps showing Online Banking as not available.
+     */
     public function availability(Request $request): JsonResponse
     {
         $available = $this->payments->canPayAtBooking($request->user());
@@ -68,8 +73,10 @@ class OnlinePaymentController extends Controller
                 'available' => $available,
                 'channels' => [
                     'gcash' => $available && $this->payments->channelAvailable('gcash'),
-                    'bank_transfer' => $available && $this->payments->channelAvailable('bank_transfer'),
                 ],
+                'banks' => $available
+                    ? collect($this->payments->onlineBanks())->map(fn (array $bank, string $code) => ['code' => $code, 'label' => $bank['label']])->values()->all()
+                    : [],
                 'book_now_only' => true,
                 'test_mode' => true,
             ],
@@ -101,6 +108,7 @@ class OnlinePaymentController extends Controller
             'reference' => $transaction->reference,
             'status' => $transaction->status,
             'method' => $transaction->method,
+            'bank' => $transaction->bank(),
             'amount' => Money::centavosToPesos($transaction->amount_centavos),
             'currency' => $transaction->currency,
             'expires_at' => $transaction->expires_at?->toIso8601String(),
