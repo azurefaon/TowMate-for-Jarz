@@ -94,6 +94,13 @@ class AuditLogService
         'customer_risk_updated',
         'personnel_created', 'personnel_updated', 'personnel_activated',
         'personnel_deactivated', 'personnel_home_unit_changed',
+        // Owner Finance module
+        'finance_fund_issued', 'finance_fund_returned', 'finance_fund_voided',
+        'finance_expense_submitted', 'finance_expense_verified', 'finance_expense_approved',
+        'finance_expense_rejected', 'finance_expense_voided', 'finance_expense_evidence_added',
+        'finance_policy_drafted', 'finance_policy_confirmed', 'finance_policy_activated',
+        'finance_statement_prepared', 'finance_statement_approved', 'finance_statement_voided',
+        'finance_payout_recorded', 'finance_payout_voided',
     ];
 
     public static function isBusinessAction(string $action): bool
@@ -104,6 +111,7 @@ class AuditLogService
     public static function categoryForAction(string $action): string
     {
         return match (true) {
+            str_starts_with($action, 'finance_') => 'finance',
             $action === 'failed_login' => 'login_failed',
             str_starts_with($action, 'customer_registration_otp_')
                 || str_starts_with($action, 'customer_password_reset_otp_')

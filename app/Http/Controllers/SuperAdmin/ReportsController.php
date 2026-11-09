@@ -43,6 +43,7 @@ class ReportsController extends Controller
         'assignment_change' => 'Assignment Change',
         'quotation_change' => 'Quotation Change',
         'status_change' => 'Status Change',
+        'finance' => 'Finance',
         'system' => 'System',
     ];
 
