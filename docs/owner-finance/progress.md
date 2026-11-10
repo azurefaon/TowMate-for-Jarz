@@ -19,7 +19,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-10 | Phase 4: Jobs & Collections | Done (`f01a4eb9`). See "Phase 4" below |
 | 2026-11-10 | Phase 5: Commission calculation (draft, read-only) | Done (`0d425f27`). See "Phase 5" below |
 | 2026-11-10 | Phase 6: Job crew recording and weekly commission statements (Draft → For Review → Approved) | Done (`d11007b6`). See "Phase 6" below. Approval on real data still waits for the client's commission decisions |
-| 2026-11-10 | Phase 7: Payout records, Paid status and printable statements | Done. See "Phase 7" below. No transfers; no real payouts recorded |
+| 2026-11-10 | Phase 7: Payout records, Paid status and printable statements | Done (`166bd010`). See "Phase 7" below. No transfers; no real payouts recorded |
+| 2026-11-10 | Phase 8: Finance Overview, UI completion, Team Leader expense screen, Revenue cash fix | Done. See "Phase 8" below. Live click-through and on-phone checks remain on the manual checklist |
 
 ## Phases
 
@@ -36,13 +37,13 @@ Spec: [spec.md](spec.md).
   - The backend ledger: Opening + Issued − Advance-funded spending − Returned = Remaining.
   - Carry-forward between periods, filters by unit and date, movement history, balance summary, and a column for expenses awaiting review.
   - Corrections (void plus linked replacement) and voids with a reason.
-- [ ] **Phase 3: Expenses and receipt review.** Backend and web are done; two items remain open:
+- [x] **Phase 3: Expenses and receipt review.** Completed in Phase 8 (the two open items below):
   - [x] The Owner Expenses page, the Dispatcher Expense Review queue, and Team Leader API endpoints.
   - [x] Mixed funding; job vs unit/monthly scope; required evidence on private storage; overspend warning; corrections and voids.
   - [x] Integrated with the Unit Funds ledger.
   - [x] Phase 2 correction: daily issuances are allowed.
-  - [ ] **UNFINISHED: Team Leader mobile expense screen** (Flutter UI for the existing `/api/v1/team-leader/expenses` endpoints).
-  - [ ] **UNFINISHED: browser visual verification** of the Unit Funds, Expenses, Expense Review and Jobs & Collections pages (so far verified only through rendered-HTML tests).
+  - [x] **Team Leader mobile expense screen**: built in Phase 8 (Flutter "Expenses" tab). Not yet tried on a real phone (manual checklist).
+  - [x] **Browser visual verification**: real headless-Chrome renders at desktop and 390 px reviewed in Phase 8; defects fixed. Live click-through remains on the manual checklist.
 - [x] **Phase 4: Jobs & Collections.**
   - The Owner page `/superadmin/finance/jobs-collections`.
   - A read-only `JobCollectionService` over bookings, invoices and payment transactions.
@@ -61,13 +62,16 @@ Spec: [spec.md](spec.md).
   - Record actual payouts (full payout per person) against Approved statements from the approval snapshot; void and correct with history; Mark Paid only when reconciled exactly.
   - Printable English commission statement (browser Print / Save as PDF, and a Dompdf PDF through the existing document generator).
   - Partial and group payouts are pending client confirmation and not supported.
-- [ ] **Phase 8: Overview page.**
+- [x] **Phase 8: Overview and UI completion.**
+  - Finance Overview (actual collections, expenses, unit funds, draft commission, approved commission and payouts, needs attention), unit and period filters.
+  - UI review with fixes from real browser renders; Team Leader expense screen (Flutter); Revenue "Cash Received" group duplication fixed.
 - [ ] **Later (not yet scheduled):** reports and exports; client walkthrough.
 
 ### Open items carried forward (not complete)
-- [ ] **Team Leader mobile expense screen** (from Phase 3): Flutter UI for the `/api/v1/team-leader/expenses` endpoints.
-- [ ] **Browser visual verification** (from Phase 3): the Unit Funds, Expenses, Expense Review, Jobs & Collections and Commission (Draft) pages have only been verified through rendered-HTML tests.
-- [ ] **Existing Revenue page "Cash Received" duplication** (found in Phase 4, not fixed): group cash is summed once per vehicle row. Fixing it needs approval.
+- [x] **Team Leader mobile expense screen**: done in Phase 8 (widget-tested; **not yet tested on a real phone**, and the APK has not been rebuilt).
+- [~] **Browser visual verification**: real rendered pages reviewed with headless Chrome in Phase 8 (desktop and 390 px) and the defects found were fixed. **Still manual:** interactive click-through on a running server and printing from a real browser dialog (see the Phase 8 checklist).
+- [x] **Existing Revenue page "Cash Received" duplication**: fixed in Phase 8 with a regression test (group cash counted once per trip).
+- [ ] **Paid statement corrections**: a Paid statement and its payouts are final. No reopening or adjustment procedure exists, and none was invented; it is a client decision.
 - [x] ~~Job crew capture~~: **resolved in Phase 6 by Owner recording** (Job Crew page). Deliberately not automatic: nothing is captured at payment confirmation and past jobs are not backfilled, because the unit's current crew is not evidence of who worked. Each completed job needs its crew recorded by the Owner before its commission can be approved.
 - [ ] **Outstanding client policy confirmations** (C1–C6, week-date basis, Sunday, and the four role rules in Phase 6). No real statement can be approved until an active policy is confirmed by the client; see "Open client decisions".
 
@@ -368,6 +372,76 @@ The tests cover:
 - **Phase 6 regression:** Driver, Rider and Crew Mate recorded from personnel records without login accounts.
 - **Updated earlier tests:** the Phase 1 payout tests now supply a transaction reference (now required).
 
+## Phase 8: what was built
+
+**Finance Overview** (`/superadmin/finance`, first item in the Finance sidebar, labelled "Finance Overview"; `FinanceOverviewService` + `OverviewController`, Owner-only):
+- Unit and reporting-period filters (the shared date-range control; default this Monday–Saturday week).
+- Five separate sections, never summed together:
+  1. **Customer collections (actual)** from `JobCollectionService` (service-date basis, as on Jobs & Collections): jobs and vehicles, agreed charges, verified collections, outstanding balances, over-collection.
+  2. **Expenses** from `ExpenseService::summary` (moved out of `ExpenseController` so both pages share it): approved (by funding source), awaiting Dispatcher, awaiting Owner, rejected.
+  3. **Unit funds** from `UnitFundLedger`: opening, issued, spent, returned, remaining, awaiting review.
+  4. **Commission — draft estimate** from `CommissionCalculator`, week by week for every Monday–Saturday week starting in the period: sharing base, company share, crew commission, unallocated, and allocated / unallocated per role, labelled "not approved and may change".
+  5. **Approved commission and recorded payouts** from approved and Paid statements only (frozen figures) and recorded payouts: counts, base, company share, crew payable, payouts recorded and remaining.
+- **Needs attention:** expenses awaiting each review step and without evidence, pending unit allocations, open and For Review statements, and every commission approval blocker with a count, each linking to the page that resolves it.
+
+**Revenue page "Cash Received" defect (fixed):** reproduced first. A ₱15,000 two-vehicle group trip showed ₱30,000, because the group cash is stored on every vehicle row and `ReportMetricsService::revenueSummary` summed the column. Minimal fix: `cashReceivedOncePerCollection()` counts the cash once per normalized group trip (same group code, pickup and drop-off, the `Invoice::sameTripMembers` definition); single bookings are unchanged. No other report metric was changed: total revenue, completed-job counts (still vehicle rows) and the verified-payment rules are untouched. It feeds the Revenue page, the summary PDF and the XLSX export, which already shared this method.
+
+**Team Leader expense screen (Flutter):** a new "Expenses" tab in the Team Leader bottom navigation (`/tl-expenses`), on the existing `/api/v1/team-leader/expenses` endpoints and the existing login token. No new account type or expense service.
+- **List:** each expense shows category, peso amount, reference, date, job or month, description, review status (Awaiting Dispatcher, Verified, Approved, Rejected with reason, Voided), receipt count and funding. Pull to refresh, empty and retry states.
+- **New expense form:**
+  - The unit is the Team Leader's own, shown with available unit funds; the server always decides the unit.
+  - Job expense (booking reference) or unit/monthly (month covered), category, amount (exact decimal, at most two places), paid from (issued unit funds, direct company payment or personal advance), date paid (no future dates), description, and 1–5 receipt photos (camera or gallery; size checked).
+  - Inline validation; server validation messages are shown as returned.
+  - The submit button is disabled with a spinner while sending.
+  - One idempotency key per form, so a retry after an error cannot create a duplicate.
+- Splitting one expense across funding sources stays an Owner correction on the web, and the form says so.
+
+**UI review and fixes (all Finance pages):**
+- Overview added to the sidebar. Every Finance page renders for the Owner and returns 403 to the other five roles.
+- Defects found in real browser renders and fixed in `finance.css`:
+  - Native filter selects rendered unstyled on every Finance page (Unit filter on Unit Funds, Expenses, Collections and others); they now match the 44px TowMate control.
+  - Disabled buttons (for example "Mark statement Paid" before reconciliation, "Approve" with blockers) looked enabled; they now look disabled.
+  - An amount column ran into the next header ("Approved amountPayout").
+  - Action cells were squeezed on phones; they keep a usable width and the table scrolls.
+- Frozen statements listed rates and roles in jsonb key order ("Rider, Driver, Company…"). `CommissionCalculator::inRoleOrder()` restores policy order on the statement page and the printable statement.
+- The printable statement PDF spilled a one-line footer onto a blank second page; tightened to one page.
+
+## Phase 8 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Feature/Finance/OverviewTest.php` | 5 passed |
+| `pest tests/Feature/Finance/TeamLeaderExpenseAppTest.php` | 3 passed |
+| `pest tests/Feature/SuperAdmin/RevenueGroupCashTest.php` | 4 passed (all 4 **failed before the fix**: 30,000 / 62,500 instead of 15,000 / 32,500) |
+| Existing reporting tests (`ReportsFinancialConsistencyTest`, `ReportXlsxExportTest`, `OwnerAnalyticsUiTest`) with the fix | 39 passed |
+| `pest tests/Unit/Finance tests/Feature/Finance` + Revenue regression | **215 passed** (1,576 assertions) |
+| Full suite `pest` | 3350 passed, **1 failed** (`OwnerSidebarNavigationTest`: it forbids a generic ">Overview<" sidebar label), 52 risky (pre-existing); 1,411 s. Fixed by labelling the item "Finance Overview"; the sidebar test plus all Finance tests were then re-run: **220 passed**. The full suite was not re-run after that label-only change. |
+| `flutter test test/screens/team_leader/tl_expenses_screen_test.dart test/widgets/tl_bottom_nav_test.dart` | 26 passed |
+| Full `flutter test --no-pub` | **1,560 passed** |
+| `flutter analyze --no-pub` | 0 errors, 0 warnings; 27 infos, all pre-existing (none in the new files) |
+
+The tests cover:
+- **Overview:** baseline figures from each service (collected 15,000; approved expenses 2,950; funds 3,000 / 2,950 / 50 / 0; draft base 12,050, company 7,230, crew 4,820; driver 1,446). After approval and one payout, approved 12,050 / 7,230 / 4,820 and payouts 1,446 recorded, 3,374 remaining, shown separately from the draft. Unit filter (17,000 all / 15,000 / 2,000); pending reviews and blockers listed. Owner-only (403 for five roles, guests redirected). Every Finance page is linked from the sidebar and renders with no placeholder text.
+- **Team Leader app contract:** options for the Team Leader's own unit; the exact app payload (job scope, `booking_ref`, `fundings[company_direct]`, `receipts[]`) creates a submitted expense; a retry with the same key creates nothing new; the Dispatcher's verification shows in the app list; validation messages match what the app displays.
+- **Flutter:** peso formatting; UUID v4 keys; 422 message parsing; list with statuses, amounts and rejection reason; empty and retry states; field validation blocks sending (including the missing receipt); a full submission sends the right fields and receipt, shows a server error, and the retry reuses the same idempotency key; no unit assigned shows a clear message; the bottom navigation has the new Expenses tab.
+- **Revenue regression:** a group trip counts once; groups and single bookings add correctly; unit filter; Revenue cash equals the Jobs & Collections collected amount (15,000.00) and the Revenue page shows ₱15,000.00, not ₱30,000.00.
+
+**Browser verification (what was actually done):**
+- Headless Google Chrome rendered the real pages from test-database fixtures: the Owner Overview, Jobs & Collections, Unit Funds, Expenses, Job Crew (list and job), Weekly Commission, Commission Statements (list and approved statement with payouts), the printable statement, and the Dispatcher Expense Review.
+- Screenshots were reviewed at 1366 px desktop and a true 390 px phone viewport (an iframe, because headless Chrome will not lay a window out narrower than 500 px). The four defects above were found this way and re-checked after the fix.
+- The generated PDF was opened and read: one page, correct figures, and roles in policy order.
+
+**Not verified in a live browser session:** clicking through forms in a running server (date-range popover, file upload, print dialog) and the Flutter screens on a real phone. Form behaviour is covered by HTTP and widget tests. The manual checklist is below.
+
+### Manual verification checklist (to do on a running local server and a phone)
+1. Owner: open Finance → Overview, change the unit and the date range, and check that every section link opens the matching page with the same filter.
+2. Owner: on each Finance page, open the Unit filter and the date range on desktop and a phone-width window; confirm nothing overflows except tables, which scroll sideways.
+3. Team Leader (phone, APK built from this branch): Expenses tab → New expense → take a receipt photo, submit; it appears as "Awaiting Dispatcher". Try a future date and a three-decimal amount and check the messages.
+4. Dispatcher: Expense Review shows that expense with its receipt; verify it. Team Leader pull-to-refresh shows the new status. Owner approves under Expenses.
+5. Owner: Commission Statements → open an approved statement → Printable statement → the browser's Print → Save as PDF; also Download PDF. Both should be one A4 page for a one-job statement.
+6. Owner: record a payout with an evidence file, open "View evidence", then try "Mark statement Paid" before and after all payouts are recorded.
+7. Revenue page: with a real group trip in the period, "Cash Received" equals the group's cash once.
+
 ## Open client decisions
 
 - Commission interpretation C1–C6 ([spec.md §6](spec.md#6-commission-pending-client-confirmation)).
@@ -397,7 +471,9 @@ The tests cover:
 - Payout evidence files live on the private `local` disk under `finance/payouts/{statement}`; like expense evidence they are not in the database backups unless the storage folder is backed up.
 - The Phase 1 statement fixture `finDraftStatement` (manual lines) is still used by schema tests for draft-only behaviour; such a statement can no longer be approved because approval recalculates.
 - `ReportMetricsService` sums with floats. The Phase 4 consistency test shows its confirmed-revenue total equals the exact Jobs & Collections total for the tested cases. It was not changed.
-- **Existing Revenue page defect (found, not changed):** the "Cash Received" card sums `bookings.cash_received` over every vehicle row, but a group payment stores the same group cash on every vehicle row, so group cash is counted once per vehicle. Jobs & Collections reads it once per job. Fixing the Revenue page is outside this module and needs approval.
+- **Revenue page "Cash Received" (fixed in Phase 8):** it summed `bookings.cash_received` over every vehicle row, so group cash was counted once per vehicle. It now counts each normalized group trip once. `cash_received` is still the cash tendered as recorded (not the verified collection); for a fully paid cash job they are equal.
+- **Flutter in this worktree:** `flutter pub get` needs Windows symlink support (Developer Mode) for plugins, so Phase 8 ran `flutter analyze --no-pub` and `flutter test --no-pub` against the existing package configuration. No dependency was added or changed.
+- The Team Leader app submits each expense with a single funding source; mixed funding stays an Owner correction on the web.
 - Booking counts differ by design: Jobs & Collections counts a group trip as one booking with N vehicles; the existing Revenue page's "Completed Jobs" counts vehicle rows.
 - Expenses with `funding_source = unit_fund` count as spending on their `expense_date` once approved. If an approval lands after the period has been reviewed, that period's figures change. This is intended (it reflects actual spending dates), but the Owner should know.
 - `ActiveBookingsController::updateStatus()` can set `completed` without `completed_at`. Finance requires `completed_at`.

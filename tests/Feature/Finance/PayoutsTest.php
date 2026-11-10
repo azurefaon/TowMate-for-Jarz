@@ -304,6 +304,7 @@ it('prints an accurate English statement with approval and payout details, and r
         ->assertSee('data-doc-approver>' . $s->approved_by_name, false)
         ->assertSee('data-doc-payout="' . $p1->reference_code . '"', false)
         ->assertSee('GC-445566')
+        ->assertSee('Company 60%, Driver 12%, Team Leader 10%, Rider / Substitute 10%, Crew Mate 8%')   // policy order, not jsonb key order
         ->assertSee('Print / Save as PDF')
         ->assertSee('TowMate does not transfer money');
 

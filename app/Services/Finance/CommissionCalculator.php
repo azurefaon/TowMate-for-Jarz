@@ -424,6 +424,19 @@ class CommissionCalculator
         ];
     }
 
+    /** Re-orders a role-keyed array (rates, role rows) into policy order. Frozen jsonb snapshots do not keep key order. */
+    public static function inRoleOrder(array $byRole): array
+    {
+        $ordered = [];
+        foreach (array_keys(self::ROLE_LABELS) as $role) {
+            if (array_key_exists($role, $byRole)) {
+                $ordered[$role] = $byRole[$role];
+            }
+        }
+
+        return $ordered + $byRole;
+    }
+
     /** Stable payee key: the personnel record, else the user account, else the recorded name. */
     public static function recipientKey(JobPersonnel $p): string
     {

@@ -56,7 +56,7 @@
             <i data-lucide="percent" aria-hidden="true"></i>
             <span>Policy v{{ $policy['version'] ?? '—' }}
                 ({{ ($policy && $policy['interpretation_status'] === 'confirmed' && $policy['status'] === 'active') ? 'active, client-confirmed' : 'Draft / For Client Review: interpretation not confirmed' }}):
-                @foreach ($policy['rates'] ?? [] as $role => $rate)
+                @foreach (\App\Services\Finance\CommissionCalculator::inRoleOrder($policy['rates'] ?? []) as $role => $rate)
                     {{ \App\Services\Finance\CommissionCalculator::ROLE_LABELS[$role] ?? $role }} {{ rtrim(rtrim($rate, '0'), '.') }}%{{ $loop->last ? '.' : ',' }}
                 @endforeach
             </span>
@@ -229,7 +229,7 @@
                                 @foreach ($l['deductions'] as $d)<tr><td>− {{ $d['type'] }} ({{ $d['reference'] }})</td><td class="is-num">{{ $m($d['amount']) }}</td></tr>@endforeach
                                 <tr><th scope="row">Sharing base</th><td class="is-num fin-strong">{{ $m($l['base']) }}</td></tr>
                                 <tr><td>Company</td><td class="is-num">{{ $m($l['company']) }}</td></tr>
-                                @foreach ($l['roles'] as $r)
+                                @foreach (\App\Services\Finance\CommissionCalculator::inRoleOrder($l['roles']) as $r)
                                     <tr><td>{{ $r['label'] }} ({{ rtrim(rtrim($r['rate'], '0'), '.') }}%):
                                         @forelse ($r['recipients'] as $p)
                                             {{ $p['name'] }} {{ $m($p['amount']) }}{{ $p['is_substitute'] ? ' (substitute)' : '' }}{{ $p['role_confirmed'] ? '' : ' (role provisional)' }}{{ $loop->last ? '' : ',' }}

@@ -184,8 +184,22 @@ class ReportMetricsService
             'averagePerBooking' => $completedJobs > 0 ? round($revenue / $completedJobs, 2) : 0.0,
             'additionalFees' => round((float) $bookings->sum('additional_fee'), 2),
             'vatCollected' => round((float) $bookings->sum('vat_amount'), 2),
-            'cashReceived' => round((float) $bookings->sum('cash_received'), 2),
+            'cashReceived' => $this->cashReceivedOncePerCollection($bookings),
         ];
+    }
+
+    /**
+     * A normalized group trip (one quotation, several vehicle bookings) stores the group's cash on EVERY vehicle row,
+     * so summing the column counted the same cash once per vehicle. Count it once per trip (same group code, pickup
+     * and drop-off, as Invoice::sameTripMembers defines a trip); single bookings are unchanged.
+     */
+    private function cashReceivedOncePerCollection(Collection $bookings): float
+    {
+        return round((float) $bookings
+            ->groupBy(fn (Booking $b) => \App\Models\Invoice::isNormalizedGroupTransaction($b)
+                ? 'g:' . $b->group_code . '|' . $b->pickup_address . '|' . $b->dropoff_address
+                : 'b:' . $b->id)
+            ->sum(fn (Collection $trip) => (float) $trip->max('cash_received')), 2);
     }
 
     public function averageRevenuePerJob($start, $end, array $filters = []): array

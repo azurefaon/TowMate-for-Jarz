@@ -120,7 +120,7 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
 
 ## 7. Page outline (Phase 2 onward)
 
-- **Overview**: separate cards for collections, issued funds, returned funds, expenses, commission earned, and payouts. Only one card, clearly labelled "Net position", combines figures, and its formula is shown.
+- **Overview** (built in Phase 8, `/superadmin/finance`, `FinanceOverviewService`): unit and period filters; separate sections for actual collections (JobCollectionService), expenses (ExpenseService::summary), unit funds (UnitFundLedger), the draft commission estimate (CommissionCalculator, week by week), approved commission and recorded payouts (frozen statements), and a needs-attention list. Figures of different kinds are never added together, and there is no combined "net position" figure.
 - **Jobs & Collections** (built in Phase 4, `/superadmin/finance/jobs-collections`, `JobCollectionService`):
   - One row per job, where a group trip counts once and shows its vehicle count.
   - **Verified collections** are a Dispatcher payment confirmation (`completed_at`, covering the full agreed charge) or a live, non-demo PayMongo payment. Preferred method, submissions awaiting verification, cash tendered, TEST, pending or failed payments, and status overrides never count.
@@ -135,7 +135,7 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
   - Expenses awaiting review are shown but not deducted, and are set aside from what a unit can return.
   - Corrections void the original and record a linked replacement.
 - **Expenses** (built in Phase 3):
-  - Owner `/superadmin/finance/expenses`, Dispatcher `/admin-dashboard/expense-review`, and Team Leader API `/api/v1/team-leader/expenses`.
+  - Owner `/superadmin/finance/expenses`, Dispatcher `/admin-dashboard/expense-review`, Team Leader API `/api/v1/team-leader/expenses`, and (Phase 8) the Team Leader app "Expenses" tab that uses that API.
   - Each expense records unit, booking (job) or month covered (unit/monthly), date, category, description, amount, funding splits (`finance_expense_fundings`, summing exactly to the amount), evidence on the private disk, status, reviewers and timestamps.
   - Approval is blocked without evidence, and the database enforces this as well.
   - Corrections close the original and record a linked replacement.

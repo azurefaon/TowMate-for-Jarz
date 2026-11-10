@@ -227,3 +227,41 @@
 .fin-correct { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #d4d4d4; }
 .fin-correct > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .fin-upload input[type=file] { min-height: 0; padding: 8px; }
+
+/* Phase 8: native filter selects on Finance pages match the Owner 44px control (they previously rendered unstyled). */
+.fin-page .oa-field select.oa-select {
+    height: 44px;
+    padding: 0 36px 0 14px;
+    border: 1px solid var(--ob-border, #e5e5e5);
+    border-radius: 8px;
+    background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23525252' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+    color: var(--ob-text, #171717);
+    font: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+}
+.fin-page .oa-field select.oa-select:focus-visible { outline: 2px solid #facc15; outline-offset: 2px; border-color: #171717; }
+.fin-page input.oa-select[type=date] {
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--ob-border, #e5e5e5);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ob-text, #171717);
+    font: inherit;
+}
+@media (max-width: 640px) {
+    .fin-page .oa-select { min-width: 0; width: 100%; }
+}
+
+/* Phase 8: disabled actions must look disabled (e.g. "Mark statement Paid" before reconciliation, "Approve" with blockers). */
+.fin-page .oa-btn[disabled],
+.fin-page button[disabled] { opacity: .45; cursor: not-allowed; filter: grayscale(.4); }
+/* Keep a gap between a right-aligned amount column and the next left-aligned column. */
+.fin-table .is-num + th,
+.fin-table .is-num + td { padding-left: 24px; }
+/* Phone: action cells keep a usable width; the table scrolls horizontally (oa-table-wrap) instead of squeezing inputs. */
+@media (max-width: 640px) {
+    .fin-table td.fin-actions { min-width: 230px; }
+}

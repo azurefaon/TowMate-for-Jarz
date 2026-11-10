@@ -42,7 +42,7 @@
         .brand .name { font-size: 18px; font-weight: bold; letter-spacing: 1px; margin: 0; }
         .brand .sub { margin: 2px 0 0; color: #555; font-size: 10px; }
         h1 { font-size: 16px; margin: 16px 0 2px; letter-spacing: .5px; }
-        h2 { font-size: 12px; margin: 16px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #999; text-transform: uppercase; letter-spacing: .5px; }
+        h2 { font-size: 12px; margin: 13px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #999; text-transform: uppercase; letter-spacing: .5px; }
         .status { display: inline-block; padding: 3px 8px; border: 1.5px solid #111; font-weight: bold; font-size: 11px; margin-top: 4px; }
         .status.warn { border-color: #b45309; color: #b45309; }
         .status.void { border-color: #b91c1c; color: #b91c1c; }
@@ -57,9 +57,10 @@
         .summary td { padding: 4px 6px; border-bottom: 1px solid #ddd; }
         .summary td.num { font-weight: bold; }
         .summary tr.key td { font-size: 12px; background: #f5f5f5; }
-        .sign td { padding-top: 30px; width: 50%; }
+        .sign td { padding-top: 22px; width: 50%; }
+        .sign, .footer { page-break-inside: avoid; }
         .sign .line { border-top: 1px solid #111; padding-top: 3px; width: 85%; }
-        .footer { margin-top: 14px; color: #777; font-size: 9px; }
+        .footer { margin-top: 8px; color: #777; font-size: 9px; }
         .toolbar { background: #111; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; font-family: Arial, sans-serif; }
         .toolbar a, .toolbar button { color: #111; background: #fff; border: 0; padding: 6px 12px; border-radius: 4px; font-size: 13px; text-decoration: none; cursor: pointer; }
         @media print { .toolbar { display: none; } .sheet { padding: 0; } @page { size: A4; margin: 14mm; } }
@@ -115,7 +116,7 @@
         <tr><td>Unallocated / pending (not payable)</td><td class="num" data-doc-total="unallocated">{{ $m($statement->unallocated_amount) }}</td></tr>
     </table>
     <p class="note">Rates (each applied to the same sharing base):
-        @foreach ($policy['rates'] ?? [] as $role => $r){{ $roleLabels[$role] ?? $role }} {{ $rate($r) }}{{ $loop->last ? '.' : ', ' }}@endforeach
+        @foreach (\App\Services\Finance\CommissionCalculator::inRoleOrder($policy['rates'] ?? []) as $role => $r){{ $roleLabels[$role] ?? $role }} {{ $rate($r) }}{{ $loop->last ? '.' : ', ' }}@endforeach
         Shares are rounded to the centavo; any rounding remainder is assigned to the company share.</p>
 
     <h2>Included bookings</h2>

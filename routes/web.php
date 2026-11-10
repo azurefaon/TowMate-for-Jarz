@@ -274,6 +274,8 @@ Route::prefix('superadmin')
 
         // Owner Finance. The role:1 group above plus per-ability Gates; services re-check authorization.
         Route::prefix('finance')->name('finance.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\SuperAdmin\Finance\OverviewController::class, 'index'])->middleware('can:finance.view')->name('overview');
+
             $unitFunds = \App\Http\Controllers\SuperAdmin\Finance\UnitFundController::class;
             Route::get('/unit-funds', [$unitFunds, 'index'])->middleware('can:finance.view')->name('unit-funds.index');
             Route::middleware(['can:finance.funds.manage', 'throttle:30,1'])->group(function () use ($unitFunds) {

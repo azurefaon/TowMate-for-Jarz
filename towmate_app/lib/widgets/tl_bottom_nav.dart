@@ -47,6 +47,12 @@ class TlBottomNav extends StatelessWidget {
                 onTap: () => _go(context, '/tl-history'),
               ),
               _TlNavItem(
+                icon: Icons.receipt_long_outlined,
+                label: 'Expenses',
+                selected: currentRoute == '/tl-expenses',
+                onTap: () => _go(context, '/tl-expenses'),
+              ),
+              _TlNavItem(
                 icon: Icons.person_outline_rounded,
                 label: 'Profile',
                 selected: currentRoute == '/tl-profile',

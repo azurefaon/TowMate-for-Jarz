@@ -21,12 +21,13 @@ Widget _host(String route, {ThemeData? theme, ThemeMode? themeMode, ValueChanged
 
 void main() {
   group('TlBottomNav', () {
-    testWidgets('shows exactly the four real Team Leader destinations', (tester) async {
+    testWidgets('shows exactly the five real Team Leader destinations', (tester) async {
       await tester.pumpWidget(_host('/tl-home'));
 
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('My Task'), findsOneWidget);
       expect(find.text('History'), findsOneWidget);
+      expect(find.text('Expenses'), findsOneWidget);
       expect(find.text('Profile'), findsOneWidget);
     });
 
@@ -73,6 +74,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(captured, '/tl-history');
+    });
+
+    testWidgets('tapping Expenses from Home pushReplaces to the expenses route', (tester) async {
+      String? captured;
+      await tester.pumpWidget(_host('/tl-home', onNavigate: (r) => captured = r));
+
+      await tester.tap(find.text('Expenses'));
+      await tester.pumpAndSettle();
+
+      expect(captured, '/tl-expenses');
     });
 
     testWidgets('tapping Profile from Home pushReplaces to the exact existing route', (tester) async {

@@ -550,4 +550,37 @@ class ExpenseService extends FinanceSupport
 
         return $value === '' ? null : mb_substr($value, 0, $max);
     }
+
+    /** Expense summary over a filtered query, from NUMERIC aggregates (all statuses). Used by the Expenses page and the Overview. */
+    public function summary(\Illuminate\Database\Eloquent\Builder $base): array
+    {
+        $ids = (clone $base)->select('id');
+
+        $byStatus = \Illuminate\Support\Facades\DB::table('finance_expenses')->whereIn('id', $ids)->groupBy('status')
+            ->selectRaw('status, COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total')->get()->keyBy('status');
+
+        $approvedBySource = \Illuminate\Support\Facades\DB::table('finance_expense_fundings as f')
+            ->join('finance_expenses as e', 'e.id', '=', 'f.expense_id')
+            ->whereIn('e.id', $ids)->where('e.status', Expense::STATUS_APPROVED)
+            ->groupBy('f.source')->selectRaw('f.source, COALESCE(SUM(f.amount), 0) AS total')->get()->keyBy('source');
+
+        $row = fn (string $status) => [
+            'count' => (int) ($byStatus->get($status)->n ?? 0),
+            'total' => Money::of((string) ($byStatus->get($status)->total ?? '0')),
+        ];
+        $source = fn (string $s) => Money::of((string) ($approvedBySource->get($s)->total ?? '0'));
+
+        return [
+            'submitted' => $row(Expense::STATUS_SUBMITTED),
+            'verified' => $row(Expense::STATUS_VERIFIED),
+            'approved' => $row(Expense::STATUS_APPROVED),
+            'rejected' => $row(Expense::STATUS_REJECTED),
+            'voided' => $row(Expense::STATUS_VOIDED),
+            'approved_unit_fund' => $source('unit_fund'),
+            'approved_company' => $source('company_direct'),
+            'approved_personal' => $source('personal_advance'),
+            'missing_evidence' => (clone $base)->whereIn('status', Expense::PENDING_STATUSES)->doesntHave('evidence')->count(),
+        ];
+    }
+
 }

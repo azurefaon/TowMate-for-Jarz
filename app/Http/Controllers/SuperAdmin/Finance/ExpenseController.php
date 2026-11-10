@@ -60,7 +60,7 @@ class ExpenseController extends Controller
 
         return view('superadmin.finance.expenses.index', [
             'expenses' => $listing,
-            'summary' => $this->summary($base),
+            'summary' => $this->expenses->summary($base),
             'filters' => $filters,
             'from' => $from,
             'to' => $to,
@@ -171,38 +171,6 @@ class ExpenseController extends Controller
             ->when($f['category'], fn ($q, $c) => $q->where('category', $c))
             ->when($f['scope'], fn ($q, $s) => $q->where('expense_scope', $s))
             ->when($f['funding'], fn ($q, $s) => $q->whereHas('fundings', fn ($w) => $w->where('source', $s)));
-    }
-
-    /** Summary cards from NUMERIC aggregates over the filtered period (all statuses). */
-    private function summary(Builder $base): array
-    {
-        $ids = (clone $base)->select('id');
-
-        $byStatus = DB::table('finance_expenses')->whereIn('id', $ids)->groupBy('status')
-            ->selectRaw('status, COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total')->get()->keyBy('status');
-
-        $approvedBySource = DB::table('finance_expense_fundings as f')
-            ->join('finance_expenses as e', 'e.id', '=', 'f.expense_id')
-            ->whereIn('e.id', $ids)->where('e.status', Expense::STATUS_APPROVED)
-            ->groupBy('f.source')->selectRaw('f.source, COALESCE(SUM(f.amount), 0) AS total')->get()->keyBy('source');
-
-        $row = fn (string $status) => [
-            'count' => (int) ($byStatus->get($status)->n ?? 0),
-            'total' => Money::of((string) ($byStatus->get($status)->total ?? '0')),
-        ];
-        $source = fn (string $s) => Money::of((string) ($approvedBySource->get($s)->total ?? '0'));
-
-        return [
-            'submitted' => $row(Expense::STATUS_SUBMITTED),
-            'verified' => $row(Expense::STATUS_VERIFIED),
-            'approved' => $row(Expense::STATUS_APPROVED),
-            'rejected' => $row(Expense::STATUS_REJECTED),
-            'voided' => $row(Expense::STATUS_VOIDED),
-            'approved_unit_fund' => $source('unit_fund'),
-            'approved_company' => $source('company_direct'),
-            'approved_personal' => $source('personal_advance'),
-            'missing_evidence' => (clone $base)->whereIn('status', Expense::PENDING_STATUSES)->doesntHave('evidence')->count(),
-        ];
     }
 
     private function flashShortfall(Expense $expense): void
