@@ -336,6 +336,7 @@
                     ['label' => 'Job Crew', 'route' => 'superadmin.finance.crew.index', 'active' => ['superadmin.finance.crew.*']],
                     ['label' => 'Commission (Draft)', 'route' => 'superadmin.finance.commission.index', 'active' => ['superadmin.finance.commission.*']],
                     ['label' => 'Commission Statements', 'route' => 'superadmin.finance.statements.index', 'active' => ['superadmin.finance.statements.*']],
+                    ['label' => 'Finance Reports', 'route' => 'superadmin.finance.reports.index', 'active' => ['superadmin.finance.reports.*']],
                 ],
             ],
         ];

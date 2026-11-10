@@ -48,28 +48,7 @@ class FinanceOverviewService
 
         // 3. Draft commission, week by week
         $weeks = $this->weeks($from, $to);
-        $draft = ['base' => Money::zero(), 'company' => Money::zero(), 'crew' => Money::zero(), 'unallocated' => Money::zero(), 'collection' => Money::zero(),
-            'by_role' => [], 'blockers' => [], 'weeks' => []];
-        foreach ($weeks as $monday) {
-            $d = $this->calculator->draft($monday, $unitId);
-            $t = $d['totals'];
-            $draft['collection'] = $draft['collection']->plus($t['collection']);
-            $draft['base'] = $draft['base']->plus($t['base']);
-            $draft['company'] = $draft['company']->plus($t['company']);
-            $draft['crew'] = $draft['crew']->plus($t['crew_allocated']);
-            $draft['unallocated'] = $draft['unallocated']->plus($t['unallocated']);
-            foreach ($t['by_role'] as $role => $row) {
-                $draft['by_role'][$role] ??= ['label' => $row['label'], 'allocated' => Money::zero(), 'unallocated' => Money::zero()];
-                $draft['by_role'][$role]['allocated'] = $draft['by_role'][$role]['allocated']->plus($row['allocated']);
-                $draft['by_role'][$role]['unallocated'] = $draft['by_role'][$role]['unallocated']->plus($row['unallocated']);
-            }
-            foreach ($d['blockers'] as $b) {
-                $draft['blockers'][$b['code']] = ($draft['blockers'][$b['code']] ?? 0) + 1;
-            }
-            $draft['weeks'][] = ['monday' => $monday, 'lines' => count($d['lines']), 'blockers' => count($d['blockers']), 'base' => $t['base']];
-        }
-        arsort($draft['blockers']);
-        $draft['policy'] = $d['policy'] ?? null;
+        $draft = $this->draftCommission($weeks, $unitId);
 
         // 4. Approved commission and recorded payouts (frozen figures only)
         $mondays = array_map(fn (CarbonImmutable $m) => $m->toDateString(), $weeks);
@@ -110,8 +89,57 @@ class FinanceOverviewService
         ];
     }
 
+
+    /**
+     * The draft commission (CommissionCalculator) summed over Monday–Saturday weeks. Shared with the Finance Reports.
+     *
+     * @param  CarbonImmutable[]  $weeks
+     */
+    public function draftCommission(array $weeks, ?int $unitId = null): array
+    {
+        $draft = ['base' => Money::zero(), 'company' => Money::zero(), 'crew' => Money::zero(), 'unallocated' => Money::zero(), 'collection' => Money::zero(),
+            'expenses' => Money::zero(), 'deductions' => Money::zero(), 'by_role' => [], 'by_recipient' => [], 'blockers' => [], 'blocker_messages' => [],
+            'notices' => [], 'weeks' => [], 'lines' => [], 'policy' => null];
+        foreach ($weeks as $monday) {
+            $d = $this->calculator->draft($monday, $unitId);
+            $t = $d['totals'];
+            foreach (['collection' => 'collection', 'base' => 'base', 'company' => 'company', 'crew' => 'crew_allocated', 'unallocated' => 'unallocated', 'expenses' => 'expenses', 'deductions' => 'deductions'] as $to => $from) {
+                $draft[$to] = $draft[$to]->plus($t[$from]);
+            }
+            foreach ($t['by_role'] as $role => $row) {
+                $draft['by_role'][$role] ??= ['label' => $row['label'], 'allocated' => Money::zero(), 'unallocated' => Money::zero()];
+                $draft['by_role'][$role]['allocated'] = $draft['by_role'][$role]['allocated']->plus($row['allocated']);
+                $draft['by_role'][$role]['unallocated'] = $draft['by_role'][$role]['unallocated']->plus($row['unallocated']);
+            }
+            foreach ($d['lines'] as $line) {
+                $draft['lines'][] = $line;
+                foreach ($line['roles'] as $row) {
+                    foreach ($row['recipients'] as $r) {
+                        $k = $r['recipient_key'];
+                        $draft['by_recipient'][$k] ??= ['recipient_key' => $k, 'name' => $r['name'], 'roles' => [], 'amount' => Money::zero(), 'jobs' => 0];
+                        $draft['by_recipient'][$k]['amount'] = $draft['by_recipient'][$k]['amount']->plus($r['amount']);
+                        $draft['by_recipient'][$k]['roles'][$row['label']] = true;
+                        $draft['by_recipient'][$k]['jobs']++;
+                    }
+                }
+            }
+            foreach ($d['blockers'] as $b) {
+                $draft['blockers'][$b['code']] = ($draft['blockers'][$b['code']] ?? 0) + 1;
+                $draft['blocker_messages'][] = $b['message'];
+            }
+            $draft['notices'] = array_merge($draft['notices'], $d['notices']);
+            $draft['weeks'][] = ['monday' => $monday, 'lines' => count($d['lines']), 'blockers' => count($d['blockers']), 'base' => $t['base']];
+            $draft['policy'] = $d['policy'];
+        }
+        arsort($draft['blockers']);
+        $draft['by_role'] = CommissionCalculator::inRoleOrder($draft['by_role']);
+        uasort($draft['by_recipient'], fn ($a, $b) => strcmp($a['name'], $b['name']));
+
+        return $draft;
+    }
+
     /** @return CarbonImmutable[] Mondays of every commission week starting inside the period (plus the one containing its start). */
-    private function weeks(CarbonImmutable $from, CarbonImmutable $to): array
+    public function weeks(CarbonImmutable $from, CarbonImmutable $to): array
     {
         $weeks = [];
         $monday = $from->startOfWeek(CarbonImmutable::MONDAY)->startOfDay();

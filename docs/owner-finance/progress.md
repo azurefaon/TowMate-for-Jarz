@@ -20,7 +20,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-10 | Phase 5: Commission calculation (draft, read-only) | Done (`0d425f27`). See "Phase 5" below |
 | 2026-11-10 | Phase 6: Job crew recording and weekly commission statements (Draft → For Review → Approved) | Done (`d11007b6`). See "Phase 6" below. Approval on real data still waits for the client's commission decisions |
 | 2026-11-10 | Phase 7: Payout records, Paid status and printable statements | Done (`166bd010`). See "Phase 7" below. No transfers; no real payouts recorded |
-| 2026-11-10 | Phase 8: Finance Overview, UI completion, Team Leader expense screen, Revenue cash fix | Done. See "Phase 8" below. Live click-through and on-phone checks remain on the manual checklist |
+| 2026-11-10 | Phase 8: Finance Overview, UI completion, Team Leader expense screen, Revenue cash fix | Done (`f6d3e273`). See "Phase 8" below. Live click-through and on-phone checks remain on the manual checklist |
+| 2026-11-10 | Phase 9: Finance Reports and exports (page, print/PDF, Excel) | Done. See "Phase 9" below |
 
 ## Phases
 
@@ -65,10 +66,13 @@ Spec: [spec.md](spec.md).
 - [x] **Phase 8: Overview and UI completion.**
   - Finance Overview (actual collections, expenses, unit funds, draft commission, approved commission and payouts, needs attention), unit and period filters.
   - UI review with fixes from real browser renders; Team Leader expense screen (Flutter); Revenue "Cash Received" group duplication fixed.
-- [ ] **Later (not yet scheduled):** reports and exports; client walkthrough.
+- [x] **Phase 9: Finance Reports and exports.** Report page with period, unit, personnel, payment, expense and statement filters; printable report / PDF and Excel from one data set.
+- [ ] **Phase 10:** demo scenarios and client walkthrough (not started).
 
 ### Open items carried forward (not complete)
 - [x] **Team Leader mobile expense screen**: done in Phase 8 (widget-tested; **not yet tested on a real phone**, and the APK has not been rebuilt).
+- [ ] **Manual browser interaction checks (still open):** click-through on a running server, real print dialogs, and the Phase 9 report exports opened in Excel and a PDF viewer. See the Phase 8 checklist; add: Finance Reports → change each filter → Print / Save as PDF and Download Excel → totals match the screen.
+- [ ] **Physical-device Flutter verification (still open):** the Team Leader expense screen has only widget tests; it has not been run on a phone, and the APK has not been rebuilt (not part of Phase 9).
 - [~] **Browser visual verification**: real rendered pages reviewed with headless Chrome in Phase 8 (desktop and 390 px) and the defects found were fixed. **Still manual:** interactive click-through on a running server and printing from a real browser dialog (see the Phase 8 checklist).
 - [x] **Existing Revenue page "Cash Received" duplication**: fixed in Phase 8 with a regression test (group cash counted once per trip).
 - [ ] **Paid statement corrections**: a Paid statement and its payouts are final. No reopening or adjustment procedure exists, and none was invented; it is a client decision.
@@ -441,6 +445,84 @@ The tests cover:
 5. Owner: Commission Statements → open an approved statement → Printable statement → the browser's Print → Save as PDF; also Download PDF. Both should be one A4 page for a one-job statement.
 6. Owner: record a payout with an evidence file, open "View evidence", then try "Mark statement Paid" before and after all payouts are recorded.
 7. Revenue page: with a real group trip in the period, "Cash Received" equals the group's cash once.
+
+## Phase 9: what was built
+
+**Finance Reports** (`/superadmin/finance/reports`, sidebar "Finance Reports"; Owner-only `finance.view`):
+- `FinanceReportService::build()` produces ONE data set used by the page, the printable report, the PDF and the Excel workbook, so all four show identical totals. It calculates nothing of its own:
+  - jobs, collections, outstanding balances and unit allocations: `JobCollectionService`
+  - expense summary and the new `ExpenseService::breakdown()` (by category, by unit and by status; NUMERIC aggregates): `ExpenseService`
+  - unit funds with the opening balance carried forward: `UnitFundLedger`
+  - draft commission: `CommissionCalculator`, through `FinanceOverviewService::draftCommission()`, which was extracted from the Overview and is now shared by both
+  - approved commission: approved and Paid statements and their frozen approval snapshots
+  - payouts: recorded payouts only (voided excluded)
+- **Sections:**
+  1. Bookings and collections: completed bookings and vehicles towed as separate counts, final agreed charges, verified collections, outstanding, over-collected, allocated to units with a per-unit table, and one row per booking.
+  2. Kept visible for review, with no rule applied: Sunday jobs outside the Monday–Saturday week, collections in the period for earlier service (late), unsettled payments or allocations, and commission approval blockers.
+  3. Expenses: approved (split into unit funds, company and personal advance), awaiting review (not deducted), rejected or voided; by category and by unit.
+  4. Unit funds per unit and in total: opening (carried forward), issued, spent, returned, remaining.
+  5. Draft commission ("Draft / Pending Client Confirmation — not approved" while the policy is unconfirmed): base, company, crew, unallocated, per role and per person.
+  6. Commission statements (frozen snapshots): count, base, company, crew payable, per statement and per person.
+  7. Recorded payouts with method and reference, and the total paid.
+- **Filters:**
+  - period / custom range (Asia/Manila business dates; default this Monday–Saturday week)
+  - towing unit
+  - historical personnel: everyone ever recorded on a job, including corrected records
+  - payment status (or "with an outstanding balance")
+  - expense status
+  - statement status (Approved and Paid by default; Approved only, Paid, Voided, or Draft and For Review marked NOT APPROVED)
+- **Personnel filter behaviour:**
+  - Jobs where the person is on the *current* crew record.
+  - Their draft amount.
+  - Their approved amount from frozen snapshots, so a later crew correction does not move approved money.
+  - Their recorded payouts.
+  - It does not apply to expenses or unit funds, which are not tied to a person.
+- **Exports** (same filters, carried in the query string):
+  - `/reports/print`: printable HTML with Print / Save as PDF (A4 landscape).
+  - `/reports/pdf`: rendered by the existing `DocumentGenerationService::renderReportPdf` (Dompdf, company letterhead).
+  - `/reports/excel`: `FinanceReportWorkbook` (PhpSpreadsheet, as the existing report export uses) with sheets Summary, Jobs, For Review, Expenses, Unit Funds, Draft Commission, Approved Commission and Payouts.
+    - Every text cell passes through the existing `ReportWorkbookBuilder::safeText` formula-injection guard and is stored as text.
+    - Amounts are numeric cells in `"₱"#,##0.00`; counts use `#,##0`.
+    - Each sheet header repeats the period, filters and the policy status (DRAFT / PENDING CLIENT CONFIRMATION when unconfirmed).
+- The page and the printable report share one Blade body partial (`documents/partials/finance-report-body.blade.php`).
+- Downloads are Owner-only and rate-limited (20 per minute), sent with `Cache-Control: private, no-store`.
+- No sample data: everything comes from recorded records. Test fixtures live only in the test database.
+
+## Phase 9 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Feature/Finance/FinanceReportsTest.php` | **12 passed** (138 assertions) |
+| `pest tests/Unit/Finance tests/Feature/Finance` | **223 passed** (1,703 assertions) |
+| Clean full suite `pest` (also confirms the Phase 8 sidebar label fix) | **3363 passed, 0 failed**, 52 risky (pre-existing); 1,402 s. `OwnerSidebarNavigationTest` passes in this clean run. |
+
+The tests cover:
+- **Totals:**
+  - Baseline: 1 booking, 1 vehicle, agreed and collected 15,000, outstanding 0.
+  - The 50.00 return is not counted as income.
+  - Approved expenses 2,950 (issued 3,000 is not an expense), with personal advance 250 and company 1,000 shown separately.
+  - Unit funds: issued 3,000, spent 1,700 (only unit-fund-paid expenses), returned 50, remaining 1,250.
+  - Draft 12,050 / 7,230 / 4,820, with `personal_advance_pending` listed; by-category amounts exact.
+- **Group trip:** one booking with three vehicles (6,000 + 5,000 on unit A, 4,000 on unit B) counts as 1 booking and 3 vehicles. The 15,000 cash stored on each row is counted once. Allocations of 11,000 and 4,000 reconcile to 15,000.
+- **Unreviewed expenses:** an 800.00 pending expense is not an approved deduction and does not reduce the draft base; the expense-status filter works.
+- **Filters:** unit (15,000 vs 2,000 outstanding), payment status (paid, outstanding), and unit funds filtered by unit.
+- **Dates:**
+  - Saturday 23:30 is inside the week.
+  - A Sunday 00:30 job is listed under review, not counted.
+  - A job serviced the previous week but paid this week is listed as a late collection.
+  - A custom range including Sunday counts it normally.
+  - Funds issued before the period appear as the 500.00 opening balance; 300.00 issued in the period gives 800.00 remaining.
+- **Historical personnel:** after approval, the unit roster and the crew record change. The original driver still shows the approved 1,446.00 from the snapshot; the new driver shows the job but no approved amount; both appear in the filter options.
+- **Snapshots and payouts:** approved 12,050 / 7,230 / 4,820; only the recorded payout counts (1,446.00; the voided one is excluded); the statement-status filter works.
+- **Exports:**
+  - The page and the printable report show the same figures; the Excel link carries the filters.
+  - The PDF is a real PDF.
+  - The Excel file is re-opened with PhpSpreadsheet: 8 sheets, its Summary values equal the report, money cells use the peso format, and the policy line is in the header.
+- **Draft labels:** an unconfirmed policy shows "Draft / Pending Client Confirmation" on screen, in print and in Excel.
+- **Injection:** a customer named `+cmd|calc` and a unit named `=HYPERLINK(...)` are exported as text with a leading apostrophe.
+- **Empty period:** the page, PDF and Excel all work, with clear "no data" rows and zero totals.
+- **Access:** five non-Owner roles get 403 on the page, print, PDF and Excel; guests are redirected.
+- **Rendered output:** the report page (desktop and 390 px) and the generated PDF were rendered with headless Chrome and Dompdf and reviewed: correct figures, 3-page landscape PDF.
 
 ## Open client decisions
 

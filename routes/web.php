@@ -311,6 +311,17 @@ Route::prefix('superadmin')
                 Route::post('/job-crew/entries/{entry}/confirm', [$crew, 'confirm'])->whereNumber('entry')->name('crew.confirm');
             });
 
+            // Phase 9: Finance Reports (page, print, PDF, Excel). Owner-only downloads.
+            $reports = \App\Http\Controllers\SuperAdmin\Finance\FinanceReportController::class;
+            Route::middleware('can:finance.view')->group(function () use ($reports) {
+                Route::get('/reports', [$reports, 'index'])->name('reports.index');
+                Route::get('/reports/print', [$reports, 'print'])->name('reports.print');
+                Route::middleware('throttle:20,1')->group(function () use ($reports) {
+                    Route::get('/reports/pdf', [$reports, 'pdf'])->name('reports.pdf');
+                    Route::get('/reports/excel', [$reports, 'xlsx'])->name('reports.xlsx');
+                });
+            });
+
             // Phase 7: payout records (no transfers are made by TowMate).
             $payouts = \App\Http\Controllers\SuperAdmin\Finance\PayoutController::class;
             Route::middleware(['can:finance.payouts.record', 'throttle:30,1'])->group(function () use ($payouts) {

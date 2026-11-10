@@ -265,3 +265,20 @@
 @media (max-width: 640px) {
     .fin-table td.fin-actions { min-width: 230px; }
 }
+
+/* ---------- Phase 9: Finance Reports (screen styles for the shared report body) ---------- */
+.fr-screen .fr-meta { padding: 12px 14px; border: 1px solid var(--ob-border, #e5e5e5); border-radius: 10px; background: #fafafa; font-size: 13px; line-height: 1.7; }
+.fr-screen .fr-h { margin: 26px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #171717; font-size: 15px; font-weight: 700; }
+.fr-screen table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.fr-screen .fr-sum { max-width: 720px; }
+.fr-screen .fr-sum td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+.fr-screen .fr-sum tr.fr-key td { font-weight: 700; background: #171717; color: #facc15; }
+.fr-screen .fr-grid { margin-top: 10px; display: block; overflow-x: auto; }
+.fr-screen .fr-grid th, .fr-screen .fr-grid td { padding: 7px 10px; border-bottom: 1px solid #eee; text-align: left; vertical-align: top; }
+.fr-screen .fr-grid th { background: #facc15; color: #171717; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+.fr-screen .fr-total td { font-weight: 700; border-top: 2px solid #171717; }
+.fr-screen .fr-num { text-align: right !important; white-space: nowrap; }
+.fr-screen .fr-num + td, .fr-screen .fr-num + th { padding-left: 20px; }
+.fr-screen .fr-dim { color: #737373; font-size: 12px; }
+.fr-screen .fr-sub { margin: 8px 0 4px; font-size: 13px; }
+.fr-screen .fr-list { margin: 0 0 6px 18px; font-size: 13px; }

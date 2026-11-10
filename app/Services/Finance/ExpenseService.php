@@ -551,6 +551,39 @@ class ExpenseService extends FinanceSupport
         return $value === '' ? null : mb_substr($value, 0, $max);
     }
 
+    /**
+     * Expense totals by category, by unit and by status over a filtered query, plus approved funding by source.
+     * NUMERIC aggregates only. "approved" columns are the only amounts that are costs; the rest are pending or closed.
+     */
+    public function breakdown(\Illuminate\Database\Eloquent\Builder $base): array
+    {
+        $ids = (clone $base)->select('id');
+        $pending = Expense::PENDING_STATUSES;
+        $agg = fn (string $group) => \Illuminate\Support\Facades\DB::table('finance_expenses')->whereIn('id', $ids)->groupBy($group)
+            ->selectRaw("{$group} AS k, COUNT(*) AS n,
+                COALESCE(SUM(CASE WHEN status = 'approved' THEN amount END), 0) AS approved,
+                COALESCE(SUM(CASE WHEN status IN ('" . implode("','", $pending) . "') THEN amount END), 0) AS pending,
+                COALESCE(SUM(CASE WHEN status IN ('rejected', 'voided') THEN amount END), 0) AS closed")
+            ->orderBy($group)->get();
+        $rows = fn ($rows, callable $label) => $rows->map(fn ($r) => [
+            'key' => $r->k, 'label' => $label($r->k), 'count' => (int) $r->n,
+            'approved' => Money::of((string) $r->approved), 'pending' => Money::of((string) $r->pending), 'closed' => Money::of((string) $r->closed),
+        ])->values()->all();
+
+        $categories = config('finance.expense_categories');
+        $units = \App\Models\Unit::pluck('name', 'id');
+
+        $byStatus = \Illuminate\Support\Facades\DB::table('finance_expenses')->whereIn('id', $ids)->groupBy('status')
+            ->selectRaw('status AS k, COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total')->get()
+            ->map(fn ($r) => ['key' => $r->k, 'label' => Expense::STATUS_LABELS[$r->k] ?? ucfirst($r->k), 'count' => (int) $r->n, 'total' => Money::of((string) $r->total)])
+            ->values()->all();
+
+        return [
+            'by_category' => $rows($agg('category'), fn ($k) => $categories[$k] ?? $k),
+            'by_unit' => $rows($agg('unit_id'), fn ($k) => $units[$k] ?? "Unit #{$k}"),
+            'by_status' => $byStatus,
+        ];
+    }
     /** Expense summary over a filtered query, from NUMERIC aggregates (all statuses). Used by the Expenses page and the Overview. */
     public function summary(\Illuminate\Database\Eloquent\Builder $base): array
     {
