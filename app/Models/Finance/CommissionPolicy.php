@@ -60,6 +60,31 @@ class CommissionPolicy extends Model
         'combined_roles' => ['paid_per_role' => 'A person performing two roles on one job receives both shares'],
     ];
 
+    /** The demonstration database stand-in policy (never a client confirmation). */
+    public function isDemoStandIn(): bool
+    {
+        return $this->base_definition === \App\Services\Finance\Demo\FinanceDemoScenarios::STAND_IN;
+    }
+
+    /** True when the client really confirmed this policy and it is active (a demo stand-in never counts). */
+    public function isClientConfirmedActive(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE && $this->isConfirmed() && ! $this->isDemoStandIn();
+    }
+
+    /** One English label used on every screen and document. */
+    public static function labelForId(?int $id): string
+    {
+        $p = $id ? self::find($id) : null;
+
+        return match (true) {
+            $p === null => 'No commission policy',
+            $p->isDemoStandIn() => 'DEMONSTRATION stand-in — not a client confirmation',
+            $p->isClientConfirmedActive() => 'active, client-confirmed',
+            default => 'Draft / Pending Client Confirmation',
+        };
+    }
+
     /** True only when this policy is active, client-confirmed, and records the accepted answer for $rule. */
     public function confirmsRule(string $rule): bool
     {

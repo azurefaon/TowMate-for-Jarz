@@ -76,4 +76,15 @@ return [
         'mimes' => ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
         'extensions' => ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
     ],
+    /*
+    | Phase 10 demonstration environment. Demo records, the demo reset and simulated payouts work ONLY when enabled AND
+    | the default database name ends with the suffix below (a separate, disposable database) AND the app is not in
+    | production. Never enable this on a database that holds real records.
+    */
+    'demo' => [
+        'enabled' => (bool) env('FINANCE_DEMO_ENABLED', false),
+        'database_suffix' => '_demo',
+        'owner_email' => env('FINANCE_DEMO_OWNER_EMAIL', 'demo.owner@towmate.test'),
+        'password' => env('FINANCE_DEMO_PASSWORD'),
+    ],
 ];

@@ -48,6 +48,7 @@
         </tr>
     </table>
     <h1>FINANCE REPORT</h1>
+    @if (\App\Services\Finance\Demo\FinanceDemoGuard::enabled())<div style="border:2px solid #b91c1c;color:#b91c1c;padding:5px 8px;margin:6px 0;font-weight:bold" data-doc-demo>DEMONSTRATION DATA — sample records, not real financial records; the commission policy is a demo stand-in.</div>@endif
     @include('documents.partials.finance-report-body', ['r' => $r])
     <p class="footer">Generated {{ ($generatedAt ?? now())->format('F j, Y g:i A') }}{{ ! empty($generatedBy) ? ' by ' . $generatedBy : '' }}. Amounts in Philippine pesos.</p>
 </div>

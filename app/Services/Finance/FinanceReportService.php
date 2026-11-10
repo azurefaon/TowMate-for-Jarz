@@ -156,7 +156,8 @@ class FinanceReportService
         ];
 
         $policy = $draft['policy'];
-        $policyConfirmed = $policy && $policy['status'] === 'active' && $policy['interpretation_status'] === 'confirmed';
+        $policyModel = $policy ? \App\Models\Finance\CommissionPolicy::find($policy['id']) : null;
+        $policyConfirmed = (bool) $policyModel?->isClientConfirmedActive();
 
         return [
             'meta' => [
@@ -171,6 +172,7 @@ class FinanceReportService
                 'statement_status' => self::STATEMENT_FILTERS[$statementFilter],
                 'policy_version' => $policy['version'] ?? null,
                 'policy_confirmed' => $policyConfirmed,
+                'policy_label' => \App\Models\Finance\CommissionPolicy::labelForId($policy['id'] ?? null),
                 'timezone' => $tz,
             ],
             'jobs' => [

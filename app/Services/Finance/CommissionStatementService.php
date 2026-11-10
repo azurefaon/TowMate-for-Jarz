@@ -265,6 +265,9 @@ class CommissionStatementService extends FinanceSupport
             if ($policy->status !== CommissionPolicy::STATUS_ACTIVE || ! $policy->isConfirmed()) {
                 throw new FinanceException('Commission statements can only be approved under an active, client-confirmed commission policy.');
             }
+            if ($policy->isDemoStandIn()) {
+                \App\Services\Finance\Demo\FinanceDemoGuard::assertCanSeed();   // the demo stand-in never approves real statements
+            }
 
             $review = $this->review($locked);
             if (! $review['can_approve']) {

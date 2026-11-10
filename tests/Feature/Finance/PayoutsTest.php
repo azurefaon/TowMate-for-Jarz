@@ -317,7 +317,7 @@ it('marks an unapproved statement as a draft that must not be paid', function ()
     ['statement' => $s] = finReviewStatement($owner, confirmPolicy: false);
 
     $this->actingAs($owner)->get(route('superadmin.finance.statements.print', $s->id))
-        ->assertOk()->assertSee('FOR REVIEW — NOT APPROVED')->assertSee('must not be paid')->assertSee('pending client confirmation')
+        ->assertOk()->assertSee('FOR REVIEW — NOT APPROVED')->assertSee('must not be paid')->assertSee('Draft / Pending Client Confirmation')
         ->assertDontSee('Payouts recorded');
 });
 

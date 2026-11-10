@@ -40,6 +40,9 @@ class CommissionPolicyService extends FinanceSupport
     public function confirmInterpretation(User $actor, CommissionPolicy $policy, string $baseDefinition, string $allocationRule, array $rules = []): CommissionPolicy
     {
         $this->authorize($actor, FinanceAccess::MANAGE_POLICIES);
+        if ($baseDefinition === \App\Services\Finance\Demo\FinanceDemoScenarios::STAND_IN || $allocationRule === \App\Services\Finance\Demo\FinanceDemoScenarios::STAND_IN) {
+            \App\Services\Finance\Demo\FinanceDemoGuard::assertCanSeed();   // a demo stand-in can only exist in a demo database
+        }
         foreach ($rules as $rule => $value) {
             if (! isset(CommissionPolicy::CONFIRMABLE_RULES[$rule][$value])) {
                 throw new FinanceException("Unknown commission rule answer: {$rule} = {$value}.");

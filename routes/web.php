@@ -311,6 +311,20 @@ Route::prefix('superadmin')
                 Route::post('/job-crew/entries/{entry}/confirm', [$crew, 'confirm'])->whereNumber('entry')->name('crew.confirm');
             });
 
+            // Phase 10: Client Review register and the demo page (demo page is 404 outside a *_demo database).
+            $review = \App\Http\Controllers\SuperAdmin\Finance\ClientReviewController::class;
+            Route::middleware('can:finance.view')->group(function () use ($review) {
+                Route::get('/client-review', [$review, 'index'])->name('client-review.index');
+                Route::get('/client-review/print', [$review, 'print'])->name('client-review.print');
+                Route::get('/client-review/pdf', [$review, 'pdf'])->middleware('throttle:20,1')->name('client-review.pdf');
+                Route::get('/demo', [\App\Http\Controllers\SuperAdmin\Finance\DemoController::class, 'index'])->name('demo.index');
+            });
+            Route::middleware(['can:finance.policies.manage', 'throttle:30,1'])->group(function () use ($review) {
+                Route::post('/client-review', [$review, 'store'])->name('client-review.store');
+                Route::post('/client-review/{item}', [$review, 'update'])->whereNumber('item')->name('client-review.update');
+                Route::post('/demo/reset', [\App\Http\Controllers\SuperAdmin\Finance\DemoController::class, 'reset'])->middleware('throttle:3,10')->name('demo.reset');
+            });
+
             // Phase 9: Finance Reports (page, print, PDF, Excel). Owner-only downloads.
             $reports = \App\Http\Controllers\SuperAdmin\Finance\FinanceReportController::class;
             Route::middleware('can:finance.view')->group(function () use ($reports) {

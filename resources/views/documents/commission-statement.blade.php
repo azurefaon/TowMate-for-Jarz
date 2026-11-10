@@ -3,7 +3,7 @@
     $lines = $calc['lines'] ?? [];
     $rate = fn ($r) => rtrim(rtrim((string) $r, '0'), '.') . '%';
     $roleLabels = \App\Services\Finance\CommissionCalculator::ROLE_LABELS;
-    $policyConfirmed = $policy && ($policy['interpretation_status'] ?? null) === 'confirmed';
+    $policyConfirmed = (bool) \App\Models\Finance\CommissionPolicy::find($policy['id'] ?? 0)?->isClientConfirmedActive();
     $statusText = [
         'draft' => 'DRAFT — NOT APPROVED',
         'for_review' => 'FOR REVIEW — NOT APPROVED',
@@ -86,13 +86,14 @@
     </table>
 
     <h1>WEEKLY COMMISSION STATEMENT</h1>
+    @if (\App\Services\Finance\Demo\FinanceDemoGuard::enabled())<div style="border:2px solid #b91c1c;color:#b91c1c;padding:5px 8px;margin:6px 0;font-weight:bold" data-doc-demo>DEMONSTRATION DATA — sample records, not real financial records; the commission policy is a demo stand-in.</div>@endif
     <span class="status {{ in_array($statement->status, ['draft', 'for_review'], true) ? 'warn' : ($statement->status === 'voided' ? 'void' : '') }}" data-doc-status="{{ $statement->status }}">{{ $statusText }}</span>
 
     <table class="meta" style="margin-top:10px">
         <tr><td class="k">Statement number</td><td><strong data-doc-ref>{{ $statement->reference_code }}</strong> (revision {{ $statement->revision }})</td>
             <td class="k">Towing unit</td><td><strong>{{ $statement->unit?->name ?? '—' }}</strong></td></tr>
         <tr><td class="k">Period</td><td>{{ $statement->period_start->format('F j, Y') }} – {{ $statement->period_end->format('F j, Y') }} (Monday to Saturday)</td>
-            <td class="k">Commission policy</td><td>Version {{ $policy['version'] ?? '—' }}{{ $policyConfirmed ? '' : ' — pending client confirmation' }}</td></tr>
+            <td class="k">Commission policy</td><td>Version {{ $policy['version'] ?? '—' }} — {{ \App\Models\Finance\CommissionPolicy::labelForId($policy['id'] ?? null) }}</td></tr>
         @if ($statement->supersedes)
             <tr><td class="k">Corrects</td><td colspan="3">{{ $statement->supersedes->reference_code }} — {{ $statement->correction_reason }}</td></tr>
         @endif

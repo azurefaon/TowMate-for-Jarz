@@ -15,7 +15,7 @@
     <div><strong>Period:</strong> {{ $m['from']->format('M j, Y') }} – {{ $m['to']->format('M j, Y') }} (Asia/Manila business dates)
         @if ($m['weeks_from']) · <strong>Commission weeks:</strong> {{ $m['weeks_from']->format('M j') }} – {{ $m['weeks_to']->format('M j, Y') }} (Monday to Saturday) @endif</div>
     <div><strong>Filters:</strong> Unit: {{ $m['unit'] ?? 'All units' }} · Personnel: {{ $m['person'] ?? 'All' }} · Payment: {{ $m['payment_status'] ?? 'All' }} · Expenses: {{ $m['expense_status'] ?? 'All' }} · Statements: {{ $m['statement_status'] }}</div>
-    <div><strong>Commission policy:</strong> v{{ $m['policy_version'] ?? '—' }} — <span data-fr-policy="{{ $m['policy_confirmed'] ? 'confirmed' : 'pending' }}">{{ $m['policy_confirmed'] ? 'active, client-confirmed' : 'DRAFT / PENDING CLIENT CONFIRMATION' }}</span></div>
+    <div><strong>Commission policy:</strong> v{{ $m['policy_version'] ?? '—' }} — <span data-fr-policy="{{ $m['policy_confirmed'] ? 'confirmed' : 'pending' }}">{{ $m['policy_label'] }}</span></div>
 </div>
 
 <h2 class="fr-h">1. Bookings and customer collections (actual, by service date)</h2>

@@ -141,6 +141,9 @@ class PayoutService extends FinanceSupport
                 if (! $this->statements->verifyIntegrity($locked)) {
                     throw new FinanceException('The approved statement failed its integrity check. Payouts cannot be recorded against it.');
                 }
+                if (\App\Models\Finance\CommissionPolicy::find($locked->policy_id)?->isDemoStandIn()) {
+                    \App\Services\Finance\Demo\FinanceDemoGuard::assertCanSeed();   // simulated payouts stay in the demo database
+                }
 
                 $earnings = $this->earningsByRecipient($locked)[$recipientKey] ?? null;
                 if ($earnings === null) {

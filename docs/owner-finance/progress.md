@@ -21,7 +21,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-10 | Phase 6: Job crew recording and weekly commission statements (Draft → For Review → Approved) | Done (`d11007b6`). See "Phase 6" below. Approval on real data still waits for the client's commission decisions |
 | 2026-11-10 | Phase 7: Payout records, Paid status and printable statements | Done (`166bd010`). See "Phase 7" below. No transfers; no real payouts recorded |
 | 2026-11-10 | Phase 8: Finance Overview, UI completion, Team Leader expense screen, Revenue cash fix | Done (`f6d3e273`). See "Phase 8" below. Live click-through and on-phone checks remain on the manual checklist |
-| 2026-11-10 | Phase 9: Finance Reports and exports (page, print/PDF, Excel) | Done. See "Phase 9" below |
+| 2026-11-10 | Phase 9: Finance Reports and exports (page, print/PDF, Excel) | Done (`4f25a175`). See "Phase 9" below |
+| 2026-11-10 | Phase 10: Demo environment and Client Review | Done. See "Phase 10" below |
 
 ## Phases
 
@@ -67,7 +68,7 @@ Spec: [spec.md](spec.md).
   - Finance Overview (actual collections, expenses, unit funds, draft commission, approved commission and payouts, needs attention), unit and period filters.
   - UI review with fixes from real browser renders; Team Leader expense screen (Flutter); Revenue "Cash Received" group duplication fixed.
 - [x] **Phase 9: Finance Reports and exports.** Report page with period, unit, personnel, payment, expense and statement filters; printable report / PDF and Excel from one data set.
-- [ ] **Phase 10:** demo scenarios and client walkthrough (not started).
+- [x] **Phase 10: Demo environment and Client Review.** Isolated `*_demo` database with six scenarios built through the real services, a guarded reset, simulated payouts, and a Client Review register with a downloadable summary.
 
 ### Open items carried forward (not complete)
 - [x] **Team Leader mobile expense screen**: done in Phase 8 (widget-tested; **not yet tested on a real phone**, and the APK has not been rebuilt).
@@ -523,6 +524,45 @@ The tests cover:
 - **Empty period:** the page, PDF and Excel all work, with clear "no data" rows and zero totals.
 - **Access:** five non-Owner roles get 403 on the page, print, PDF and Excel; guests are redirected.
 - **Rendered output:** the report page (desktop and 390 px) and the generated PDF were rendered with headless Chrome and Dompdf and reviewed: correct figures, 3-page landscape PDF.
+
+## Phase 10: what was built
+
+**Isolated demonstration environment.**
+- **Isolation rules:** `FinanceDemoGuard` allows demo data, the demo reset and simulated payouts only when `FINANCE_DEMO_ENABLED=true`, the app is not in production, and the database name ends with `_demo`. The automated tests may build the scenarios inside their own `*_testing` database (transaction-wrapped) but can never run the reset.
+- **Reset:** `php artisan finance:demo-reset --env=demo` drops and rebuilds the demo database (`migrate:fresh`), then builds the scenarios. It refuses anywhere else.
+- **Demo page:** `/superadmin/finance/demo` (Owner) lists the scenarios, the walkthrough and a reset control (type "RESET DEMO"). It returns 404 outside a demo database.
+- **Settings:** `.env.demo.example` is committed; `.env.demo` is git-ignored. Mail goes to the log, PayMongo keys are blank, the queue is sync, and the Team Leader arrival simulator is off.
+- **Marking:** a demo database shows a red "DEMONSTRATION DATABASE" banner on every Finance page and a "DEMONSTRATION DATA" line on generated statements and reports.
+- **Scenarios** (`FinanceDemoScenarios`, built only through the real services: crew recording; Team Leader → Dispatcher → Owner expenses with receipt files; unit funds; statements; payouts). All are serviced on Wednesday of last week:
+  1. **Baseline:** 15,000 collected; 3,000 issued; 1,700 + 1,000 + 250 = 2,950 expenses; 50 returned (remaining 0); base 12,050 → Company 7,230, crew 4,820. Approved, with two simulated payouts (DEMO-SIMULATED references); two left for the live demo, then Mark Paid.
+  2. **Missing Rider:** 12,050 job → 1,205 unallocated; statement For Review and blocked. Also a Team Leader expense awaiting the Dispatcher.
+  3. **Partial payment:** 7,500 verified of 15,000 (a simulated online payment) → allocation pending, not approvable.
+  4. **Two-unit booking:** another unit helped → allocation pending review. The 50:50 split exists only as a Client Review proposal, never applied.
+  5. **Personal advance:** 2,000 repair paid personally → `personal_advance_pending`, plus a Client Review item.
+  6. **Three vehicles:** one booking, three vehicles, two units → 1 booking, 3 vehicles, 15,000 counted once (11,000 / 4,000 allocation).
+- **Demo commission policy:** "DEMONSTRATION ONLY — stand-in for pending client decisions" (`base_definition = demo_stand_in`). It exists only so statements and simulated payouts can be shown. Every screen and document labels it "DEMONSTRATION stand-in — not a client confirmation". It is refused by the services outside a demo or test database: it can't be confirmed there, can't approve statements and can't record payouts. The real policy v1 stays Draft / Pending Client Confirmation.
+- **Shared policy label:** `CommissionPolicy::labelForId()` now gives one English label on the statement page, the printable statement, the report and Excel ("active, client-confirmed" only when truly client-confirmed and not a demo stand-in).
+
+**Client Review** (`/superadmin/finance/client-review`; Owner; table `finance_client_review_items`):
+- The 11 standard pending decisions are inserted by migration as project configuration: C1–C6, week cutoff and Sunday, monthly allocation, personal advance, partial or group payouts, refunds and fees. Each has the question, the current provisional behaviour, and what it blocks.
+- The Owner records the client response, requested revisions and remarks, and a status (Pending, In discussion, Client answered — awaiting implementation, Revision requested, Closed). The Owner can also add new decisions, revision requests or remarks.
+- **Recording an answer never confirms a policy or changes a financial record.** Every change is audited with before and after values. Rows can't be deleted (trigger).
+- Downloadable summary: printable page (`/client-review/print`) and PDF (`/client-review/pdf`).
+
+## Phase 10 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Feature/Finance/DemoAndClientReviewTest.php` | **9 passed** (128 assertions) |
+| `pest tests/Unit/Finance tests/Feature/Finance` | 231 passed, **1 failed** → `PayoutsTest` "draft that must not be paid" expected the old lowercase policy wording; updated to the shared label; re-run `PayoutsTest`: **15 passed** |
+| Real reset on a new disposable database `towmate_finance_demo` (`php artisan finance:demo-reset --env=demo --force`) | **Succeeded**: all migrations ran and all six scenarios were built; the Owner sign-in and scenario references were printed |
+
+The tests cover:
+- **Each scenario's figures:** baseline 15,000 / 2,950 / 50 / 12,050 / 7,230 / 4,820, funds remaining 0, simulated payouts 1,446 + 1,205, integrity verified; Rider 1,205 unallocated with `missing_role` and For Review; partial 7,500 of 15,000 with allocation pending and no approvable line; personal advance 2,000 blocked; two-unit pending with no allocation applied and the 50:50 proposal recorded; three vehicles counted once.
+- **Whole-demo reconciliation in the Finance Report:** 6 bookings, 8 vehicles, collected 74,550, outstanding 7,500, approved crew 4,820, payouts 2,651, personal advance 2,000, policy labelled as a demo stand-in.
+- **Isolation:** on a live-like database name, seeding, confirming a stand-in policy, recording payouts and approving under the stand-in are all refused. The reset command refuses (database name not `_demo`, or demo not enabled) and nothing is dropped; the demo page and reset are 404 and no banner shows.
+- **Demo page:** on a demo database the page, banner and document marking appear for the Owner, a wrong confirmation phrase is rejected, and five other roles get 403.
+- **Client Review:** 11 pending decisions; "answered" needs a response; answering C1 leaves policy v1 draft and pending; changes are audited; revision requests can be added; rows can't be deleted; page, print and PDF work; five roles get 403 on view, download, add and update, and the service refuses them.
 
 ## Open client decisions
 

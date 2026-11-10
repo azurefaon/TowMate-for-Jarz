@@ -312,7 +312,7 @@ class FinanceReportWorkbook
             . ($m['weeks_from'] ? '; commission weeks ' . $m['weeks_from']->format('M j') . ' – ' . $m['weeks_to']->format('M j, Y') : ''));
         $this->text($s, 'A3', 'Filters: unit ' . ($m['unit'] ?? 'all') . '; personnel ' . ($m['person'] ?? 'all') . '; payment ' . ($m['payment_status'] ?? 'all')
             . '; expenses ' . ($m['expense_status'] ?? 'all') . '; statements ' . $m['statement_status']);
-        $this->text($s, 'A4', 'Commission policy v' . ($m['policy_version'] ?? '—') . ': ' . ($m['policy_confirmed'] ? 'active, client-confirmed' : 'DRAFT / PENDING CLIENT CONFIRMATION'));
+        $this->text($s, 'A4', 'Commission policy v' . ($m['policy_version'] ?? '—') . ': ' . $m['policy_label']);
 
         return $s;
     }

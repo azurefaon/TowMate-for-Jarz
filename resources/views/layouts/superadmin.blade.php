@@ -337,6 +337,8 @@
                     ['label' => 'Commission (Draft)', 'route' => 'superadmin.finance.commission.index', 'active' => ['superadmin.finance.commission.*']],
                     ['label' => 'Commission Statements', 'route' => 'superadmin.finance.statements.index', 'active' => ['superadmin.finance.statements.*']],
                     ['label' => 'Finance Reports', 'route' => 'superadmin.finance.reports.index', 'active' => ['superadmin.finance.reports.*']],
+                    ['label' => 'Client Review', 'route' => 'superadmin.finance.client-review.index', 'active' => ['superadmin.finance.client-review.*']],
+                    ...(\App\Services\Finance\Demo\FinanceDemoGuard::enabled() ? [['label' => 'Finance Demo', 'route' => 'superadmin.finance.demo.index', 'active' => ['superadmin.finance.demo.*']]] : []),
                 ],
             ],
         ];

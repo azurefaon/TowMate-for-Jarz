@@ -1,3 +1,9 @@
+@if (\App\Services\Finance\Demo\FinanceDemoGuard::enabled())
+    <div class="fin-flash fin-flash--error" role="status" data-demo-banner>
+        <i data-lucide="flask-conical" aria-hidden="true"></i>
+        <span><strong>DEMONSTRATION DATABASE.</strong> Sample records only, not real financial records. The active commission policy is a demo stand-in, not a client confirmation. Payouts here are simulated records; TowMate never transfers money.</span>
+    </div>
+@endif
 @if (session('success'))
     <div class="fin-flash fin-flash--success" role="status">
         <i data-lucide="circle-check" aria-hidden="true"></i><span>{{ session('success') }}</span>

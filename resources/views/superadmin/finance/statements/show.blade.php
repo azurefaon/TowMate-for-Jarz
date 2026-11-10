@@ -52,10 +52,10 @@
         @endforeach
 
         {{-- Policy --}}
-        <div class="fin-flash {{ ($policy && $policy['status'] === 'active' && $policy['interpretation_status'] === 'confirmed') ? 'fin-flash--success' : 'fin-flash--warning' }}" role="status" data-statement-policy>
+        <div class="fin-flash {{ \App\Models\Finance\CommissionPolicy::find($policy['id'] ?? 0)?->isClientConfirmedActive() ? 'fin-flash--success' : 'fin-flash--warning' }}" role="status" data-statement-policy>
             <i data-lucide="percent" aria-hidden="true"></i>
             <span>Policy v{{ $policy['version'] ?? '—' }}
-                ({{ ($policy && $policy['interpretation_status'] === 'confirmed' && $policy['status'] === 'active') ? 'active, client-confirmed' : 'Draft / For Client Review: interpretation not confirmed' }}):
+                ({{ \App\Models\Finance\CommissionPolicy::labelForId($policy['id'] ?? null) }}):
                 @foreach (\App\Services\Finance\CommissionCalculator::inRoleOrder($policy['rates'] ?? []) as $role => $rate)
                     {{ \App\Services\Finance\CommissionCalculator::ROLE_LABELS[$role] ?? $role }} {{ rtrim(rtrim($rate, '0'), '.') }}%{{ $loop->last ? '.' : ',' }}
                 @endforeach
