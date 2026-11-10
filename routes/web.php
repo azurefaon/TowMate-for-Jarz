@@ -283,6 +283,11 @@ Route::prefix('superadmin')
                 Route::post('/unit-funds/{entry}/void', [$unitFunds, 'void'])->whereNumber('entry')->name('unit-funds.void');
             });
 
+            $collections = \App\Http\Controllers\SuperAdmin\Finance\JobCollectionController::class;
+            Route::get('/jobs-collections', [$collections, 'index'])->middleware('can:finance.view')->name('collections.index');
+            Route::post('/jobs-collections/{booking}/split', [$collections, 'split'])->whereNumber('booking')
+                ->middleware(['can:finance.revenue.allocate', 'throttle:30,1'])->name('collections.split');
+
             $expenses = \App\Http\Controllers\SuperAdmin\Finance\ExpenseController::class;
             Route::middleware('can:finance.view')->group(function () use ($expenses) {
                 Route::get('/expenses', [$expenses, 'index'])->name('expenses.index');

@@ -27,6 +27,7 @@ final class FinanceAccess
     public const PREPARE_STATEMENTS = 'finance.statements.prepare';
     public const APPROVE_STATEMENTS = 'finance.statements.approve';
     public const RECORD_PAYOUTS = 'finance.payouts.record';
+    public const ALLOCATE_REVENUE = 'finance.revenue.allocate';
 
     /** Abilities that belong to the Owner alone. */
     public const OWNER_ONLY = [
@@ -37,6 +38,7 @@ final class FinanceAccess
         self::PREPARE_STATEMENTS,
         self::APPROVE_STATEMENTS,
         self::RECORD_PAYOUTS,
+        self::ALLOCATE_REVENUE,
     ];
 
     public static function register(): void

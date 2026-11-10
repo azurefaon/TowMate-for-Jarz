@@ -329,6 +329,7 @@
                 'label' => 'Finance',
                 'icon' => 'wallet',
                 'items' => [
+                    ['label' => 'Jobs & Collections', 'route' => 'superadmin.finance.collections.index', 'active' => ['superadmin.finance.collections.*']],
                     ['label' => 'Unit Funds', 'route' => 'superadmin.finance.unit-funds.index', 'active' => ['superadmin.finance.unit-funds.*']],
                     ['label' => 'Expenses', 'route' => 'superadmin.finance.expenses.index', 'active' => ['superadmin.finance.expenses.*']],
                 ],

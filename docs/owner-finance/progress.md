@@ -15,7 +15,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-09 | Phase 0: repository inspection and spec | Done |
 | 2026-11-09 | Phase 1: database and authorization foundation | Done (`77ac792f`). See "Phase 1 verification" below |
 | 2026-11-10 | Phase 2: Unit Funds | Done (`42245cb9`). See "Phase 2 verification" below |
-| 2026-11-10 | Phase 3: Expenses and receipt review, plus the Phase 2 daily-funds correction | Done. See "Phase 3" below |
+| 2026-11-10 | Phase 3: Expenses and receipt review, plus the Phase 2 daily-funds correction | Backend, Owner page and Dispatcher page done (`96842391`). **Unfinished:** Team Leader mobile expense screen; browser visual check |
+| 2026-11-10 | Phase 4: Jobs & Collections | Done. See "Phase 4" below |
 
 ## Phases
 
@@ -32,13 +33,19 @@ Spec: [spec.md](spec.md).
   - The backend ledger: Opening + Issued − Advance-funded spending − Returned = Remaining.
   - Carry-forward between periods, filters by unit and date, movement history, balance summary, and a column for expenses awaiting review.
   - Corrections (void plus linked replacement) and voids with a reason.
-- [x] **Phase 3: Expenses and receipt review.**
-  - The Owner Expenses page, the Dispatcher Expense Review queue, and Team Leader API endpoints.
-  - Mixed funding; job vs unit/monthly scope; required evidence on private storage; overspend warning; corrections and voids.
-  - Integrated with the Unit Funds ledger.
-  - Phase 2 correction: daily issuances are allowed.
-- [ ] **Phase 4: Jobs & Collections, and Overview.**
-  - A read-only collections query that reuses the `ReportMetricsService` predicate and group allocation, plus a consistency test against the Revenue page.
+- [ ] **Phase 3: Expenses and receipt review.** Backend and web are done; two items remain open:
+  - [x] The Owner Expenses page, the Dispatcher Expense Review queue, and Team Leader API endpoints.
+  - [x] Mixed funding; job vs unit/monthly scope; required evidence on private storage; overspend warning; corrections and voids.
+  - [x] Integrated with the Unit Funds ledger.
+  - [x] Phase 2 correction: daily issuances are allowed.
+  - [ ] **UNFINISHED: Team Leader mobile expense screen** (Flutter UI for the existing `/api/v1/team-leader/expenses` endpoints).
+  - [ ] **UNFINISHED: browser visual verification** of the Unit Funds, Expenses, Expense Review and Jobs & Collections pages (so far verified only through rendered-HTML tests).
+- [x] **Phase 4: Jobs & Collections.**
+  - The Owner page `/superadmin/finance/jobs-collections`.
+  - A read-only `JobCollectionService` over bookings, invoices and payment transactions.
+  - Unit revenue allocation, with an Owner split for multi-unit jobs.
+  - A consistency test against the Revenue page.
+- [ ] **Phase 4b: Overview** (finance summary cards across modules). Not started.
 - [ ] **Phase 5: Job crew capture.**
   - Write `finance_job_personnel` when payment is confirmed (an additive hook).
   - A flagged backfill for past jobs.
@@ -151,6 +158,42 @@ Not done in Phase 2: no browser screenshot review (the page was verified through
 
 Not done in Phase 3: no Flutter screens for the Team Leader expense endpoints (backend only); no browser screenshot review; no migration on the dev or production databases; no push or deploy.
 
+## Phase 4: what was built
+
+**The authoritative verified-payment source** (identified before any collected amount is calculated):
+1. **Dispatcher confirmation.** `Admin\JobsController::confirmPayment()` sets `status=completed` and `completed_at` only after the Team Leader submitted payment, and the TL flow requires cash ≥ the total. This verifies the **full agreed charge** (see `ReportMetricsService::PAYMENT_INVARIANT`).
+2. **Live PayMongo payments.** `payment_transactions.status=paid` with `livemode=true` on a non-demo booking is provider-verified money received. It counts before confirmation (which is how a partial payment becomes visible) and is never added on top of a Dispatcher confirmation: collected = max(agreed, live paid) once confirmed.
+3. **Never counted:** the customer's preferred method; a TL submission awaiting verification; `cash_received` (cash tendered, which includes change); PayMongo **TEST** payments; pending, failed or expired transactions; review or duplicate transactions (flagged for refund review); demo bookings; and a booking manually set to `completed` without `completed_at` (shown as "Completed, payment not verified").
+
+| Part | Detail |
+|---|---|
+| `JobCollectionService` | One row per **job**: a single booking, or a normalized group trip (`Invoice::sameTripMembers`, one booking per vehicle, counted once). **Agreed charge:** current non-voided invoice total, else group formula (active vehicles + quotation fee − discount, minimum 0), else `final_total`. **Vehicles:** group = vehicle bookings; single booking = 1 + legacy `extra_vehicles`. **Collection status:** paid, partial, awaiting verification, completed but unverified, unpaid, over-collected. Outstanding = agreed − collected, exact. Group cash (repeated on every vehicle row) is read once. **Dates** are Philippine time; by service date (`completion_requested_at` → … → `created_at`) or by payment date; flags for Sunday service and payment in a later reporting week. **Personnel:** captured `finance_job_personnel`, else the booking's own `assigned_team_leader_id` / `driver_name`; never the unit's current crew. **Expenses** for the job are shown separately (approved and pending) |
+| Unit allocation | **Automatic** only when fully collected and every vehicle has its own assigned unit: each vehicle's collection goes to its unit, and a group fee or discount is shared in proportion to each vehicle's own charge. Rounding centavos go to the largest charge, so the sum equals the allocatable collection exactly. Over-collection allocates the agreed charge and flags the excess. **Pending review** (nothing allocated) for partial payments, a vehicle with no unit, an "Assistance from Another Unit" expense, or borrowed or other-unit crew. **No 50:50 default.** The **Owner split** (`recordSplit`, single-booking jobs) requires amounts that sum exactly to the allocatable collection, stores `manual_split` rows with `allocatable_total`, and supersedes earlier splits (kept in history). If the collection later changes, the split goes back to pending review |
+| Migration `2026_11_13_000000_jobs_collections_allocations` | Adds `allocatable_total` and `notes` to `finance_revenue_allocations`; method `manual_split`; both columns added to the immutability trigger |
+| `JobCollectionController` + view `superadmin/finance/collections/index.blade.php` | `GET /superadmin/finance/jobs-collections` (`can:finance.view`) and `POST /{booking}/split` (`can:finance.revenue.allocate`, a new Owner-only ability, throttled). Filters: unit, booking or group code, collection status (including "has outstanding balance"), payment method, allocation status, date basis, period (default this Mon–Sat week). Cards: bookings (and how many have service completed), vehicles towed, agreed, verified collections, outstanding (plus over-collected), allocations pending review. A revenue-by-unit table. Job rows with details: charge source, Dispatcher confirmation, preferred method (labelled as not a payment), cash tendered and change, online transactions (TEST labelled), vehicles and units, personnel at the time, job expenses, allocation lines, and the split form. Sidebar: Finance → Jobs & Collections |
+
+No booking confirmation, payment verification or dispatch code was changed. No customer payment record is written.
+
+## Phase 4 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Unit/Finance tests/Feature/Finance` | **147 passed** (837 assertions), including 21 new tests in `JobsCollectionsTest.php` |
+| Full suite `pest` (includes the existing booking, payment, Team Leader and dispatch tests) | **3283 passed, 0 failed**, 52 risky (pre-existing); 1,418 s |
+
+`JobsCollectionsTest.php` covers:
+- **Verified vs unverified:** a Dispatcher-confirmed job counts in full. Submitted-awaiting, preferred-method-only, TEST, pending, failed and expired payments count 0. Demo bookings are excluded. A live online payment counts once, even after Dispatcher confirmation.
+- **Partial:** 15,000.00 agreed, 5,000.50 live paid → partial, outstanding 9,999.50, allocation pending.
+- **Cash with change:** 2,000 tendered on 1,800 → collected 1,800.00, change 200.00 flagged.
+- **Completed but unpaid:** "completed, payment not verified", 0 collected, nothing allocated.
+- **Groups and duplicates:** a 3-vehicle trip + ₱300 fee = one job, 3 vehicles, 15,300.00 collected once despite an online payment plus a duplicate transaction (flagged for refund review). The invoice total overrides the booking total.
+- **Allocation:** a two-unit group 10,000 + 5,000 is automatic and totals exactly **15,000.00**. A group discount is shared and totals exactly 9,900.00. A one-booking job with another unit's assistance expense stays pending (no 50:50); a split of 9,000.00 + 5,999.99 is refused; the Owner split 9,000.50 + 5,999.50 = 15,000.00 is recorded; a re-split supersedes with history kept; a split goes back to pending when the collection basis changes; a split with nothing collected is refused.
+- **Vehicles:** one booking with three vehicles counts as 1 booking and 3 vehicles.
+- **Historical personnel:** the booking's TL and driver are shown after the unit's crew changed; today's crew is never shown; captured crew take precedence.
+- **Filters and dates:** service vs payment basis; late-payment and Sunday flags; unit, booking, status, outstanding and method filters.
+- **Page and authorization:** the Owner page shows exact totals (2 bookings, 3 vehicles, 17,500 agreed, 15,000 collected, 2,500 outstanding); 5 non-Owner roles get 403 on view and split; guests are redirected.
+- **No writes and consistency:** viewing writes no payment, invoice, receipt or booking record. Dispatcher-confirmed collections equal the existing Revenue page total (12,100.00). Bookings are counted per job (2) where the Revenue page counts vehicle rows (3).
+
 ## Open client decisions
 
 - Commission interpretation C1–C6 ([spec.md §6](spec.md#6-commission-pending-client-confirmation)).
@@ -158,12 +201,16 @@ Not done in Phase 3: no Flutter screens for the Team Leader expense endpoints (b
 - **Personal advance reimbursement:** recorded as a funding split and flagged. No reimbursement, payable or Team Leader debt is created.
 - **Overspending:** recorded as entered with a shortfall snapshot. Whether a negative unit balance should trigger anything (for example, top-up or deduction) is the client's decision; nothing automatic happens.
 - **Evidence exemptions:** every expense currently needs evidence before verification and approval (enforced by a DB trigger). If the client wants exemptions (for example, a toll with no receipt), that needs a rule decision and a migration.
-- **Sunday activity (minor):** reporting weeks are Monday–Saturday. Sunday-dated entries count in balances and carry into the next week; the default view includes today when today is Sunday. Which week Sunday belongs to in reports still needs confirming.
+- **Sunday activity (minor):** reporting weeks are Monday–Saturday. Sunday-dated entries count in balances and carry into the next week; the default view includes today when today is Sunday. Jobs & Collections flags Sunday service and late payments. Which week Sunday belongs to in reports still needs confirming.
+- **Multi-unit revenue (new):** when another unit helps on a one-booking job, or a job is only partly paid, the allocation stays pending until the Owner records a split. Whether a standard rule should apply to an approved scenario (for example, a fixed share for assistance) is the client's decision. Splitting a group trip by hand is not supported yet (group vehicles are allocated to their own units).
+- **Refunds and provider fees (new):** TowMate does not record refunds or PayMongo fees. Collections are shown gross, and transactions flagged for refund review are marked. How refunds and fees should be recorded is a client and accounting decision.
 
 ## Known risks and notes
 
-- The crew is stored only on `Unit` as live data. Past jobs need a backfill flagged `needs_review`.
-- `ReportMetricsService` sums with floats. Phase 4 (Jobs & Collections) adds a consistency test, and that service will only be changed if a real mismatch is found.
+- The crew is stored only on `Unit` as live data. Past jobs need a backfill flagged `needs_review`. Jobs & Collections never uses the current crew; it shows the booking's own TL and driver until crew capture exists.
+- `ReportMetricsService` sums with floats. The Phase 4 consistency test shows its confirmed-revenue total equals the exact Jobs & Collections total for the tested cases. It was not changed.
+- **Existing Revenue page defect (found, not changed):** the "Cash Received" card sums `bookings.cash_received` over every vehicle row, but a group payment stores the same group cash on every vehicle row, so group cash is counted once per vehicle. Jobs & Collections reads it once per job. Fixing the Revenue page is outside this module and needs approval.
+- Booking counts differ by design: Jobs & Collections counts a group trip as one booking with N vehicles; the existing Revenue page's "Completed Jobs" counts vehicle rows.
 - Expenses with `funding_source = unit_fund` count as spending on their `expense_date` once approved. If an approval lands after the period has been reviewed, that period's figures change. This is intended (it reflects actual spending dates), but the Owner should know.
 - `ActiveBookingsController::updateStatus()` can set `completed` without `completed_at`. Finance requires `completed_at`.
 - `cash_received` is the cash tendered, not the amount collected.

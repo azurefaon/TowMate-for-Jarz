@@ -19,11 +19,12 @@ class RevenueAllocation extends Model
     protected $table = 'finance_revenue_allocations';
 
     protected $fillable = [
-        'booking_id', 'unit_id', 'gross_amount', 'vat_amount', 'net_amount', 'allocation_method',
-        'invoice_id', 'payment_transaction_id', 'collected_at', 'computed_by',
+        'booking_id', 'unit_id', 'gross_amount', 'vat_amount', 'net_amount', 'allocatable_total', 'allocation_method',
+        'notes', 'invoice_id', 'payment_transaction_id', 'collected_at', 'computed_by',
     ];
 
     protected $casts = [
+        'allocatable_total' => MoneyCast::class,
         'gross_amount' => MoneyCast::class,
         'vat_amount' => MoneyCast::class,
         'net_amount' => MoneyCast::class,

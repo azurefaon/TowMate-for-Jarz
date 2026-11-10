@@ -112,7 +112,14 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
 ## 7. Page outline (Phase 2 onward)
 
 - **Overview**: separate cards for collections, issued funds, returned funds, expenses, commission earned, and payouts. Only one card, clearly labelled "Net position", combines figures, and its formula is shown.
-- **Jobs & Collections**: read-only; completed and verified jobs, amount, method, unit, crew, documents.
+- **Jobs & Collections** (built in Phase 4, `/superadmin/finance/jobs-collections`, `JobCollectionService`):
+  - One row per job, where a group trip counts once and shows its vehicle count.
+  - **Verified collections** are a Dispatcher payment confirmation (`completed_at`, covering the full agreed charge) or a live, non-demo PayMongo payment. Preferred method, submissions awaiting verification, cash tendered, TEST, pending or failed payments, and status overrides never count.
+  - Agreed charge = current invoice, else group formula, else `final_total`.
+  - Outstanding is exact; partial and over-collected jobs are flagged.
+  - Unit allocation is automatic per vehicle only when fully paid and single-unit. Otherwise it is pending until an Owner split that totals exactly; there is no 50:50 default.
+  - Historical personnel only.
+  - Philippine dates, by service or payment date.
 - **Unit Funds** (built in Phase 2, `/superadmin/finance/unit-funds`):
   - Issue initial or additional funds and record returned funds, each with date, amount, unit, person, reference and remarks.
   - `UnitFundLedger` computes Opening + Issued − Advance-funded spending (approved `unit_fund` expenses) − Returned = Remaining, and the opening balance carries forward.
@@ -136,6 +143,7 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
 | `finance.view`, `finance.funds.manage`, `finance.expenses.approve`, `finance.policies.manage`, `finance.statements.prepare`, `finance.statements.approve`, `finance.payouts.record` | **Owner only** |
 | `finance.expenses.submit` | Team Leader (own unit only, checked in the service) and Owner |
 | `finance.expenses.verify` | Dispatcher (a Dispatcher may also reject at this step) |
+| `finance.revenue.allocate` (Phase 4) | **Owner only**: record a unit revenue split |
 
 Every finance service method calls `Gate::forUser($actor)->authorize(...)`, so a future controller cannot skip the check. Phase 2 routes will sit under `/superadmin/finance/*` (`role:1`) and also use `can:` middleware.
 

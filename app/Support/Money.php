@@ -104,6 +104,28 @@ final class Money implements JsonSerializable, Stringable
         return new self(self::round($raw, self::SCALE));
     }
 
+    /** This amount × part / whole, rounded half-up once (for proportional shares). Whole must be positive. */
+    public function shareOf(mixed $part, mixed $whole): self
+    {
+        $wholeAmount = self::of($whole);
+        if (! $wholeAmount->isPositive()) {
+            throw new InvalidArgumentException('The whole must be greater than zero.');
+        }
+        $raw = bcdiv(bcmul($this->amount, self::of($part)->amount, self::WORK_SCALE), $wholeAmount->amount, self::WORK_SCALE);
+
+        return new self(self::round($raw, self::SCALE));
+    }
+
+    public function max(mixed $other): self
+    {
+        return $this->compareTo($other) >= 0 ? $this : self::of($other);
+    }
+
+    public function min(mixed $other): self
+    {
+        return $this->compareTo($other) <= 0 ? $this : self::of($other);
+    }
+
     /**
      * Splits this amount across shares (key => percent) so that the parts always sum EXACTLY to this
      * amount. Each part is rounded half-up, and the rounding difference (at most a few centavos) goes

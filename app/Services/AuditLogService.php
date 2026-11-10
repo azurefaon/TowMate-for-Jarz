@@ -100,7 +100,7 @@ class AuditLogService
         'finance_expense_rejected', 'finance_expense_voided', 'finance_expense_evidence_added',
         'finance_policy_drafted', 'finance_policy_confirmed', 'finance_policy_activated',
         'finance_statement_prepared', 'finance_statement_approved', 'finance_statement_voided',
-        'finance_payout_recorded', 'finance_payout_voided',
+        'finance_payout_recorded', 'finance_payout_voided', 'finance_allocation_recorded',
     ];
 
     public static function isBusinessAction(string $action): bool
