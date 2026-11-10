@@ -22,7 +22,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-10 | Phase 7: Payout records, Paid status and printable statements | Done (`166bd010`). See "Phase 7" below. No transfers; no real payouts recorded |
 | 2026-11-10 | Phase 8: Finance Overview, UI completion, Team Leader expense screen, Revenue cash fix | Done (`f6d3e273`). See "Phase 8" below. Live click-through and on-phone checks remain on the manual checklist |
 | 2026-11-10 | Phase 9: Finance Reports and exports (page, print/PDF, Excel) | Done (`4f25a175`). See "Phase 9" below |
-| 2026-11-10 | Phase 10: Demo environment and Client Review | Done. See "Phase 10" below |
+| 2026-11-10 | Phase 10: Demo environment and Client Review | Done (`5effc13b`). See "Phase 10" below |
+| 2026-11-10 | Phase 11: Final integration and QA | Done. See "Phase 11" (acceptance matrix) below |
 
 ## Phases
 
@@ -563,6 +564,66 @@ The tests cover:
 - **Isolation:** on a live-like database name, seeding, confirming a stand-in policy, recording payouts and approving under the stand-in are all refused. The reset command refuses (database name not `_demo`, or demo not enabled) and nothing is dropped; the demo page and reset are 404 and no banner shows.
 - **Demo page:** on a demo database the page, banner and document marking appear for the Owner, a wrong confirmation phrase is rejected, and five other roles get 403.
 - **Client Review:** 11 pending decisions; "answered" needs a response; answering C1 leaves policy v1 draft and pending; changes are audited; revision requests can be added; rows can't be deleted; page, print and PDF work; five roles get 403 on view, download, add and update, and the service refuses them.
+
+## Phase 11: final integration and QA
+
+**Defects found and fixed in Phase 11 (all re-tested):**
+1. **Rate-limit counter shared across routes.** Laravel's `throttle:X,Y` uses one counter per user unless given a prefix. The demo reset (`throttle:3,10`) therefore counted all the Owner's earlier Finance POSTs, and a real UI reset returned **429** in the first browser run. The report and Client Review download limits had the same flaw. Fixed with the prefixes `finance-demo-reset` and `finance-exports`; regression test added; browser rerun passes.
+2. **Reset guard hardening.** `FinanceDemoGuard::assertCanReset()` now also requires the *real* connection's database name to end in `_demo`, so no test configuration can ever reach `migrate:fresh` on the test database. Regression test added.
+3. **Test helper name collision.** The new demo test's global helper `dmUnit()` collided with an existing test's helper of the same name. The full suite stopped with a fatal error (running the file alone hid it). Renamed to the `fdm*` prefix; no duplicate global test helpers remain.
+4. **Phone layout:** Client Review detail rows squeezed long text into a narrow column at 390 px; they now stack.
+
+**Browser interaction test (real Chrome, DevTools Protocol, scripted):**
+- The app was served with `APP_ENV=demo` against the disposable `towmate_finance_demo` database (built by the Phase 10 reset).
+- First run: 23 passed, 3 failed. One was a script false positive (it treated the red demo banner as an error alert); two were defect 1. Rerun after the fix: **26 passed, 0 failed**:
+  - The Owner signed in through the real login form; the demo banner was shown; the Overview total was ₱74,550.00; the unit filter auto-submitted and narrowed to ₱15,000.00.
+  - The Owner recorded an expense through the multipart form with a **real receipt file upload**, and the receipt is listed.
+  - Statement: Mark Paid was disabled → two payouts recorded through the forms (bank transfer + reference) → Mark Paid enabled → marked **Paid** → statement PDF downloaded (`%PDF`) → printable statement shows "APPROVED AND PAID" and the demo marking.
+  - Reports: the unit filter applied through the form; Excel (XLSX zip, `PK`) and PDF downloaded with the same filter in their links.
+  - Client Review: a status and remark saved through the form; the summary PDF downloaded.
+  - **390 px phone emulation:** Overview, statement, Reports and Client Review have **0 px page-level horizontal overflow** (tables scroll inside their cards).
+  - Dispatcher: signed in, **403** on Owner Finance, verified the Team Leader's pending expense through the Expense Review form.
+  - **Demo reset through the UI:** signed out → after signing in again the baseline statement is back to Approved (not Paid) and Unit 2 is For Review.
+- **Private files:** a real receipt path on the demo server returns 403 at `/protected-storage/…` without a signature and 404 at `/storage/…` and the bare path; the authorised evidence route redirects a signed-out visitor to login.
+
+**English text:** the Finance views, generated documents, services and the Team Leader Flutter screens were scanned for common Filipino words: none found. Every screen, flash message, PDF and Excel label is English.
+
+### Acceptance matrix
+
+| # | Area | Result | Evidence |
+|---|---|---|---|
+| 1 | Calculations reconcile exactly (15,000 baseline; centavo rounding) | **Passed** | `CommissionCalculationTest` (baseline, rounding datasets), `DemoAndClientReviewTest` baseline, `FinanceReportsTest`; browser Overview totals |
+| 2 | Unit funds, expenses, verified collections, returned funds and payouts separate | **Passed** | `FinanceReportsTest` (issued ≠ expense, returned ≠ income, personal advance separate), `OverviewTest`, `PayoutsTest` (company not payable) |
+| 3 | Missing personnel and unresolved allocations block approval | **Passed** | `CommissionStatementsTest` (missing crew, rider, shared and combined roles), demo Unit 2 / Unit 4 |
+| 4 | Partial or unverified payments cannot create approvable commission | **Passed** | `CommissionStatementsTest` (unverified, partly paid), demo Unit 3 |
+| 5 | Approved statements immutable | **Passed** | `FinanceSchemaTest` triggers, `CommissionStatementsTest` (changes after approval), `PayoutsTest` (Paid frozen) |
+| 6 | Duplicate approvals, payouts, expenses and fund submissions prevented | **Passed** | idempotency and unique-index tests in `CommissionStatementsTest`, `PayoutsTest`, `ExpensesTest`, `UnitFundsTest`, `TeamLeaderExpenseAppTest` |
+| 7 | Multiple towing units never duplicate revenue | **Passed** | `JobsCollectionsTest`, `FinanceReportsTest` (3 vehicles / 2 units → 11,000 + 4,000 = 15,000), `RevenueGroupCashTest` |
+| 8 | Historical personnel accurate | **Passed** | `CommissionStatementsTest` (roster change), `FinanceReportsTest` (personnel filter after correction), `PayoutsTest` (snapshot authority) |
+| 9 | Financial permissions enforced on backend requests | **Passed** | 5 non-Owner roles get 403 on every Finance route in each feature test; service-level `AuthorizationException`; browser: Dispatcher gets 403 |
+| 10 | Private receipts and payout evidence protected | **Passed** | `ExpensesTest` and `PayoutsTest` evidence access tests; live probe on the demo server (403 / 404 / login redirect) |
+| 11 | Reports, PDF and Excel reconcile with displayed records | **Passed** | `FinanceReportsTest` (page = print = Excel totals, Excel re-opened); browser downloads |
+| 12 | Demo cannot affect production records | **Passed** | `DemoAndClientReviewTest` isolation tests (seed, stand-in policy, approval, payout and reset refused on a live-like database; reset never runs on the real test database) |
+| 13 | All application and document text in English | **Passed** | text scan; rendered pages and PDFs reviewed |
+| 14 | Existing booking, dispatch, payment confirmation, quotation, Team Leader, Owner and reporting workflows | **Passed** | full backend suite (below); only two existing behaviours changed, both intended and tested (unit force-delete guard; grouped-trip Cash Received) |
+| 15 | Desktop and phone layouts | **Passed** (browser emulation) | 26 browser checks incl. 390 px overflow checks; Phase 8 screenshots |
+| 16 | Forms, filters, receipt upload, review actions, statement printing, PDF and Excel | **Passed** (headless Chrome) | browser run 2 |
+| 17 | Printing through the browser's print dialog or a physical printer | **Unverified** | headless Chrome cannot open the print dialog; the print stylesheet and the PDF output were verified. Steps: open any printable page → Print / Save as PDF → check one A4 page per one-job statement |
+| 18 | Excel file opened in Microsoft Excel | **Unverified** | validated by re-opening with PhpSpreadsheet. Steps: Finance Reports → Download Excel → open in Excel → 8 sheets, peso formats, Summary matches the screen |
+| 19 | Team Leader Flutter expense workflow on a device or emulator | **Unverified** | no Android device or emulator is attached (`flutter devices` lists only Chrome and Edge web). Covered by 26 widget tests and the API contract tests. Steps: build the APK from this branch → sign in as a Team Leader → Expenses → New expense → take a receipt photo → submit → it appears as "Awaiting Dispatcher"; Dispatcher verifies → pull to refresh shows the new status |
+| 20 | Real statement approval and payouts | **Blocked (by design)** | client decisions C1–C6 and others are pending; policy v1 is Draft / Pending Client Confirmation |
+| 21 | Staging host (Railway) behaviour, including persistent private storage | **Unverified** | not deployed. See handoff.md §8 (`PRIVATE_STORAGE_ROOT` needs a persistent volume) |
+
+### Regression runs
+
+| Run | Result |
+|---|---|
+| `pest tests/Feature/Finance/DemoAndClientReviewTest.php` after the fixes | **11 passed** |
+| Full backend suite, first Phase 11 run | **Fatal error** (defect 3: helper name collision), no results |
+| Full backend suite after the rename | **3374 passed, 0 failed**, 52 risky (pre-existing); 1,474 s |
+| `flutter analyze --no-pub` | 0 errors, 0 warnings; 27 infos (pre-existing, none in Finance files) |
+| `flutter test --no-pub` | **1,560 passed** |
+| Browser QA (headless Chrome) | run 1: 23 / 26; **run 2: 26 / 26** |
 
 ## Open client decisions
 

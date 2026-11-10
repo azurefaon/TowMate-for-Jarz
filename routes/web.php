@@ -316,13 +316,13 @@ Route::prefix('superadmin')
             Route::middleware('can:finance.view')->group(function () use ($review) {
                 Route::get('/client-review', [$review, 'index'])->name('client-review.index');
                 Route::get('/client-review/print', [$review, 'print'])->name('client-review.print');
-                Route::get('/client-review/pdf', [$review, 'pdf'])->middleware('throttle:20,1')->name('client-review.pdf');
+                Route::get('/client-review/pdf', [$review, 'pdf'])->middleware('throttle:20,1,finance-exports')->name('client-review.pdf');
                 Route::get('/demo', [\App\Http\Controllers\SuperAdmin\Finance\DemoController::class, 'index'])->name('demo.index');
             });
             Route::middleware(['can:finance.policies.manage', 'throttle:30,1'])->group(function () use ($review) {
                 Route::post('/client-review', [$review, 'store'])->name('client-review.store');
                 Route::post('/client-review/{item}', [$review, 'update'])->whereNumber('item')->name('client-review.update');
-                Route::post('/demo/reset', [\App\Http\Controllers\SuperAdmin\Finance\DemoController::class, 'reset'])->middleware('throttle:3,10')->name('demo.reset');
+                Route::post('/demo/reset', [\App\Http\Controllers\SuperAdmin\Finance\DemoController::class, 'reset'])->middleware('throttle:3,10,finance-demo-reset')->name('demo.reset');
             });
 
             // Phase 9: Finance Reports (page, print, PDF, Excel). Owner-only downloads.
@@ -330,7 +330,7 @@ Route::prefix('superadmin')
             Route::middleware('can:finance.view')->group(function () use ($reports) {
                 Route::get('/reports', [$reports, 'index'])->name('reports.index');
                 Route::get('/reports/print', [$reports, 'print'])->name('reports.print');
-                Route::middleware('throttle:20,1')->group(function () use ($reports) {
+                Route::middleware('throttle:20,1,finance-exports')->group(function () use ($reports) {
                     Route::get('/reports/pdf', [$reports, 'pdf'])->name('reports.pdf');
                     Route::get('/reports/excel', [$reports, 'xlsx'])->name('reports.xlsx');
                 });

@@ -38,24 +38,24 @@ afterEach(function () {
     FinanceDemoGuard::$simulatedDatabaseName = null;
 });
 
-function dmSeed(): array
+function fdmSeed(): array
 {
     return app(FinanceDemoScenarios::class)->seed('demo-password-123');
 }
 
-function dmWeek(): CarbonImmutable
+function fdmWeek(): CarbonImmutable
 {
     return CarbonImmutable::now(config('finance.timezone'))->startOfWeek(CarbonImmutable::MONDAY)->subWeek();
 }
 
-function dmUnit(string $prefix): Unit
+function fdmUnit(string $prefix): Unit
 {
     return Unit::where('name', 'like', $prefix . '%')->firstOrFail();
 }
 
-function dmLine(string $unitPrefix): array
+function fdmLine(string $unitPrefix): array
 {
-    $draft = app(CommissionCalculator::class)->draft(dmWeek(), dmUnit($unitPrefix)->id);
+    $draft = app(CommissionCalculator::class)->draft(fdmWeek(), fdmUnit($unitPrefix)->id);
 
     return $draft['lines'][0] ?? ['blockers' => $draft['blockers'], 'blocked' => $draft['blocked_jobs']];
 }
@@ -63,10 +63,10 @@ function dmLine(string $unitPrefix): array
 // ---------- Scenarios ----------
 
 it('builds the 15,000 baseline: 2,950 expenses, 50 returned, 12,050 base, 7,230 / 4,820, approved with simulated payouts', function () {
-    $r = dmSeed();
-    $unit = dmUnit('DEMO Unit 1');
+    $r = fdmSeed();
+    $unit = fdmUnit('DEMO Unit 1');
     $statement = CommissionStatement::findOrFail($r['scenarios']['baseline']['statement_id']);
-    $funds = app(UnitFundLedger::class)->summary(dmWeek(), dmWeek()->addDays(5), $unit->id)->sole();
+    $funds = app(UnitFundLedger::class)->summary(fdmWeek(), fdmWeek()->addDays(5), $unit->id)->sole();
 
     expect($statement->status)->toBe('approved')
         ->and((string) $statement->total_collection)->toBe('15000.00')
@@ -84,29 +84,29 @@ it('builds the 15,000 baseline: 2,950 expenses, 50 returned, 12,050 base, 7,230 
 });
 
 it('shows the missing Rider (1,205 unallocated), the 7,500 partial payment and the 2,000 personal advance as blocked', function () {
-    dmSeed();
+    fdmSeed();
 
-    $rider = dmLine('DEMO Unit 2');
+    $rider = fdmLine('DEMO Unit 2');
     expect($rider['roles']['rider']['unallocated']->toString())->toBe('1205.00')
         ->and(collect($rider['blockers'])->pluck('code'))->toContain('missing_role')
-        ->and(CommissionStatement::where('unit_id', dmUnit('DEMO Unit 2')->id)->value('status'))->toBe('for_review');
+        ->and(CommissionStatement::where('unit_id', fdmUnit('DEMO Unit 2')->id)->value('status'))->toBe('for_review');
 
-    $partialJob = app(JobCollectionService::class)->jobFor(Booking::where('assigned_unit_id', dmUnit('DEMO Unit 3')->id)->firstOrFail());
+    $partialJob = app(JobCollectionService::class)->jobFor(Booking::where('assigned_unit_id', fdmUnit('DEMO Unit 3')->id)->firstOrFail());
     expect($partialJob['collected']->toString())->toBe('7500.00')
         ->and($partialJob['agreed']->toString())->toBe('15000.00')
         ->and($partialJob['status'])->toBe('partial')
         ->and($partialJob['allocation']['status'])->toBe('pending_review');
-    $partialDraft = app(CommissionCalculator::class)->draft(dmWeek(), dmUnit('DEMO Unit 3')->id);
+    $partialDraft = app(CommissionCalculator::class)->draft(fdmWeek(), fdmUnit('DEMO Unit 3')->id);
     expect($partialDraft['lines'])->toBe([])->and($partialDraft['can_approve'])->toBeFalse();
 
-    $advance = dmLine('DEMO Unit 6');
+    $advance = fdmLine('DEMO Unit 6');
     expect(collect($advance['blockers'])->pluck('code'))->toContain('personal_advance_pending')
         ->and(collect($advance['expenses'])->pluck('amount')->map->toString()->all())->toBe(['2000.00']);
 });
 
 it('keeps the two-unit job pending with the 50:50 split recorded only as a client review proposal', function () {
-    dmSeed();
-    $booking = Booking::where('assigned_unit_id', dmUnit('DEMO Unit 4')->id)->firstOrFail();
+    fdmSeed();
+    $booking = Booking::where('assigned_unit_id', fdmUnit('DEMO Unit 4')->id)->firstOrFail();
     $job = app(JobCollectionService::class)->jobFor($booking);
 
     expect($job['allocation']['status'])->toBe('pending_review')
@@ -115,12 +115,12 @@ it('keeps the two-unit job pending with the 50:50 split recorded only as a clien
 });
 
 it('counts the three-vehicle booking once and the whole demo reconciles in the Finance Report', function () {
-    dmSeed();
-    $group = app(JobCollectionService::class)->jobFor(Booking::where('assigned_unit_id', dmUnit('DEMO Unit 7')->id)->firstOrFail());
+    fdmSeed();
+    $group = app(JobCollectionService::class)->jobFor(Booking::where('assigned_unit_id', fdmUnit('DEMO Unit 7')->id)->firstOrFail());
     expect($group['vehicles'])->toBe(3)->and($group['collected']->toString())->toBe('15000.00')
         ->and(collect($group['allocation']['by_unit'])->map(fn ($a) => $a['amount']->toString())->sort()->values()->all())->toBe(['4000.00', '11000.00']);
 
-    $r = app(FinanceReportService::class)->build(dmWeek(), dmWeek()->addDays(5));
+    $r = app(FinanceReportService::class)->build(fdmWeek(), fdmWeek()->addDays(5));
     // 15,000 + 12,050 + 7,500 (partial) + 15,000 + 10,000 + 15,000 (three vehicles, once)
     expect($r['jobs']['totals']['bookings'])->toBe(6)
         ->and($r['jobs']['totals']['vehicles'])->toBe(8)
@@ -137,7 +137,7 @@ it('counts the three-vehicle booking once and the whole demo reconciles in the F
 // ---------- Isolation ----------
 
 it('refuses demo seeding, the stand-in policy and its approvals or payouts on a live-like database', function () {
-    $r = dmSeed();   // allowed: disposable test database
+    $r = fdmSeed();   // allowed: disposable test database
     $statement = CommissionStatement::findOrFail($r['scenarios']['baseline']['statement_id']);
     $owner = User::where('email', $r['owner_email'])->firstOrFail();
 
@@ -174,7 +174,7 @@ it('refuses the reset command and hides the demo page unless this is a demo data
 });
 
 it('shows the demo page, banner and document marking on a demo database, to the Owner only', function () {
-    $r = dmSeed();
+    $r = fdmSeed();
     $owner = User::where('email', $r['owner_email'])->firstOrFail();
     config(['finance.demo.enabled' => true]);
     FinanceDemoGuard::$simulatedDatabaseName = 'towmate_finance_demo';
@@ -189,6 +189,26 @@ it('shows the demo page, banner and document marking on a demo database, to the 
         $this->actingAs(finUser($role))->get(route('superadmin.finance.demo.index'))->assertForbidden();
         $this->actingAs(finUser($role))->post(route('superadmin.finance.demo.reset'), ['confirm' => 'RESET DEMO'])->assertForbidden();
     }
+});
+
+it('never resets the real test database, even when a demo database name is simulated', function () {
+    finUnit();
+    $before = Unit::count();
+    config(['finance.demo.enabled' => true]);
+    FinanceDemoGuard::$simulatedDatabaseName = 'towmate_finance_demo';
+
+    expect(FinanceDemoGuard::enabled())->toBeTrue()
+        ->and(fn () => FinanceDemoGuard::assertCanReset())->toThrow(FinanceException::class, 'Refused');
+    $this->artisan('finance:demo-reset', ['--force' => true])->assertFailed();
+    expect(Unit::count())->toBe($before);
+});
+
+it('gives the demo reset and the downloads their own rate limits (regression: shared throttle counter)', function () {
+    $mw = fn (string $name) => app('router')->getRoutes()->getByName($name)->gatherMiddleware();
+    expect($mw('superadmin.finance.demo.reset'))->toContain('throttle:3,10,finance-demo-reset')
+        ->and($mw('superadmin.finance.reports.pdf'))->toContain('throttle:20,1,finance-exports')
+        ->and($mw('superadmin.finance.reports.xlsx'))->toContain('throttle:20,1,finance-exports')
+        ->and($mw('superadmin.finance.client-review.pdf'))->toContain('throttle:20,1,finance-exports');
 });
 
 // ---------- Client Review ----------

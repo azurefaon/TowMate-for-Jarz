@@ -282,3 +282,10 @@
 .fr-screen .fr-dim { color: #737373; font-size: 12px; }
 .fr-screen .fr-sub { margin: 8px 0 4px; font-size: 13px; }
 .fr-screen .fr-list { margin: 0 0 6px 18px; font-size: 13px; }
+
+/* Phase 11: Client Review details stack label above value on phones instead of squeezing a narrow text column. */
+@media (max-width: 640px) {
+    #ownerClientReview .fin-table th,
+    #ownerClientReview .fin-table td { display: block; width: auto !important; padding-left: 0; }
+    #ownerClientReview .fin-table th { padding-bottom: 0; border-bottom: 0; }
+}

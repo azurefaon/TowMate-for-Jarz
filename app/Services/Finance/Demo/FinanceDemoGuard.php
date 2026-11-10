@@ -54,7 +54,9 @@ final class FinanceDemoGuard
     /** The destructive reset (drop and rebuild) is allowed only on a demo database. */
     public static function assertCanReset(): void
     {
-        if (! self::enabled()) {
+        // The REAL connection must be a demo database too (never the simulated name used by tests).
+        $real = (string) DB::connection()->getDatabaseName();
+        if (! self::enabled() || ! str_ends_with($real, (string) config('finance.demo.database_suffix', '_demo'))) {
             throw new FinanceException(self::refusal());
         }
     }
