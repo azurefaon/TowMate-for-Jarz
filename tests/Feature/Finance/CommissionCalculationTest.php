@@ -173,7 +173,7 @@ it('stays a Draft / For Client Review while the commission interpretation is unc
     $draft = cmDraft();   // the seeded v1 policy is still a draft pending client confirmation
 
     expect($draft['status'])->toBe('draft_for_client_review')
-        ->and(cmCodes($draft))->toBe(['policy_for_client_review'])
+        ->and(cmCodes($draft))->toBe(['policy_for_client_review', 'rider_role_pending'])   // rider rule is a client decision too
         ->and($draft['can_approve'])->toBeFalse()
         ->and($draft['lines'][0]['company']->toString())->toBe('9000.00');   // still calculated for review
 });

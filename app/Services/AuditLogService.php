@@ -102,6 +102,8 @@ class AuditLogService
         'finance_statement_prepared', 'finance_statement_approved', 'finance_statement_voided',
         'finance_payout_recorded', 'finance_payout_voided', 'finance_allocation_recorded',
         'finance_deduction_recorded', 'finance_deduction_approved', 'finance_deduction_voided',
+        'finance_statement_recalculated', 'finance_statement_submitted', 'finance_statement_returned',
+        'finance_crew_recorded', 'finance_crew_corrected', 'finance_crew_removed', 'finance_crew_confirmed',
     ];
 
     public static function isBusinessAction(string $action): bool

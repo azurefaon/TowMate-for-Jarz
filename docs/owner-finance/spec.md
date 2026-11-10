@@ -65,11 +65,12 @@ All amounts are `NUMERIC(12,2)` (statement totals `NUMERIC(14,2)`).
 | `finance_fund_entries` | Cash **issued** to a unit and cash **returned** | amount > 0; type ∈ {issuance, return}; a return may link to an issuance of the same unit; `idempotency_key` unique; status recorded → voided only (with a reason); core fields immutable; no deletes |
 | `finance_expenses` | Unit expenses with a **funding source** (`unit_fund`, `company_direct`, `crew_out_of_pocket`) | amount > 0; status submitted → verified → approved → voided (or rejected); details editable only while `submitted`; approval fields frozen; no deletes |
 | `finance_expense_evidence` | **Protected** receipts on the private `local` disk | `(expense_id, sha256)` unique; can only be added while the expense is submitted or verified; the path is hidden from serialization; no deletes or edits |
-| `finance_job_personnel` | **Historical** crew per job (slot, personnel/user, name snapshot, borrowed-from unit, source, `needs_review`) | one current row per (booking, slot); a correction supersedes the old row (the history row is never revived); no deletes |
+| `finance_job_personnel` | **Historical** crew per job (slot, personnel/user, name snapshot, borrowed-from unit, source, `needs_review`) | one current row per (booking, unit, slot) and per (booking, unit, person, role) since Phase 6; the performed role is chosen by the Owner; a correction or removal supersedes the old row **with a reason** (the history row is never revived); confirmation is permanent; no deletes |
 | `finance_revenue_allocations` | **Per-booking, per-unit** collected share (gross, VAT, net) with references to invoice and payment | net = gross − VAT; one current row per (booking, unit); supersede-only; no deletes |
 | `finance_commission_policies` | **Versioned** rates plus the interpretation fields (`base_definition`, `allocation_rule`, `interpretation_status`) | rates ≥ 0 and total exactly 100; at most one active; can only become active if `confirmed`; frozen after draft |
-| `finance_commission_statements` | Weekly statement with **immutable approval details** (`approved_by_name`, `approved_at`, `approval_snapshot`, sha256 `approval_hash`) | Monday start + 5 days = Saturday; company + personnel = total; one draft and one approved per week; frozen after approval; draft → approved → voided; cannot be voided while payouts are recorded |
-| `finance_commission_lines` | One share of one job's base, per role and recipient | writable only while the statement is a draft; unique (statement, allocation, role, recipient) |
+| `finance_commission_statements` | Weekly statement with **immutable approval details** (`approved_by_name`, `approved_at`, `approval_snapshot`, sha256 `approval_hash`) | Monday start + 5 days = Saturday; since Phase 6 **one per unit and week**: company + personnel + unallocated = total base; one open (draft / for_review) per week × unit; draft → for_review → approved → voided (for_review → draft allowed); content frozen while For Review, everything frozen once approved; an approved statement has no unallocated amount; cannot be voided while payouts are recorded |
+| `finance_commission_lines` | One share of one job's base, per role and recipient | writable only while the statement is a draft; unique (statement, job, unit, role, recipient) since Phase 6; `recipient_key = unallocated` holds a role nobody was recorded for |
+| `finance_commission_settlements` (Phase 6) | Which approved statement settled each booking × unit | one **active** row per (booking, unit) (partial unique index); inserted only for an approved statement; released only when it is voided; no deletes |
 | `finance_payouts` | Money **paid** to a crew member, with `audit_log_id` | only against an approved statement; one recorded payout per (statement, recipient); never to `company`; recorded → voided only; no deletes |
 
 The initial rates (60/12/10/10/8) are seeded as **policy v1, draft, `pending_client_confirmation`**. This is configuration, not a financial record.
@@ -103,6 +104,7 @@ Initial rates: **Company 60%, Driver 12%, Team Leader 10%, Rider / Substitute 10
 - All percentages apply to the same base. Rounding is half-up per share with the remainder to Company, so shares always sum to the base.
 - Missing roles keep their share unallocated (never redistributed). People come only from `finance_job_personnel`.
 - Approval is blocked by any blocker (listed in progress.md, "Phase 5"). Worked baseline: 15,000 − 2,950 = 12,050 → 7,230 / 1,446 / 1,205 / 1,205 / 964.
+**Phase 6:** statements per unit and week store this calculation for the selected jobs. Approval re-runs it and needs zero blockers and an identical result. Paying a Rider, a substitute, a shared role or one person in two roles also blocks, unless the active confirmed policy records the client's explicit answer in `confirmed_rules` (`rider_role`, `substitutes`, `shared_role`, `combined_roles`).
 Policy v1 stays a draft until these questions are answered. Statements cannot be approved under an unconfirmed policy (this is enforced in `CommissionStatementService::approve` and by the DB CHECK `fcp_active_confirmed`).
 
 | # | Open interpretation question | Blocks |
@@ -112,7 +114,7 @@ Policy v1 stays a draft until these questions are answered. Statements cannot be
 | C3 | **Empty roles**: when nobody held a role on a job, does its share go to the company or get redistributed | Line computation |
 | C4 | **Rider and Crew Mate**: the repo has slots `driver_1`, `driver_2`, `crew_member_1/2` and personnel roles `driver`, `crew`, `team_leader`. Proposed mapping: Rider = `driver_2` slot, Crew Mate = `crew_member_*` | `finance_job_personnel.commission_role` mapping |
 | C5 | **Group trips**: is each vehicle's allocated share (the existing `allocatedRevenue` rule) the commission base per job | Revenue allocation |
-| C6 | **Refunds or corrections after approval**: is the adjustment made in the next open week | Statement revisions |
+| C6 | **Refunds or corrections after approval**: is the adjustment made in the next open week | Statement revisions (implemented provisionally in Phase 6 as void plus re-issued revision) |
 
 Already decided and implemented: the week (Mon–Sat), the rounding rule (half-up per line, remainder to Company, lines sum exactly to the base), and the separation of earned from paid.
 
@@ -138,7 +140,8 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
   - Approval is blocked without evidence, and the database enforces this as well.
   - Corrections close the original and record a linked replacement.
   - `UnitFundLedger` deducts only approved `unit_fund` splits.
-- **Weekly Commission**: choose a week (Mon–Sat), prepare (after C1–C6), approve, record payouts.
+- **Job Crew** (built in Phase 6, `/superadmin/finance/job-crew`): record who actually worked each completed job per unit and performed role; correct or remove with a reason; confirm flagged rows; booking, loan and roster information is shown as supporting information only.
+- **Weekly Commission**: preview (Phase 5, `/superadmin/finance/commission`); statements (Phase 6, `/superadmin/finance/commission-statements`): choose a week and unit, select jobs, Draft → For Review → Approved, void or correct; payouts (Phase 7).
 - **Reports**: PDF and XLSX exports.
 
 ## 8. Authorization (implemented)
@@ -152,6 +155,7 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
 | `finance.expenses.verify` | Dispatcher (a Dispatcher may also reject at this step) |
 | `finance.revenue.allocate` (Phase 4) | **Owner only**: record a unit revenue split |
 | `finance.deductions.manage` (Phase 5) | **Owner only**: record, approve or void commission deductions |
+| `finance.crew.manage` (Phase 6) | **Owner only**: record, correct, remove or confirm job crew |
 
 Every finance service method calls `Gate::forUser($actor)->authorize(...)`, so a future controller cannot skip the check. Phase 2 routes will sit under `/superadmin/finance/*` (`role:1`) and also use `can:` middleware.
 

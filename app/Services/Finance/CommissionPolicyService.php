@@ -37,11 +37,16 @@ class CommissionPolicyService extends FinanceSupport
     }
 
     /** Records the client's confirmed interpretation on a draft policy. */
-    public function confirmInterpretation(User $actor, CommissionPolicy $policy, string $baseDefinition, string $allocationRule): CommissionPolicy
+    public function confirmInterpretation(User $actor, CommissionPolicy $policy, string $baseDefinition, string $allocationRule, array $rules = []): CommissionPolicy
     {
         $this->authorize($actor, FinanceAccess::MANAGE_POLICIES);
+        foreach ($rules as $rule => $value) {
+            if (! isset(CommissionPolicy::CONFIRMABLE_RULES[$rule][$value])) {
+                throw new FinanceException("Unknown commission rule answer: {$rule} = {$value}.");
+            }
+        }
 
-        return DB::transaction(function () use ($actor, $policy, $baseDefinition, $allocationRule) {
+        return DB::transaction(function () use ($actor, $policy, $baseDefinition, $allocationRule, $rules) {
             $locked = CommissionPolicy::whereKey($policy->id)->lockForUpdate()->firstOrFail();
             if ($locked->status !== CommissionPolicy::STATUS_DRAFT) {
                 throw new FinanceException('Only a draft policy can be confirmed.');
@@ -54,11 +59,12 @@ class CommissionPolicyService extends FinanceSupport
                 'interpretation_status' => CommissionPolicy::INTERPRETATION_CONFIRMED,
                 'base_definition' => $baseDefinition,
                 'allocation_rule' => $allocationRule,
+                'confirmed_rules' => $rules ?: null,
             ])->save();
 
             $this->audit($actor, 'finance_policy_confirmed', $locked, "Policy v{$locked->version}",
                 "Confirmed commission interpretation for policy v{$locked->version}",
-                ['base_definition' => $baseDefinition, 'allocation_rule' => $allocationRule]);
+                ['base_definition' => $baseDefinition, 'allocation_rule' => $allocationRule, 'confirmed_rules' => $rules]);
 
             return $locked;
         });

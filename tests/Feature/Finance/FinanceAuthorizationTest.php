@@ -63,7 +63,7 @@ it('refuses Owner-only service actions for every other role', function (int $rol
         'record returned funds' => fn () => app(UnitFundService::class)->recordReturn($actor, ['unit_id' => $unit->id, 'amount' => '100', 'entry_date' => now()->toDateString()], (string) Str::uuid()),
         'draft policy' => fn () => app(CommissionPolicyService::class)->createDraft($actor, 'X', ['company' => '60', 'driver' => '12', 'team_leader' => '10', 'rider' => '10', 'crew_mate' => '8']),
         'activate policy' => fn () => app(CommissionPolicyService::class)->activate($actor, CommissionPolicy::sole(), now()->toDateString()),
-        'prepare statement' => fn () => app(CommissionStatementService::class)->prepareDraft($actor, finMonday(), CommissionPolicy::sole()),
+        'prepare statement' => fn () => app(CommissionStatementService::class)->generate($actor, finLastWeek()->toDateString(), $unit->id),
     ];
 
     foreach ($attempts as $label => $attempt) {
@@ -74,8 +74,7 @@ it('refuses Owner-only service actions for every other role', function (int $rol
     $expense = app(ExpenseService::class)->submit($owner, ['unit_id' => $unit->id, 'amount' => '50', 'expense_date' => now()->toDateString(), 'category' => 'fuel_diesel', 'funding_source' => 'company_direct', 'description' => 'Office supplies'], (string) Str::uuid());
     expect(fn () => app(ExpenseService::class)->approve($actor, $expense))->toThrow(AuthorizationException::class);
 
-    $policy = finActivePolicy($owner);
-    ['statement' => $statement, 'driver' => $driver] = finDraftStatement($policy);
+    ['statement' => $statement, 'driver' => $driver] = finReviewStatement($owner);
     expect(fn () => app(CommissionStatementService::class)->approve($actor, $statement))->toThrow(AuthorizationException::class);
 
     app(CommissionStatementService::class)->approve($owner, $statement);

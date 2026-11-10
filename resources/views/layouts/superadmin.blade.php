@@ -332,7 +332,9 @@
                     ['label' => 'Jobs & Collections', 'route' => 'superadmin.finance.collections.index', 'active' => ['superadmin.finance.collections.*']],
                     ['label' => 'Unit Funds', 'route' => 'superadmin.finance.unit-funds.index', 'active' => ['superadmin.finance.unit-funds.*']],
                     ['label' => 'Expenses', 'route' => 'superadmin.finance.expenses.index', 'active' => ['superadmin.finance.expenses.*']],
+                    ['label' => 'Job Crew', 'route' => 'superadmin.finance.crew.index', 'active' => ['superadmin.finance.crew.*']],
                     ['label' => 'Commission (Draft)', 'route' => 'superadmin.finance.commission.index', 'active' => ['superadmin.finance.commission.*']],
+                    ['label' => 'Commission Statements', 'route' => 'superadmin.finance.statements.index', 'active' => ['superadmin.finance.statements.*']],
                 ],
             ],
         ];

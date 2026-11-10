@@ -18,7 +18,7 @@
         <header class="ob-header fin-header">
             <div>
                 <h1>Commission (Draft)</h1>
-                <p>Week of {{ $draft['week_start']->format('M j') }} – {{ $draft['week_end']->format('M j, Y') }} (Monday to Saturday). This page calculates; it does not approve or pay.</p>
+                <p>Week of {{ $draft['week_start']->format('M j') }} – {{ $draft['week_end']->format('M j, Y') }} (Monday to Saturday). This page previews the calculation; statements are prepared and approved under Commission Statements.</p>
             </div>
         </header>
 
@@ -73,7 +73,7 @@
         <section class="oa-card oa-card-body" aria-labelledby="cmBlockersTitle">
             <div class="oa-card-head"><div>
                 <h2 class="oa-card-title" id="cmBlockersTitle"><i data-lucide="shield-alert" aria-hidden="true"></i> Why this week cannot be approved yet</h2>
-                <p class="oa-card-sub">{{ $draft['can_approve'] ? 'No blockers. Approval is handled in the next phase.' : count($draft['blockers']) . ' item(s) to resolve.' }}</p>
+                <p class="oa-card-sub">{{ $draft['can_approve'] ? 'No blockers. Prepare a statement under Commission Statements to submit and approve it.' : count($draft['blockers']) . ' item(s) to resolve.' }}</p>
             </div></div>
             @if ($draft['blockers'])
                 <ul class="fin-trail" id="cmBlockers">

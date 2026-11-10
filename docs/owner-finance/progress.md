@@ -17,7 +17,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-10 | Phase 2: Unit Funds | Done (`42245cb9`). See "Phase 2 verification" below |
 | 2026-11-10 | Phase 3: Expenses and receipt review, plus the Phase 2 daily-funds correction | Backend, Owner page and Dispatcher page done (`96842391`). **Unfinished:** Team Leader mobile expense screen; browser visual check |
 | 2026-11-10 | Phase 4: Jobs & Collections | Done (`f01a4eb9`). See "Phase 4" below |
-| 2026-11-10 | Phase 5: Commission calculation (draft, read-only) | Done. See "Phase 5" below |
+| 2026-11-10 | Phase 5: Commission calculation (draft, read-only) | Done (`0d425f27`). See "Phase 5" below |
+| 2026-11-10 | Phase 6: Job crew recording and weekly commission statements (Draft → For Review → Approved) | Done. See "Phase 6" below. Approval on real data still waits for the client's commission decisions |
 
 ## Phases
 
@@ -50,7 +51,11 @@ Spec: [spec.md](spec.md).
   - `CommissionCalculator` is the one authoritative, read-only service.
   - `finance_commission_deductions` holds non-expense deductions.
   - The Owner page "Commission (Draft)" shows the breakdown and the blockers.
-- [ ] **Phase 6: Commission statement approval.** Persist a week's draft as a statement with lines, and approve it once there are no blockers (approval integrity already exists in `CommissionStatementService`).
+- [x] **Phase 6: Job crew recording and commission statements.**
+  - Owner page "Job Crew": record, correct, remove and confirm who actually worked each job, per unit and performed role.
+  - Owner pages "Commission Statements": one statement per unit and Monday–Saturday week, Draft → For Review → Approved, with void and correction (re-issue as a new revision).
+  - Approval re-runs `CommissionCalculator`, requires zero blockers and an unchanged calculation, freezes a hashed snapshot and settles each booking × unit once.
+  - "Paid" is not implemented (Phase 7).
 - [ ] **Phase 7: Payout recording.** Owner screens on top of the existing `PayoutService`.
 - [ ] **Phase 8: Overview page.**
 - [ ] **Later (not yet scheduled):** reports and exports; client walkthrough.
@@ -59,7 +64,8 @@ Spec: [spec.md](spec.md).
 - [ ] **Team Leader mobile expense screen** (from Phase 3): Flutter UI for the `/api/v1/team-leader/expenses` endpoints.
 - [ ] **Browser visual verification** (from Phase 3): the Unit Funds, Expenses, Expense Review, Jobs & Collections and Commission (Draft) pages have only been verified through rendered-HTML tests.
 - [ ] **Existing Revenue page "Cash Received" duplication** (found in Phase 4, not fixed): group cash is summed once per vehicle row. Fixing it needs approval.
-- [ ] **Job crew capture is not implemented.** Nothing writes `finance_job_personnel` automatically yet: no hook at payment confirmation, no backfill, no Owner entry screen. Until it exists, every real job's commission is blocked with "no personnel recorded"; the calculator correctly refuses to invent people. Placement needs a decision (it must exist before Phase 6 approvals can succeed on real data).
+- [x] ~~Job crew capture~~: **resolved in Phase 6 by Owner recording** (Job Crew page). Deliberately not automatic: nothing is captured at payment confirmation and past jobs are not backfilled, because the unit's current crew is not evidence of who worked. Each completed job needs its crew recorded by the Owner before its commission can be approved.
+- [ ] **Outstanding client policy confirmations** (C1–C6, week-date basis, Sunday, and the four role rules in Phase 6). No real statement can be approved until an active policy is confirmed by the client; see "Open client decisions".
 
 ## Phase 1 verification
 
@@ -247,6 +253,70 @@ The tests cover:
 - **Deductions:** replay is idempotent; duplicate by reference and duplicate by amount are refused; the database index rejects duplicates too; pending blocks and is not deducted; approved deducts once (base 14,500.00). A live online payment blocks until an approved payment-fee deduction exists (base 9,750.00).
 - **Page and access:** the Owner page shows base 12,050 / Company 7,230 / crew 4,820 and the Draft blocker, and writes no statement, line or payout. Five non-Owner roles get 403 on the page and on deductions; the service refuses them too.
 
+## Phase 6: what was built
+
+**Migration `2026_11_15_000000_commission_statements_and_crew_recording`** (run only on `towmate_jarz_testing` by the test suite):
+- `finance_job_personnel`: `is_substitute`, `notes`, `change_reason`, `confirmed_by/at`, `superseded_by_user_id`, `supersede_reason`. Extra positions `extra_1..3`. One current position per booking × **unit** (a group job can have a Team Leader per unit). One current row per person × role per job and unit. CHECKs: a superseded row needs a reason; a confirmed row cannot need review. Triggers freeze the new fields, the reason, and confirmation.
+- `finance_commission_policies.confirmed_rules` (jsonb, frozen with the rates once the policy leaves draft).
+- `finance_commission_statements`: `unit_id`, collection / expense / deduction / unallocated totals, `job_count`, `included_jobs`, `calculation` + `calculation_hash`, submission, return and correction fields. Status `for_review` added. Transitions allowed by trigger: draft → for_review, for_review → draft, for_review → approved, approved → voided. Content is frozen while For Review; everything including the snapshot is frozen once approved or voided. One open (draft or For Review) statement per week × unit; revisions unique per week × unit. An approved statement can never hold unallocated amounts (CHECK).
+- `finance_commission_lines`: `unit_id`; `revenue_allocation_id` is now optional (automatic allocations are calculated, not stored); unique per statement × job × unit × role × recipient. Unallocated shares are stored as `recipient_key = 'unallocated'` and are never payable.
+- New `finance_commission_settlements`: one row per member booking × unit settled by an approved statement. **Partial unique index: one active settlement per booking × unit.** Insert only for an approved statement and release only after it is voided (trigger); never deleted.
+
+**Crew recording (`JobCrewService`, Owner-only ability `finance.crew.manage`):**
+- Record a participant on a completed job: towing unit (one of the job's units), person (an active personnel record or a Team Leader account), **performed role chosen explicitly**, optional substitute flag, borrowed-from unit and notes. Recording by the Owner is the confirmation.
+- Correct (supersede plus replacement) and remove (supersede only) both require a reason; the old row stays with who changed it, when and why. Confirm clears a captured or backfilled row flagged for review.
+- Refused: no role, a unit that did not work the job, the same person twice in the same role, non-Team-Leader accounts, unfinished jobs. Job rows are locked while editing.
+- Supporting information is displayed and never recorded: the booking's assigned Team Leader and driver name, crew loans active on the service date, and the unit's **current** roster labelled "not evidence of who worked".
+
+**Role rules (client decisions, enforced by `CommissionCalculator`):** each blocks approval unless an active, client-confirmed policy records the accepted answer in `confirmed_rules`:
+
+| Situation | Blocker | Rule key and accepted answer |
+|---|---|---|
+| Someone recorded as Rider / Substitute | `rider_role_pending` | `rider_role = confirmed` |
+| Substitute flag or borrowed from another unit | `substitute_rule_pending` | `substitutes = paid_in_recorded_role` |
+| Two or more people in one role | `shared_role_rule_pending` | `shared_role = split_equally` |
+| One person in two roles on one job | `combined_role_rule_pending` | `combined_roles = paid_per_role` |
+| A row without a chosen role | `role_mapping_unresolved` | none: the Owner must choose the role |
+
+The equal split and the provisional slot mapping are still **shown** for review, but they can never be approved without the rule. No screen sets `confirmed_rules`; it is recorded through `CommissionPolicyService::confirmInterpretation` only when the client answers.
+
+**Statements (`CommissionStatementService`):**
+- **Prepare:** the Owner picks the week and unit and selects jobs (default: every unsettled job, including blocked ones, so issues are visible). Jobs already settled by an approved statement cannot be selected. The calculator output for exactly those jobs is stored with its sha256, and lines are written from it. Recalculating a draft replaces its lines.
+- **Submit for review:** allowed with open issues (they are what the review is for) but refused if the source records changed since calculation.
+- **Return to draft:** with a reason.
+- **Approve:** Owner-only. Locks the row and a week × unit advisory lock; requires status For Review, an active client-confirmed policy, **zero calculator blockers**, no job settled elsewhere, an **identical recalculation** (otherwise `calculation_changed`), and exact line totals. It then writes the snapshot (statement totals, included jobs, unit, the full calculation with job references, collections, source expense and deduction ids, personnel ids and roles, policy version, rates and confirmed rules, every line, approver, approval time, and the statement's audit log ids), its hash, and the settlements, all in one transaction. A lost race on the settlement index is reported as a conflict, not an error.
+- **Void / Correct:** Owner-only, reason required. Correct voids the approved statement (snapshot kept and still verifiable), releases its settlements, and creates a new draft revision linked by `supersedes_statement_id` with the correction reason.
+- `verifyIntegrity()` checks the snapshot hash and that the stored statement, lines and calculation still match it.
+
+**Pages** (Finance sidebar: "Job Crew", "Commission (Draft)", "Commission Statements"):
+- `/superadmin/finance/job-crew` lists the week's jobs with crew status per unit. `/job-crew/{booking}` has the per-unit crew, record/correct/remove/confirm forms, supporting information, and the corrected/removed history.
+- `/superadmin/finance/commission-statements` (list and filters), `/new` (job selection), `/{id}` (detail):
+  - Open statements show period and unit, policy, live eligibility with every blocker, totals (collections, expenses, deductions, base, Company, personnel, unallocated), included jobs with full breakdown, personnel commission, history, and Recalculate / Submit / Return / Approve controls.
+  - Approved and voided statements show only the frozen snapshot, the approver and time, the hash and an integrity result, plus Correct and Void controls.
+
+**Audit actions:** `finance_crew_recorded/corrected/removed/confirmed`, `finance_statement_prepared/recalculated/submitted/returned/approved/voided`.
+
+## Phase 6 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Feature/Finance/CommissionStatementsTest.php` | **20 passed** |
+| `pest tests/Unit/Finance tests/Feature/Finance` | **188 passed** (1,248 assertions) |
+| Full suite `pest` | **3324 passed, 0 failed**, 52 risky (pre-existing); 2,774 s |
+
+The new tests cover:
+- **Crew recording:** actual crew linked to booking, unit and role, with audit rows. Booking, roster and loan information is shown but creates no records, and the job stays blocked with `no_personnel`. Historical attribution survives the unit's roster change and the person going inactive. Correct and remove require a reason, keep the superseded history (immutable), and refuse re-correction. Invalid records are refused (no role, other unit, duplicate, non-Team-Leader account, unfinished job). A captured row needing review blocks until the Owner confirms it.
+- **Role rules:** under a confirmed policy without the answers, a Rider, a substitute, a shared role and a combined role each block. With every answer explicitly recorded, the blockers clear, and the shared split is exact (120.00 → 60.00 / 60.00).
+- **Workflow:** missing crew blocks approval (unallocated 400.00, no settlement). Draft → For Review → Approved, with return to draft (reason required), skipped steps refused, lines locked while For Review, and the full audit sequence.
+- **Policy:** an unconfirmed policy shows Draft / For Client Review, the policy blocker, and refuses approval.
+- **Valid approval (TEST-confirmed policy fixture, test database only):** 15,000 collected, 2,950 expenses gives base 12,050.00, Company 7,230.00, personnel 4,820.00, unallocated 0.00. The snapshot has the unit, job keys, rates, interpretation, source expense ids, personnel and Team Leader ids, amounts, approver, approval time and audit references. Integrity is verified, one settlement exists, and the audit row carries the hash.
+- **Duplicates and concurrency:** a booking × unit settled by another approval meanwhile is refused (status stays For Review); a second approval is refused. A settled job cannot be selected or re-generated; a supplementary statement settles only the new job (revision 2). The database rejects a duplicate active settlement, deleting or releasing a settlement without a void, and a second open statement per week × unit.
+- **Immutability after approval:** after a crew correction, a new policy (50/20/10/10/10) and a new approved expense, the hash, total and lines are identical, the snapshot still names the original driver, and integrity passes; the page shows the snapshot. The live preview shows the new base 900.00 and the new driver.
+- **Payments and sources:** an unverified job and a partly paid job are blocked (`payment_not_verified`, `allocation_pending`). A pending expense blocks. An expense approved after submission makes the statement stale (`calculation_changed`); approval is refused until it is returned, recalculated and resubmitted (base 4,500.00).
+- **Corrections:** reason required. The original is voided with its hash and integrity intact, its settlement released, and a linked revision 2 draft created with the same jobs; re-approval moves the active settlement to it.
+- **Pages and access:** Owner end-to-end through the pages (record crew, select jobs, submit, approve). Five non-Owner roles get 403 on every crew and statement page and action, and the services refuse them too.
+- **Regression updates:** the Phase 1 statement tests now use the real flow (the old manual-line fixture cannot be approved any more, by design). The Phase 5 unconfirmed-policy test now also expects `rider_role_pending`. The Phase 1 personnel test now supplies a supersede reason.
+
 ## Open client decisions
 
 - Commission interpretation C1–C6 ([spec.md §6](spec.md#6-commission-pending-client-confirmation)).
@@ -259,16 +329,19 @@ The tests cover:
 - **Refunds and provider fees:** TowMate does not record refunds or PayMongo fees automatically. Since Phase 5 they can be entered as commission deductions (pending review, then approved). Whether fees and refunds should reduce the sharing base at all, and who bears them, is part of C1.
 - **Commission (Phase 5), all Draft / For Client Review:**
   - *C1 sharing base:* implemented as allocated verified collection − approved job expenses − approved deductions, with **all expense categories and funding sources** (company-paid and personal advances included) treated as job costs. To confirm: whether VAT is excluded first, and whether any category is excluded.
-  - *C2 shared roles:* two people in one role are shown splitting one share equally. To confirm: pool vs per person.
+  - *C2 shared roles:* two people in one role are shown splitting one share equally. Since Phase 6 this blocks approval until the policy records `shared_role = split_equally`. To confirm: pool vs per person.
   - *C3 empty roles:* the share stays unallocated (as instructed). To confirm: whether unallocated shares ever go to Company.
-  - *C4 role mapping:* provisional `driver_2` → Rider/Substitute, `crew_member_*` → Crew Mate. To confirm, including how a substitute who replaces the main driver is recorded.
+  - *C4 role mapping:* since Phase 6 the Owner records each person's performed role explicitly; the provisional slot mapping only applies to rows without a role, which block. Paying a Rider, a substitute, or one person in two roles each blocks until the policy records the client's answer (`rider_role`, `substitutes`, `combined_roles`). To confirm, including how a substitute who replaces the main driver is paid.
   - *C5 group trips:* each vehicle's allocated collection is the base for its unit. To confirm.
-  - *C6 corrections after approval:* not yet relevant (approval is Phase 6).
+  - *C6 corrections after approval:* implemented in Phase 6 as void (with reason, original and snapshot kept) plus a re-issued draft revision for the same jobs. To confirm: whether corrections should instead be adjustments in a later week (relevant once payouts exist in Phase 7).
   - *Which date puts a job in a week:* implemented as the **service date**. A late payment makes the job wait, blocked, until verified. To confirm, including Sunday jobs (currently outside every week and reported as a notice).
 
 ## Known risks and notes
 
-- The crew is stored only on `Unit` as live data. Past jobs need a backfill flagged `needs_review`. Jobs & Collections never uses the current crew; it shows the booking's own TL and driver until crew capture exists.
+- The crew is stored only on `Unit` as live data, so per-job crew exists only where the Owner records it on the Job Crew page (Phase 6). Past jobs are not backfilled. Jobs & Collections never uses the current crew.
+- Recording a person as borrowed from another unit makes the job's revenue allocation "pending review" (Phase 4 rule: another unit appears to have helped), so a split must be recorded before that job can be approved.
+- A statement's figures are tied to the moment of calculation. Any later change to payments, expenses, deductions, crew or policy makes an open statement stale, and approval refuses it until it is recalculated. Approved statements never change; corrections go through void and re-issue.
+- The Phase 1 statement fixture `finDraftStatement` (manual lines) is still used by schema tests for draft-only behaviour; such a statement can no longer be approved because approval recalculates.
 - `ReportMetricsService` sums with floats. The Phase 4 consistency test shows its confirmed-revenue total equals the exact Jobs & Collections total for the tested cases. It was not changed.
 - **Existing Revenue page defect (found, not changed):** the "Cash Received" card sums `bookings.cash_received` over every vehicle row, but a group payment stores the same group cash on every vehicle row, so group cash is counted once per vehicle. Jobs & Collections reads it once per job. Fixing the Revenue page is outside this module and needs approval.
 - Booking counts differ by design: Jobs & Collections counts a group trip as one booking with N vehicles; the existing Revenue page's "Completed Jobs" counts vehicle rows.

@@ -6,7 +6,7 @@ use App\Casts\MoneyCast;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** One share of one job's commission base. Writable only while the statement is a draft. */
+/** One share of one job × unit's commission base. Writable only while the statement is a draft. recipient_key "unallocated" holds a role nobody was recorded for. */
 class CommissionLine extends Model
 {
     public const ROLES = ['company', 'driver', 'team_leader', 'rider', 'crew_mate'];
@@ -14,7 +14,7 @@ class CommissionLine extends Model
     protected $table = 'finance_commission_lines';
 
     protected $fillable = [
-        'statement_id', 'booking_id', 'revenue_allocation_id', 'job_personnel_id', 'commission_role',
+        'statement_id', 'booking_id', 'unit_id', 'revenue_allocation_id', 'job_personnel_id', 'commission_role',
         'recipient_personnel_id', 'recipient_user_id', 'recipient_key', 'recipient_name', 'base_amount', 'rate',
         'amount', 'rounding_adjustment',
     ];

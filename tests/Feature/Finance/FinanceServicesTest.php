@@ -201,19 +201,22 @@ it('cannot activate the seeded rates until the client confirms the interpretatio
 it('prepares only Monday-starting weeks ending on Saturday', function () {
     $owner = finOwner();
     $service = app(CommissionStatementService::class);
+    $unit = finUnit();
+    finServicedBooking($unit);
 
-    expect(fn () => $service->prepareDraft($owner, \Carbon\Carbon::parse(finMonday())->addDay()->toDateString(), CommissionPolicy::sole()))
+    expect(fn () => $service->generate($owner, finLastWeek()->addDay()->toDateString(), $unit->id))
         ->toThrow(FinanceException::class, 'Monday');
 
-    $statement = $service->prepareDraft($owner, finMonday(), CommissionPolicy::sole());
+    $statement = $service->generate($owner, finLastWeek()->toDateString(), $unit->id);
     expect($statement->period_start->isMonday())->toBeTrue()
         ->and($statement->period_end->isSaturday())->toBeTrue()
+        ->and($statement->unit_id)->toBe($unit->id)
         ->and($statement->status)->toBe('draft');
 });
 
 it('refuses to approve a statement while the commission interpretation is pending', function () {
     $owner = finOwner();
-    ['statement' => $statement] = finDraftStatement(CommissionPolicy::sole());
+    ['statement' => $statement] = finReviewStatement($owner, confirmPolicy: false);
 
     expect(fn () => app(CommissionStatementService::class)->approve($owner, $statement))
         ->toThrow(FinanceException::class, 'client-confirmed');
@@ -222,7 +225,7 @@ it('refuses to approve a statement while the commission interpretation is pendin
 it('approves a balanced statement once and freezes a verifiable approval hash', function () {
     $owner = finOwner();
     $service = app(CommissionStatementService::class);
-    ['statement' => $statement] = finDraftStatement(finActivePolicy($owner));
+    ['statement' => $statement] = finReviewStatement($owner);
 
     $approved = $service->approve($owner, $statement);
 
@@ -231,24 +234,29 @@ it('approves a balanced statement once and freezes a verifiable approval hash', 
         ->and($approved->approved_by_name)->not->toBeEmpty()
         ->and($approved->approval_snapshot['lines'])->toHaveCount(5)
         ->and($service->verifyIntegrity($approved->fresh()))->toBeTrue()
-        ->and(fn () => $service->approve($owner, $approved))->toThrow(FinanceException::class);
+        ->and(fn () => $service->approve($owner, $approved))->toThrow(FinanceException::class, 'already approved');
 });
 
 it('refuses to approve a statement whose totals are off by one centavo', function () {
     $owner = finOwner();
-    ['statement' => $statement] = finDraftStatement(finActivePolicy($owner));
-    DB::table('finance_commission_lines')->where('statement_id', $statement->id)->where('commission_role', 'crew_mate')->update(['amount' => '80.01']);
+    finActivePolicy($owner);
+    $unit = finUnit();
+    $booking = finServicedBooking($unit);
+    finRecordCrew($owner, $booking, $unit);
+    $service = app(CommissionStatementService::class);
+    $draft = $service->generate($owner, finLastWeek()->toDateString(), $unit->id);
+    DB::table('finance_commission_lines')->where('statement_id', $draft->id)->where('commission_role', 'crew_mate')->update(['amount' => '80.01']);
+    $statement = $service->submitForReview($owner, $draft);
 
-    expect(fn () => app(CommissionStatementService::class)->approve($owner, $statement))
-        ->toThrow(FinanceException::class, 'add up exactly');
+    expect(fn () => $service->approve($owner, $statement))->toThrow(FinanceException::class, 'add up exactly');
 });
 
 // ---------- Payouts ----------
 
 it('records a payout equal to exact approved earnings, once per recipient, with an audit reference', function () {
     $owner = finOwner();
-    ['statement' => $statement, 'driver' => $driver, 'teamLeader' => $teamLeader] = finDraftStatement(finActivePolicy($owner));
-    app(CommissionStatementService::class)->approve($owner, $statement);
+    ['statement' => $statement, 'driver' => $driver, 'teamLeader' => $teamLeader] = finReviewStatement($owner);
+    $statement = app(CommissionStatementService::class)->approve($owner, $statement);
     $payouts = app(PayoutService::class);
     $key = (string) Str::uuid();
 
@@ -274,9 +282,9 @@ it('records a payout equal to exact approved earnings, once per recipient, with 
 
 it('cannot void a statement that has recorded payouts, but can after the payout is voided', function () {
     $owner = finOwner();
-    ['statement' => $statement, 'driver' => $driver] = finDraftStatement(finActivePolicy($owner));
+    ['statement' => $statement, 'driver' => $driver] = finReviewStatement($owner);
     $statements = app(CommissionStatementService::class);
-    $statements->approve($owner, $statement);
+    $statement = $statements->approve($owner, $statement);
 
     $payout = app(PayoutService::class)->record($owner, $statement, "personnel:{$driver->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid());
 

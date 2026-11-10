@@ -54,6 +54,9 @@ class CommissionCalculator
         'crew_member_2' => 'crew_mate',
     ];
 
+    /** The policy of the draft being calculated (rule confirmations are read from it). */
+    private ?CommissionPolicy $policy = null;
+
     public function __construct(private readonly JobCollectionService $collections)
     {
     }
@@ -62,7 +65,10 @@ class CommissionCalculator
      * @return array{week_start:CarbonImmutable, week_end:CarbonImmutable, policy:array, status:string, can_approve:bool,
      *               blockers:array<int,array{scope:string,code:string,message:string}>, notices:string[], lines:array, blocked_jobs:array, totals:array}
      */
-    public function draft(CarbonImmutable $weekStart, ?int $unitId = null, ?CommissionPolicy $policy = null): array
+    /**
+     * @param  string[]|null  $jobKeys  limit the draft to these jobs (a statement's selection); null = every job in the week
+     */
+    public function draft(CarbonImmutable $weekStart, ?int $unitId = null, ?CommissionPolicy $policy = null, ?array $jobKeys = null): array
     {
         $tz = config('finance.timezone');
         $weekStart = $weekStart->setTimezone($tz)->startOfDay();
@@ -77,6 +83,7 @@ class CommissionCalculator
         // ---- policy
         $policy ??= CommissionPolicy::where('status', CommissionPolicy::STATUS_ACTIVE)->first()
             ?? CommissionPolicy::orderByDesc('version')->first();
+        $this->policy = $policy;
         $rates = $policy ? $policy->rates() : [];
         $ratesValid = $policy !== null && $this->ratesAreValid($rates);
         if (! $policy) {
@@ -91,6 +98,9 @@ class CommissionCalculator
 
         // ---- jobs in the week (by service date)
         $jobs = $this->collections->jobs($weekStart, $weekEnd, ['basis' => 'service', 'unit_id' => $unitId]);
+        if ($jobKeys !== null) {
+            $jobs = $jobs->filter(fn (array $job) => in_array($job['key'], $jobKeys, true))->values();
+        }
         $sunday = $weekEnd->addDay();
         $sundayJobs = $this->collections->jobs($sunday->startOfDay(), $sunday->endOfDay(), ['basis' => 'service', 'unit_id' => $unitId])->count();
         if ($sundayJobs > 0) {
@@ -160,6 +170,7 @@ class CommissionCalculator
                 'status' => $policy->status,
                 'interpretation_status' => $policy->interpretation_status,
                 'rates' => $rates,
+                'confirmed_rules' => $policy->confirmed_rules ?? [],
             ] : null,
             'status' => 'draft_for_client_review',
             'can_approve' => $blockers === [] && $lines !== [],
@@ -231,6 +242,23 @@ class CommissionCalculator
             if ($role && in_array($role, self::ROLES, true)) {
                 $byRole[$role][] = $p;
             }
+            if (($p->is_substitute || $p->borrowed_from_unit_id) && ! $this->confirms('substitutes')) {
+                $blockers[] = $this->blocker('job', 'substitute_rule_pending', "Job {$ref}: {$p->name_snapshot} is recorded as a substitute or borrowed from another unit. How substitutes are paid is pending client confirmation.");
+            }
+        }
+        if (! empty($byRole['rider']) && ! $this->confirms('rider_role')) {
+            $blockers[] = $this->blocker('job', 'rider_role_pending', "Job {$ref}: a Rider / Substitute is recorded. Who receives the Rider share is pending client confirmation.");
+        }
+        $rolesByPerson = [];
+        foreach ($byRole as $role => $holders) {
+            foreach ($holders as $p) {
+                $rolesByPerson[self::recipientKey($p)][$role] = $p->name_snapshot;
+            }
+        }
+        foreach ($rolesByPerson as $roles) {
+            if (count($roles) > 1 && ! $this->confirms('combined_roles')) {
+                $blockers[] = $this->blocker('job', 'combined_role_rule_pending', "Job {$ref}: " . reset($roles) . ' is recorded in more than one role (' . implode(', ', array_map(fn ($r) => self::ROLE_LABELS[$r], array_keys($roles))) . '). Whether one person receives both shares is pending client confirmation.');
+            }
         }
 
         // Shares of the base.
@@ -258,14 +286,16 @@ class CommissionCalculator
             'reference' => $ref,
             'group_code' => $job['group_code'],
             'booking_id' => $job['anchor']->id,
+            'member_booking_ids' => $memberIds,
+            'allocation_status' => $job['allocation']['status'],
             'service_date' => $job['service_date'],
             'unit_id' => $unitId,
             'unit_name' => $alloc['unit_name'],
             'vehicles' => $alloc['vehicles'],
             'collection' => $collection,
-            'expenses' => $expenses->map(fn (Expense $e) => ['reference' => $e->reference_code, 'category' => $e->categoryLabel(), 'amount' => Money::of($e->amount)])->all(),
+            'expenses' => $expenses->map(fn (Expense $e) => ['id' => $e->id, 'reference' => $e->reference_code, 'category' => $e->categoryLabel(), 'amount' => Money::of($e->amount)])->all(),
             'expense_total' => $expenseTotal,
-            'deductions' => $approvedDeductions->map(fn (CommissionDeduction $d) => ['reference' => $d->reference_code, 'type' => $d->typeLabel(), 'amount' => Money::of($d->amount)])->values()->all(),
+            'deductions' => $approvedDeductions->map(fn (CommissionDeduction $d) => ['id' => $d->id, 'reference' => $d->reference_code, 'type' => $d->typeLabel(), 'amount' => Money::of($d->amount)])->values()->all(),
             'deduction_total' => $deductionTotal,
             'base' => $base,
             'company' => $company,
@@ -290,7 +320,7 @@ class CommissionCalculator
             return ['role' => $role, 'label' => self::ROLE_LABELS[$role], 'rate' => $rate, 'share' => $share, 'recipients' => [], 'allocated' => Money::zero(), 'unallocated' => $share];
         }
 
-        if (count($people) > 1) {
+        if (count($people) > 1 && ! $this->confirms('shared_role')) {
             $blockers[] = $this->blocker('job', 'shared_role_rule_pending', "Job {$ref}: " . count($people) . ' people share the ' . self::ROLE_LABELS[$role] . ' role. Whether they split one share or each receive it is pending client confirmation; shown split equally.');
         }
 
@@ -305,7 +335,8 @@ class CommissionCalculator
                 'personnel_id' => $p->personnel_id,
                 'user_id' => $p->user_id,
                 'job_personnel_id' => $p->id,
-                'recipient_key' => $p->personnel_id ? "personnel:{$p->personnel_id}" : ($p->user_id ? "user:{$p->user_id}" : 'name:' . md5(mb_strtolower(trim($p->name_snapshot)))),
+                'recipient_key' => self::recipientKey($p),
+                'is_substitute' => (bool) ($p->is_substitute || $p->borrowed_from_unit_id),
                 'role_confirmed' => (bool) $p->commission_role,
                 'amount' => $parts[$i],
             ];
@@ -391,6 +422,17 @@ class CommissionCalculator
             'by_role' => $byRole,
             'by_recipient' => collect($byRecipient)->map(fn ($r) => $r + ['role_list' => implode(', ', array_keys($r['roles']))])->sortBy('name')->values()->all(),
         ];
+    }
+
+    /** Stable payee key: the personnel record, else the user account, else the recorded name. */
+    public static function recipientKey(JobPersonnel $p): string
+    {
+        return $p->personnel_id ? "personnel:{$p->personnel_id}" : ($p->user_id ? "user:{$p->user_id}" : 'name:' . md5(mb_strtolower(trim($p->name_snapshot))));
+    }
+
+    private function confirms(string $rule): bool
+    {
+        return $this->policy !== null && $this->policy->confirmsRule($rule);
     }
 
     private function ratesAreValid(array $rates): bool

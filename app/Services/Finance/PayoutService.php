@@ -21,7 +21,7 @@ class PayoutService extends FinanceSupport
     public function earningsByRecipient(CommissionStatement $statement): array
     {
         $result = [];
-        CommissionLine::where('statement_id', $statement->id)->where('commission_role', '!=', 'company')->orderBy('id')->get()
+        CommissionLine::where('statement_id', $statement->id)->whereNotIn('recipient_key', ['company', 'unallocated'])->orderBy('id')->get()
             ->groupBy('recipient_key')
             ->each(function ($lines, $key) use (&$result) {
                 $first = $lines->first();

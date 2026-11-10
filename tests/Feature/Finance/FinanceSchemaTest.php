@@ -172,8 +172,9 @@ it('keeps one current personnel row per job slot and preserves superseded histor
     finExpectDbRejects(fn () => DB::table('finance_job_personnel')->where('id', $first->id)->update(['name_snapshot' => 'Someone else']), 'name_snapshot');
 
     // Correction = supersede, then a new current row.
+    finExpectDbRejects(fn () => DB::table('finance_job_personnel')->where('id', $first->id)->update(['superseded_at' => now()]), 'fjp_supersede_reason');
     $replacement = DB::transaction(function () use ($first, $booking, $unit) {
-        DB::table('finance_job_personnel')->where('id', $first->id)->update(['superseded_at' => now()]);
+        DB::table('finance_job_personnel')->where('id', $first->id)->update(['superseded_at' => now(), 'supersede_reason' => 'Wrong driver recorded']);
         $new = finJobPersonnel($booking, $unit, 'driver_1', finPersonnel('driver'));
         DB::table('finance_job_personnel')->where('id', $first->id)->update(['superseded_by_id' => $new->id]);
 
@@ -201,26 +202,34 @@ it('requires net revenue to equal gross minus VAT and one current allocation per
     finExpectDbRejects(fn () => finAllocation($booking, $unit), 'fra_one_current_per_booking_unit');
 });
 
-it('allows only one approved statement per week and freezes approved statements and their lines', function () {
+it('freezes approved statements and their lines, and settles each booking × unit only once', function () {
     $owner = finOwner();
-    $policy = finActivePolicy($owner);
-    ['statement' => $statement] = finDraftStatement($policy);
+    ['statement' => $statement, 'booking' => $booking, 'unit' => $unit] = finReviewStatement($owner);
 
     app(\App\Services\Finance\CommissionStatementService::class)->approve($owner, $statement);
 
     finExpectDbRejects(fn () => DB::table('finance_commission_statements')->where('id', $statement->id)->update(['total_base' => '1.00']), 'total_base');
+    finExpectDbRejects(fn () => DB::table('finance_commission_statements')->where('id', $statement->id)->update(['approval_snapshot' => '{}']), 'approval_snapshot');
+    finExpectDbRejects(fn () => DB::table('finance_commission_statements')->where('id', $statement->id)->update(['status' => 'draft']), 'not allowed');
     finExpectDbRejects(fn () => DB::table('finance_commission_lines')->where('statement_id', $statement->id)->update(['amount' => '0.00']), 'locked');
     finExpectDbRejects(fn () => DB::table('finance_commission_lines')->where('statement_id', $statement->id)->delete(), 'locked');
     finExpectDbRejects(fn () => $statement->fresh()->delete(), 'Only draft');
 
-    // A second approved revision for the same week is refused.
-    $second = CommissionStatement::create([
-        'period_start' => $statement->period_start->toDateString(), 'period_end' => $statement->period_end->toDateString(),
-        'policy_id' => $policy->id, 'revision' => 2,
-    ]);
-    finExpectDbRejects(fn () => DB::table('finance_commission_statements')->where('id', $second->id)->update([
-        'status' => 'approved', 'approved_at' => now(), 'approved_by_name' => 'X', 'approval_hash' => str_repeat('a', 64), 'approval_snapshot' => '{}',
-    ]), 'fcs_one_approved_per_week');
+    // The settlement is permanent and unique while active.
+    finExpectDbRejects(fn () => DB::table('finance_commission_settlements')->where('statement_id', $statement->id)->delete(), 'permanent');
+    finExpectDbRejects(fn () => DB::table('finance_commission_settlements')->insert([
+        'statement_id' => $statement->id, 'booking_id' => $booking->id, 'unit_id' => $unit->id, 'job_key' => 'b:' . $booking->id,
+        'settled_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+    ]), 'fcst_one_active_per_booking_unit');
+    finExpectDbRejects(fn () => DB::table('finance_commission_settlements')->where('statement_id', $statement->id)
+        ->update(['released_at' => now(), 'release_reason' => 'sneaky']), 'released only when its statement is voided');
+
+    // Only one open (draft or For Review) statement per week and unit.
+    $policy = CommissionPolicy::where('status', 'active')->first();
+    CommissionStatement::create(['period_start' => $statement->period_start->toDateString(), 'period_end' => $statement->period_end->toDateString(),
+        'unit_id' => $unit->id, 'policy_id' => $policy->id, 'revision' => 2]);
+    finExpectDbRejects(fn () => CommissionStatement::create(['period_start' => $statement->period_start->toDateString(), 'period_end' => $statement->period_end->toDateString(),
+        'unit_id' => $unit->id, 'policy_id' => $policy->id, 'revision' => 3]), 'fcs_one_open_per_week_unit');
 });
 
 it('lets draft lines be replaced while the statement is a draft', function () {

@@ -105,14 +105,80 @@ if (! function_exists('finUser')) {
         ]);
     }
 
-    /** An active policy whose interpretation is confirmed (stands in for the future client decision). */
-    function finActivePolicy(User $owner): CommissionPolicy
+    /**
+     * TEST FIXTURE ONLY: an active policy whose interpretation is confirmed, standing in for the future client decision.
+     * By default it confirms the Rider, substitute and combined-role answers but NOT the shared-role rule.
+     */
+    function finActivePolicy(User $owner, ?array $rules = null): CommissionPolicy
     {
         $service = app(CommissionPolicyService::class);
         $policy = CommissionPolicy::where('version', 1)->firstOrFail();
-        $service->confirmInterpretation($owner, $policy, 'test_base', 'test_rule');
+        $rules ??= ['rider_role' => 'confirmed', 'substitutes' => 'paid_in_recorded_role', 'combined_roles' => 'paid_per_role'];
+        $service->confirmInterpretation($owner, $policy, 'test_base', 'test_rule', $rules);
 
         return $service->activate($owner, $policy->fresh(), now()->toDateString());
+    }
+
+    /** Last week's Monday (Manila), so fixtures are never dated in the future. */
+    function finLastWeek(): \Carbon\CarbonImmutable
+    {
+        return \Carbon\CarbonImmutable::now(config('finance.timezone'))->startOfWeek(\Carbon\CarbonImmutable::MONDAY)->subWeek();
+    }
+
+    /** A finished job serviced last Wednesday whose full charge was verified (cash, Dispatcher-confirmed). */
+    function finServicedBooking(Unit $unit, string $total = '1000.00', array $overrides = []): Booking
+    {
+        $customer = Customer::create(['full_name' => 'FIN Client', 'phone' => '0917' . random_int(1000000, 9999999), 'email' => 'fs-' . Str::random(8) . '@example.com']);
+        $at = finLastWeek()->addDays(2)->setTime(10, 0);
+
+        return Booking::create(array_merge([
+            'customer_id' => $customer->id, 'truck_type_id' => $unit->truck_type_id, 'assigned_unit_id' => $unit->id,
+            'pickup_address' => 'Pickup ' . Str::random(5), 'dropoff_address' => 'Quezon City', 'distance_km' => 30,
+            'base_rate' => 1500, 'per_km_rate' => 60, 'computed_total' => $total, 'final_total' => $total,
+            'completion_requested_at' => $at, 'payment_submitted_at' => $at, 'payment_method' => 'cash', 'cash_received' => $total,
+            'status' => 'completed', 'completed_at' => $at->addHour(),
+        ], $overrides))->fresh();
+    }
+
+    /** Records a full crew through the Owner crew service: TL account, driver, rider and crew mate. */
+    function finRecordCrew(User $owner, Booking $booking, Unit $unit, ?User $teamLeader = null, bool $withRider = true): array
+    {
+        $crew = app(\App\Services\Finance\JobCrewService::class);
+        $teamLeader ??= finUser(3);
+        $driver = finPersonnel('driver');
+        $rider = finPersonnel('driver');
+        $mate = finPersonnel('crew');
+
+        $crew->record($owner, $booking, ['unit_id' => $unit->id, 'participant' => "user:{$teamLeader->id}", 'commission_role' => 'team_leader']);
+        $crew->record($owner, $booking, ['unit_id' => $unit->id, 'participant' => "personnel:{$driver->id}", 'commission_role' => 'driver']);
+        if ($withRider) {
+            $crew->record($owner, $booking, ['unit_id' => $unit->id, 'participant' => "personnel:{$rider->id}", 'commission_role' => 'rider']);
+        }
+        $crew->record($owner, $booking, ['unit_id' => $unit->id, 'participant' => "personnel:{$mate->id}", 'commission_role' => 'crew_mate']);
+
+        return ['teamLeader' => $teamLeader, 'driver' => $driver, 'rider' => $rider, 'crew' => $mate];
+    }
+
+    /**
+     * A statement For Review: one verified 1,000.00 job with a full recorded crew (60/12/10/10/8 → 600/120/100/100/80).
+     * With $confirmPolicy the TEST-ONLY confirmed policy is activated so the statement is approvable.
+     *
+     * @return array{statement: CommissionStatement, driver: Personnel, teamLeader: User, rider: Personnel, crew: Personnel, unit: Unit, booking: Booking}
+     */
+    function finReviewStatement(User $owner, bool $confirmPolicy = true, string $total = '1000.00'): array
+    {
+        if ($confirmPolicy && ! CommissionPolicy::where('status', 'active')->exists()) {
+            finActivePolicy($owner);
+        }
+        $teamLeader = finUser(3);
+        $unit = finUnit($teamLeader);
+        $booking = finServicedBooking($unit, $total);
+        $people = finRecordCrew($owner, $booking, $unit, $teamLeader);
+
+        $service = app(\App\Services\Finance\CommissionStatementService::class);
+        $statement = $service->submitForReview($owner, $service->generate($owner, finLastWeek()->toDateString(), $unit->id));
+
+        return ['statement' => $statement->fresh(), 'unit' => $unit, 'booking' => $booking] + $people;
     }
 
     /** The Monday of the current week as Y-m-d. */

@@ -296,6 +296,38 @@ Route::prefix('superadmin')
                 Route::post('/commission/deductions/{deduction}/void', [$commission, 'voidDeduction'])->whereNumber('deduction')->name('commission.deductions.void');
             });
 
+            // Phase 6: actual job crew recording.
+            $crew = \App\Http\Controllers\SuperAdmin\Finance\JobCrewController::class;
+            Route::middleware('can:finance.view')->group(function () use ($crew) {
+                Route::get('/job-crew', [$crew, 'index'])->name('crew.index');
+                Route::get('/job-crew/{booking}', [$crew, 'show'])->whereNumber('booking')->name('crew.show');
+            });
+            Route::middleware(['can:finance.crew.manage', 'throttle:30,1'])->group(function () use ($crew) {
+                Route::post('/job-crew/{booking}', [$crew, 'store'])->whereNumber('booking')->name('crew.store');
+                Route::post('/job-crew/entries/{entry}/correct', [$crew, 'correct'])->whereNumber('entry')->name('crew.correct');
+                Route::post('/job-crew/entries/{entry}/remove', [$crew, 'remove'])->whereNumber('entry')->name('crew.remove');
+                Route::post('/job-crew/entries/{entry}/confirm', [$crew, 'confirm'])->whereNumber('entry')->name('crew.confirm');
+            });
+
+            // Phase 6: weekly commission statements (Draft → For Review → Approved).
+            $statements = \App\Http\Controllers\SuperAdmin\Finance\CommissionStatementController::class;
+            Route::middleware('can:finance.view')->group(function () use ($statements) {
+                Route::get('/commission-statements', [$statements, 'index'])->name('statements.index');
+                Route::get('/commission-statements/new', [$statements, 'create'])->name('statements.create');
+                Route::get('/commission-statements/{statement}', [$statements, 'show'])->whereNumber('statement')->name('statements.show');
+            });
+            Route::middleware(['can:finance.statements.prepare', 'throttle:30,1'])->group(function () use ($statements) {
+                Route::post('/commission-statements', [$statements, 'store'])->name('statements.store');
+                Route::post('/commission-statements/{statement}/recalculate', [$statements, 'recalculate'])->whereNumber('statement')->name('statements.recalculate');
+                Route::post('/commission-statements/{statement}/submit', [$statements, 'submit'])->whereNumber('statement')->name('statements.submit');
+                Route::post('/commission-statements/{statement}/return', [$statements, 'returnToDraft'])->whereNumber('statement')->name('statements.return');
+            });
+            Route::middleware(['can:finance.statements.approve', 'throttle:30,1'])->group(function () use ($statements) {
+                Route::post('/commission-statements/{statement}/approve', [$statements, 'approve'])->whereNumber('statement')->name('statements.approve');
+                Route::post('/commission-statements/{statement}/void', [$statements, 'void'])->whereNumber('statement')->name('statements.void');
+                Route::post('/commission-statements/{statement}/correct', [$statements, 'correct'])->whereNumber('statement')->name('statements.correct');
+            });
+
             $expenses = \App\Http\Controllers\SuperAdmin\Finance\ExpenseController::class;
             Route::middleware('can:finance.view')->group(function () use ($expenses) {
                 Route::get('/expenses', [$expenses, 'index'])->name('expenses.index');
