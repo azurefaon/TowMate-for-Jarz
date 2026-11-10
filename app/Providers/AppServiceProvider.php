@@ -190,6 +190,9 @@ class AppServiceProvider extends ServiceProvider
         // forced-change flows already enforce. Only new passwords are checked; existing ones stay valid.
         Password::defaults(fn () => Password::min(12)->mixedCase()->numbers()->symbols()->uncompromised());
 
+        // Owner Finance module abilities (Owner-only management, approvals and payouts).
+        \App\Support\Finance\FinanceAccess::register();
+
         Mail::extend('brevo', function (array $config) {
             return (new BrevoTransportFactory)->create(
                 new Dsn('brevo+api', 'default', $config['key'] ?? '')

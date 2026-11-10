@@ -194,6 +194,15 @@ Route::prefix('admin-dashboard')
         Route::post('/drivers/team-leaders/{teamLeader}/duty', [DriversController::class, 'setTeamLeaderDuty'])->name('drivers.team-leaders.duty');
         Route::post('/drivers/units/{unit}/slot-duty', [DriversController::class, 'setSlotDuty'])->name('drivers.units.slot-duty');
 
+        // Expense review: the Dispatcher step of Team Leader -> Dispatcher -> Owner.
+        Route::middleware('can:finance.expenses.verify')->group(function () {
+            $review = \App\Http\Controllers\Admin\ExpenseReviewController::class;
+            Route::get('/expense-review', [$review, 'index'])->name('expense-review.index');
+            Route::get('/expense-review/{expense}/evidence/{evidence}', [$review, 'evidence'])->whereNumber(['expense', 'evidence'])->name('expense-review.evidence');
+            Route::post('/expense-review/{expense}/verify', [$review, 'verify'])->whereNumber('expense')->middleware('throttle:30,1')->name('expense-review.verify');
+            Route::post('/expense-review/{expense}/reject', [$review, 'reject'])->whereNumber('expense')->middleware('throttle:30,1')->name('expense-review.reject');
+        });
+
         Route::get('/available-units', [AvailableUnitsController::class, 'index'])->name('available-units');
         Route::post('/available-units', [AvailableUnitsController::class, 'store'])->name('available-units.store');
         Route::post('/units/{unit}/maintenance', [AvailableUnitsController::class, 'markMaintenance'])->name('units.maintenance');
@@ -262,6 +271,118 @@ Route::prefix('superadmin')
         Route::get('/reports/activity/export', [ReportsController::class, 'exportActivityPdf'])->name('reports.activity.export');
         Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
         Route::get('/monitoring/live', [MonitoringController::class, 'live'])->name('monitoring.live');
+
+        // Owner Finance. The role:1 group above plus per-ability Gates; services re-check authorization.
+        Route::prefix('finance')->name('finance.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\SuperAdmin\Finance\OverviewController::class, 'index'])->middleware('can:finance.view')->name('overview');
+
+            $unitFunds = \App\Http\Controllers\SuperAdmin\Finance\UnitFundController::class;
+            Route::get('/unit-funds', [$unitFunds, 'index'])->middleware('can:finance.view')->name('unit-funds.index');
+            Route::middleware(['can:finance.funds.manage', 'throttle:30,1'])->group(function () use ($unitFunds) {
+                Route::post('/unit-funds/issuances', [$unitFunds, 'storeIssuance'])->name('unit-funds.issue');
+                Route::post('/unit-funds/returns', [$unitFunds, 'storeReturn'])->name('unit-funds.return');
+                Route::post('/unit-funds/{entry}/correct', [$unitFunds, 'correct'])->whereNumber('entry')->name('unit-funds.correct');
+                Route::post('/unit-funds/{entry}/void', [$unitFunds, 'void'])->whereNumber('entry')->name('unit-funds.void');
+            });
+
+            $collections = \App\Http\Controllers\SuperAdmin\Finance\JobCollectionController::class;
+            Route::get('/jobs-collections', [$collections, 'index'])->middleware('can:finance.view')->name('collections.index');
+            Route::post('/jobs-collections/{booking}/split', [$collections, 'split'])->whereNumber('booking')
+                ->middleware(['can:finance.revenue.allocate', 'throttle:30,1'])->name('collections.split');
+
+            $commission = \App\Http\Controllers\SuperAdmin\Finance\CommissionController::class;
+            Route::get('/commission', [$commission, 'index'])->middleware('can:finance.view')->name('commission.index');
+            Route::middleware(['can:finance.deductions.manage', 'throttle:30,1'])->group(function () use ($commission) {
+                Route::post('/commission/deductions', [$commission, 'storeDeduction'])->name('commission.deductions.store');
+                Route::post('/commission/deductions/{deduction}/approve', [$commission, 'approveDeduction'])->whereNumber('deduction')->name('commission.deductions.approve');
+                Route::post('/commission/deductions/{deduction}/void', [$commission, 'voidDeduction'])->whereNumber('deduction')->name('commission.deductions.void');
+            });
+
+            // Phase 6: actual job crew recording.
+            $crew = \App\Http\Controllers\SuperAdmin\Finance\JobCrewController::class;
+            Route::middleware('can:finance.view')->group(function () use ($crew) {
+                Route::get('/job-crew', [$crew, 'index'])->name('crew.index');
+                Route::get('/job-crew/{booking}', [$crew, 'show'])->whereNumber('booking')->name('crew.show');
+            });
+            Route::middleware(['can:finance.crew.manage', 'throttle:30,1'])->group(function () use ($crew) {
+                Route::post('/job-crew/{booking}', [$crew, 'store'])->whereNumber('booking')->name('crew.store');
+                Route::post('/job-crew/entries/{entry}/correct', [$crew, 'correct'])->whereNumber('entry')->name('crew.correct');
+                Route::post('/job-crew/entries/{entry}/remove', [$crew, 'remove'])->whereNumber('entry')->name('crew.remove');
+                Route::post('/job-crew/entries/{entry}/confirm', [$crew, 'confirm'])->whereNumber('entry')->name('crew.confirm');
+            });
+
+            // Phase 10: Client Review register and the demo page (demo page is 404 outside a *_demo database).
+            $review = \App\Http\Controllers\SuperAdmin\Finance\ClientReviewController::class;
+            Route::middleware('can:finance.view')->group(function () use ($review) {
+                Route::get('/client-review', [$review, 'index'])->name('client-review.index');
+                Route::get('/client-review/print', [$review, 'print'])->name('client-review.print');
+                Route::get('/client-review/pdf', [$review, 'pdf'])->middleware('throttle:20,1,finance-exports')->name('client-review.pdf');
+                Route::get('/demo', [\App\Http\Controllers\SuperAdmin\Finance\DemoController::class, 'index'])->name('demo.index');
+            });
+            Route::middleware(['can:finance.policies.manage', 'throttle:30,1'])->group(function () use ($review) {
+                Route::post('/client-review', [$review, 'store'])->name('client-review.store');
+                Route::post('/client-review/{item}', [$review, 'update'])->whereNumber('item')->name('client-review.update');
+                Route::post('/demo/reset', [\App\Http\Controllers\SuperAdmin\Finance\DemoController::class, 'reset'])->middleware('throttle:3,10,finance-demo-reset')->name('demo.reset');
+            });
+
+            // Phase 9: Finance Reports (page, print, PDF, Excel). Owner-only downloads.
+            $reports = \App\Http\Controllers\SuperAdmin\Finance\FinanceReportController::class;
+            Route::middleware('can:finance.view')->group(function () use ($reports) {
+                Route::get('/reports', [$reports, 'index'])->name('reports.index');
+                Route::get('/reports/print', [$reports, 'print'])->name('reports.print');
+                Route::middleware('throttle:20,1,finance-exports')->group(function () use ($reports) {
+                    Route::get('/reports/pdf', [$reports, 'pdf'])->name('reports.pdf');
+                    Route::get('/reports/excel', [$reports, 'xlsx'])->name('reports.xlsx');
+                });
+            });
+
+            // Phase 7: payout records (no transfers are made by TowMate).
+            $payouts = \App\Http\Controllers\SuperAdmin\Finance\PayoutController::class;
+            Route::middleware(['can:finance.payouts.record', 'throttle:30,1'])->group(function () use ($payouts) {
+                Route::post('/commission-statements/{statement}/payouts', [$payouts, 'store'])->whereNumber('statement')->name('payouts.store');
+                Route::post('/commission-statements/{statement}/mark-paid', [$payouts, 'markPaid'])->whereNumber('statement')->name('payouts.mark-paid');
+                Route::post('/payouts/{payout}/void', [$payouts, 'void'])->whereNumber('payout')->name('payouts.void');
+                Route::post('/payouts/{payout}/correct', [$payouts, 'correct'])->whereNumber('payout')->name('payouts.correct');
+            });
+
+            // Phase 6: weekly commission statements (Draft → For Review → Approved).
+            $statements = \App\Http\Controllers\SuperAdmin\Finance\CommissionStatementController::class;
+            Route::middleware('can:finance.view')->group(function () use ($statements) {
+                Route::get('/commission-statements', [$statements, 'index'])->name('statements.index');
+                Route::get('/commission-statements/new', [$statements, 'create'])->name('statements.create');
+                Route::get('/commission-statements/{statement}', [$statements, 'show'])->whereNumber('statement')->name('statements.show');
+                Route::get('/commission-statements/{statement}/print', [$statements, 'print'])->whereNumber('statement')->name('statements.print');
+                Route::get('/commission-statements/{statement}/pdf', [$statements, 'pdf'])->whereNumber('statement')->name('statements.pdf');
+                Route::get('/payouts/{payout}/evidence', [\App\Http\Controllers\SuperAdmin\Finance\PayoutController::class, 'evidence'])->whereNumber('payout')->name('payouts.evidence');
+            });
+            Route::middleware(['can:finance.statements.prepare', 'throttle:30,1'])->group(function () use ($statements) {
+                Route::post('/commission-statements', [$statements, 'store'])->name('statements.store');
+                Route::post('/commission-statements/{statement}/recalculate', [$statements, 'recalculate'])->whereNumber('statement')->name('statements.recalculate');
+                Route::post('/commission-statements/{statement}/submit', [$statements, 'submit'])->whereNumber('statement')->name('statements.submit');
+                Route::post('/commission-statements/{statement}/return', [$statements, 'returnToDraft'])->whereNumber('statement')->name('statements.return');
+            });
+            Route::middleware(['can:finance.statements.approve', 'throttle:30,1'])->group(function () use ($statements) {
+                Route::post('/commission-statements/{statement}/approve', [$statements, 'approve'])->whereNumber('statement')->name('statements.approve');
+                Route::post('/commission-statements/{statement}/void', [$statements, 'void'])->whereNumber('statement')->name('statements.void');
+                Route::post('/commission-statements/{statement}/correct', [$statements, 'correct'])->whereNumber('statement')->name('statements.correct');
+            });
+
+            $expenses = \App\Http\Controllers\SuperAdmin\Finance\ExpenseController::class;
+            Route::middleware('can:finance.view')->group(function () use ($expenses) {
+                Route::get('/expenses', [$expenses, 'index'])->name('expenses.index');
+                Route::get('/expenses/{expense}/evidence/{evidence}', [$expenses, 'evidence'])->whereNumber(['expense', 'evidence'])->name('expenses.evidence');
+            });
+            Route::middleware('throttle:30,1')->group(function () use ($expenses) {
+                Route::post('/expenses', [$expenses, 'store'])->middleware('can:finance.expenses.submit')->name('expenses.store');
+                Route::post('/expenses/{expense}/evidence', [$expenses, 'uploadEvidence'])->middleware('can:finance.view')->whereNumber('expense')->name('expenses.upload-evidence');
+                Route::middleware('can:finance.expenses.approve')->group(function () use ($expenses) {
+                    Route::post('/expenses/{expense}/approve', [$expenses, 'approve'])->whereNumber('expense')->name('expenses.approve');
+                    Route::post('/expenses/{expense}/reject', [$expenses, 'reject'])->whereNumber('expense')->name('expenses.reject');
+                    Route::post('/expenses/{expense}/void', [$expenses, 'void'])->whereNumber('expense')->name('expenses.void');
+                    Route::post('/expenses/{expense}/correct', [$expenses, 'correct'])->whereNumber('expense')->name('expenses.correct');
+                });
+            });
+        });
 
         Route::patch('users/{id}/unlock', [UserManagementController::class, 'unlockCustomer'])->name('users.unlock');
 

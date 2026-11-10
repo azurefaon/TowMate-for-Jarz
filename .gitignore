@@ -24,3 +24,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 .env.pilot
+
+# Owner Finance demonstration database settings (never commit)
+.env.demo

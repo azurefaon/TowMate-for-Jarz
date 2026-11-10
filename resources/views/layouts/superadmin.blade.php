@@ -325,6 +325,22 @@
                     ['label' => 'Activity Report', 'route' => 'superadmin.reports.activity', 'active' => ['superadmin.reports.activity*']],
                 ],
             ],
+            'Finance' => [
+                'label' => 'Finance',
+                'icon' => 'wallet',
+                'items' => [
+                    ['label' => 'Finance Overview', 'route' => 'superadmin.finance.overview', 'active' => ['superadmin.finance.overview']],
+                    ['label' => 'Jobs & Collections', 'route' => 'superadmin.finance.collections.index', 'active' => ['superadmin.finance.collections.*']],
+                    ['label' => 'Unit Funds', 'route' => 'superadmin.finance.unit-funds.index', 'active' => ['superadmin.finance.unit-funds.*']],
+                    ['label' => 'Expenses', 'route' => 'superadmin.finance.expenses.index', 'active' => ['superadmin.finance.expenses.*']],
+                    ['label' => 'Job Crew', 'route' => 'superadmin.finance.crew.index', 'active' => ['superadmin.finance.crew.*']],
+                    ['label' => 'Commission (Draft)', 'route' => 'superadmin.finance.commission.index', 'active' => ['superadmin.finance.commission.*']],
+                    ['label' => 'Commission Statements', 'route' => 'superadmin.finance.statements.index', 'active' => ['superadmin.finance.statements.*']],
+                    ['label' => 'Finance Reports', 'route' => 'superadmin.finance.reports.index', 'active' => ['superadmin.finance.reports.*']],
+                    ['label' => 'Client Review', 'route' => 'superadmin.finance.client-review.index', 'active' => ['superadmin.finance.client-review.*']],
+                    ...(\App\Services\Finance\Demo\FinanceDemoGuard::enabled() ? [['label' => 'Finance Demo', 'route' => 'superadmin.finance.demo.index', 'active' => ['superadmin.finance.demo.*']]] : []),
+                ],
+            ],
         ];
 
         foreach ($sidebarGroups as $key => $group) {

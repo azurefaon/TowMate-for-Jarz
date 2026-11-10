@@ -414,6 +414,16 @@ class UnitController extends Controller
                 return back()->with('error', 'This unit has historical bookings missing a saved name/plate snapshot and cannot be permanently deleted without losing history.');
             }
 
+            // Finance history (unit funds, expenses, revenue, job crew) is permanent and keeps the unit referenced.
+            $hasFinanceHistory = \App\Models\Finance\FundEntry::where('unit_id', $unit->id)->exists()
+                || \App\Models\Finance\Expense::where('unit_id', $unit->id)->exists()
+                || \App\Models\Finance\RevenueAllocation::where('unit_id', $unit->id)->exists()
+                || \App\Models\Finance\JobPersonnel::where('unit_id', $unit->id)->orWhere('borrowed_from_unit_id', $unit->id)->exists();
+
+            if ($hasFinanceHistory) {
+                return back()->with('error', 'This unit has finance records (unit funds, expenses or commission history) and cannot be permanently deleted. Keep it archived instead.');
+            }
+
             $reference = $unit->name;
             $entityId = $unit->id;
 
