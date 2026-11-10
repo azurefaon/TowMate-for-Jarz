@@ -78,7 +78,7 @@ it('refuses Owner-only service actions for every other role', function (int $rol
     expect(fn () => app(CommissionStatementService::class)->approve($actor, $statement))->toThrow(AuthorizationException::class);
 
     app(CommissionStatementService::class)->approve($owner, $statement);
-    expect(fn () => app(PayoutService::class)->record($actor, $statement->fresh(), "personnel:{$driver->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid()))
+    expect(fn () => app(PayoutService::class)->record($actor, $statement->fresh(), "personnel:{$driver->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid(), 'ACK-0001'))
         ->toThrow(AuthorizationException::class);
 
     expect(Expense::find($expense->id)->status)->toBe('submitted')

@@ -10,7 +10,7 @@
 
 @php
     $m = fn ($v) => \App\Support\Money::of((string) $v)->format();
-    $badge = ['draft' => 'grey', 'for_review' => 'amber', 'approved' => 'green', 'voided' => 'red'];
+    $badge = ['draft' => 'grey', 'for_review' => 'amber', 'approved' => 'green', 'paid' => 'blue', 'voided' => 'red'];
     $lines = $calc['lines'] ?? [];
     $policy = $calc['policy'] ?? null;
     $blockers = $review['blockers'] ?? [];
@@ -36,7 +36,10 @@
                 <p>{{ $statement->unit?->name }} · week of {{ $statement->period_start->format('M j') }} – {{ $statement->period_end->format('M j, Y') }} (Monday to Saturday) · revision {{ $statement->revision }}
                     @if ($statement->supersedes) · corrects <a href="{{ route('superadmin.finance.statements.show', $statement->supersedes->id) }}">{{ $statement->supersedes->reference_code }}</a>@endif</p>
             </div>
-            <div class="fin-header-actions"><a class="oa-btn" href="{{ route('superadmin.finance.statements.index') }}">Back to statements</a></div>
+            <div class="fin-header-actions">
+                <a class="oa-btn" href="{{ route('superadmin.finance.statements.print', $statement->id) }}" target="_blank" rel="noopener">Printable statement</a>
+                <a class="oa-btn" href="{{ route('superadmin.finance.statements.index') }}">Back to statements</a>
+            </div>
         </header>
 
         @include('superadmin.finance._flashes')
@@ -111,6 +114,95 @@
                 @endif
             @endif
         </section>
+
+        @if ($payouts)
+            <section class="oa-card oa-card-body" aria-labelledby="stPayoutTitle" id="stPayouts">
+                <div class="oa-card-head"><div>
+                    <h2 class="oa-card-title" id="stPayoutTitle"><i data-lucide="hand-coins" aria-hidden="true"></i> Payouts</h2>
+                    <p class="oa-card-sub">Record each payment after you have paid the person by cash, GCash or bank transfer. TowMate does not transfer money, and recording a payment never marks the statement Paid. Amounts come from the approved snapshot. One full payout per person; partial and combined payouts are pending client confirmation.</p>
+                </div></div>
+                <div class="oa-kpis" style="--oa-kpi-count: 4;">
+                    <div class="oa-kpi"><span class="oa-kpi-label">Sharing base</span><div class="oa-kpi-value">{{ $payouts['base']->format() }}</div></div>
+                    <div class="oa-kpi"><span class="oa-kpi-label">Company share (not a payout)</span><div class="oa-kpi-value" data-po-total="company">{{ $payouts['company']->format() }}</div></div>
+                    <div class="oa-kpi is-dark"><span class="oa-kpi-label">Crew payable</span><div class="oa-kpi-value" data-po-total="payable">{{ $payouts['payable']->format() }}</div></div>
+                    <div class="oa-kpi"><span class="oa-kpi-label">Recorded / remaining</span><div class="oa-kpi-value" data-po-total="paid">{{ $payouts['paid']->format() }}</div><span class="fin-kpi-sub" data-po-total="remaining">Remaining {{ $payouts['remaining']->format() }}</span></div>
+                </div>
+                <div class="oa-table-wrap">
+                    <table class="oa-table fin-table">
+                        <thead><tr><th scope="col">Person</th><th scope="col">Role(s)</th><th scope="col" class="is-num">Approved amount</th><th scope="col">Payout</th><th scope="col"><span class="fin-sr">Actions</span></th></tr></thead>
+                        <tbody>
+                            @foreach ($payouts['rows'] as $row)
+                                <tr data-po-row="{{ $row['recipient_key'] }}">
+                                    <td class="fin-strong">{{ $row['recipient_name'] }}</td>
+                                    <td>{{ implode(', ', $row['roles']) }}</td>
+                                    <td class="is-num fin-strong">{{ $row['earned']->format() }}</td>
+                                    <td>
+                                        @if ($row['payout'])
+                                            <span class="fin-status fin-status--green">Recorded</span> <span class="fin-ref">{{ $row['payout']->reference_code }}</span>
+                                            <div class="is-dim">{{ $row['payout']->methodLabel() }} · {{ $row['payout']->paid_at?->format('M j, Y') }} · {{ $row['payout']->external_reference ?: 'no reference' }} · by {{ $row['payout']->recorded_by_name }}</div>
+                                            @if ($row['payout']->evidence_path)<a href="{{ route('superadmin.finance.payouts.evidence', $row['payout']->id) }}" target="_blank" rel="noopener">View evidence</a>@endif
+                                        @else
+                                            <span class="fin-status fin-status--amber">Not recorded</span>
+                                        @endif
+                                    </td>
+                                    <td class="fin-actions">
+                                        @if ($statement->status === 'approved' && \App\Support\Finance\FinanceAccess::isOwner(auth()->user()))
+                                            <details class="fin-correct" @if (! $row['payout'] && old('recipient_key') === $row['recipient_key']) open @endif>
+                                                <summary>{{ $row['payout'] ? 'Correct' : 'Record payout' }}</summary>
+                                                <form method="POST" enctype="multipart/form-data" class="fin-form" data-fin-once
+                                                      action="{{ $row['payout'] ? route('superadmin.finance.payouts.correct', $row['payout']->id) : route('superadmin.finance.payouts.store', $statement->id) }}">
+                                                    @csrf
+                                                    <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+                                                    <input type="hidden" name="recipient_key" value="{{ $row['recipient_key'] }}">
+                                                    <div class="fin-grid fin-grid--compact">
+                                                        <label class="fin-field"><span>Amount</span><input type="text" value="{{ $row['earned']->format() }}" readonly aria-readonly="true"></label>
+                                                        <label class="fin-field"><span>Date paid</span><input type="date" name="paid_at" required max="{{ now()->toDateString() }}" value="{{ now()->toDateString() }}"></label>
+                                                        <label class="fin-field"><span>Method</span>
+                                                            <select name="payout_method" class="oa-select" required>
+                                                                @foreach (config('finance.payout_methods') as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
+                                                            </select>
+                                                        </label>
+                                                        <label class="fin-field"><span>Transaction reference</span><input type="text" name="external_reference" maxlength="100" placeholder="GCash / bank ref, or cash acknowledgement no."></label>
+                                                        <label class="fin-field"><span>Evidence <small>(if no reference)</small></span><input type="file" name="evidence" accept=".jpg,.jpeg,.png,.webp,.pdf"></label>
+                                                        <label class="fin-field"><span>Notes <small>(optional)</small></span><input type="text" name="notes" maxlength="500"></label>
+                                                        @if ($row['payout'])<label class="fin-field fin-field--wide"><span>Reason for the correction</span><input type="text" name="reason" required minlength="5" maxlength="500"></label>@endif
+                                                    </div>
+                                                    <div class="fin-form-actions"><button type="submit" class="oa-btn oa-btn--sm oa-btn--primary">{{ $row['payout'] ? 'Void and record correction' : 'Record payout' }}</button></div>
+                                                </form>
+                                            </details>
+                                            @if ($row['payout'])
+                                                <form method="POST" action="{{ route('superadmin.finance.payouts.void', $row['payout']->id) }}" class="fin-inline-form" data-fin-once>@csrf
+                                                    <input type="text" name="reason" required minlength="5" maxlength="500" placeholder="Reason" aria-label="Reason for voiding {{ $row['payout']->reference_code }}">
+                                                    <button class="oa-btn oa-btn--sm fin-btn-danger" type="submit">Void</button>
+                                                </form>
+                                            @endif
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @foreach ($payouts['issues'] as $issue)<div class="fin-flag" data-po-issue>{{ $issue }}</div>@endforeach
+                @if ($statement->status === 'approved' && \App\Support\Finance\FinanceAccess::isOwner(auth()->user()))
+                    <div class="fin-form-actions">
+                        <form method="POST" action="{{ route('superadmin.finance.payouts.mark-paid', $statement->id) }}" data-fin-once>@csrf
+                            <button type="submit" class="oa-btn oa-btn--primary" data-po-mark-paid="{{ $payouts['can_mark_paid'] ? 'enabled' : 'disabled' }}" @disabled(! $payouts['can_mark_paid'])>Mark statement Paid</button>
+                        </form>
+                    </div>
+                @elseif ($statement->status === 'paid')
+                    <p class="fin-help" data-po-paid>Marked Paid by {{ $statement->paid_by_name }} on {{ $statement->paid_at?->format('M j, Y g:i A') }}. Payouts are final.</p>
+                @endif
+                @php $voided = collect($payouts['history'])->where('status', 'voided'); @endphp
+                @if ($voided->isNotEmpty())
+                    <details class="fin-details"><summary>Voided payouts ({{ $voided->count() }})</summary>
+                        <div class="fin-details-body"><ul class="fin-trail">
+                            @foreach ($voided as $po)<li data-po-voided="{{ $po->reference_code }}">{{ $po->reference_code }} · {{ $po->recipient_name }} · {{ \App\Support\Money::of($po->amount)->format() }} · {{ $po->methodLabel() }} {{ $po->external_reference }} · voided {{ $po->voided_at?->format('M j, Y g:i A') }}: {{ $po->void_reason }}</li>@endforeach
+                        </ul></div>
+                    </details>
+                @endif
+            </section>
+        @endif
 
         <div class="oa-kpis oa-kpis--six" style="--oa-kpi-count: 6;">
             <div class="oa-kpi"><span class="oa-kpi-label">Verified collections</span><div class="oa-kpi-value" data-st-total="collection">{{ $m($statement->total_collection) }}</div></div>

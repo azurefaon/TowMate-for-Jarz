@@ -18,7 +18,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-10 | Phase 3: Expenses and receipt review, plus the Phase 2 daily-funds correction | Backend, Owner page and Dispatcher page done (`96842391`). **Unfinished:** Team Leader mobile expense screen; browser visual check |
 | 2026-11-10 | Phase 4: Jobs & Collections | Done (`f01a4eb9`). See "Phase 4" below |
 | 2026-11-10 | Phase 5: Commission calculation (draft, read-only) | Done (`0d425f27`). See "Phase 5" below |
-| 2026-11-10 | Phase 6: Job crew recording and weekly commission statements (Draft → For Review → Approved) | Done. See "Phase 6" below. Approval on real data still waits for the client's commission decisions |
+| 2026-11-10 | Phase 6: Job crew recording and weekly commission statements (Draft → For Review → Approved) | Done (`d11007b6`). See "Phase 6" below. Approval on real data still waits for the client's commission decisions |
+| 2026-11-10 | Phase 7: Payout records, Paid status and printable statements | Done. See "Phase 7" below. No transfers; no real payouts recorded |
 
 ## Phases
 
@@ -55,8 +56,11 @@ Spec: [spec.md](spec.md).
   - Owner page "Job Crew": record, correct, remove and confirm who actually worked each job, per unit and performed role.
   - Owner pages "Commission Statements": one statement per unit and Monday–Saturday week, Draft → For Review → Approved, with void and correction (re-issue as a new revision).
   - Approval re-runs `CommissionCalculator`, requires zero blockers and an unchanged calculation, freezes a hashed snapshot and settles each booking × unit once.
-  - "Paid" is not implemented (Phase 7).
-- [ ] **Phase 7: Payout recording.** Owner screens on top of the existing `PayoutService`.
+  - "Paid" was added in Phase 7.
+- [x] **Phase 7: Payout records and printable statements.**
+  - Record actual payouts (full payout per person) against Approved statements from the approval snapshot; void and correct with history; Mark Paid only when reconciled exactly.
+  - Printable English commission statement (browser Print / Save as PDF, and a Dompdf PDF through the existing document generator).
+  - Partial and group payouts are pending client confirmation and not supported.
 - [ ] **Phase 8: Overview page.**
 - [ ] **Later (not yet scheduled):** reports and exports; client walkthrough.
 
@@ -317,6 +321,53 @@ The new tests cover:
 - **Pages and access:** Owner end-to-end through the pages (record crew, select jobs, submit, approve). Five non-Owner roles get 403 on every crew and statement page and action, and the services refuse them too.
 - **Regression updates:** the Phase 1 statement tests now use the real flow (the old manual-line fixture cannot be approved any more, by design). The Phase 5 unconfirmed-policy test now also expects `rider_role_pending`. The Phase 1 personnel test now supplies a supersede reason.
 
+## Phase 7: what was built
+
+**No money moves.** TowMate only records a payment the Owner has already made outside it (cash, GCash or bank transfer). Choosing a method never starts a transfer and never marks a statement Paid.
+
+**Migration `2026_11_16_000000_payout_records_and_paid_statements`** (run only on `towmate_jarz_testing` by the test suite):
+- `finance_payouts`: `recipient_roles`, `recorded_by_name`, optional evidence (`evidence_path` on the private disk, original name, MIME type, sha256), `notes`, `corrects_payout_id`. CHECKs: a transaction reference **or** evidence is required; `recipient_key` can never be `unallocated` (or `company`, from Phase 1). All payout content is frozen by trigger. A payout of a Paid statement cannot be voided (trigger).
+- `finance_commission_statements`: status `paid` with `paid_by`, `paid_by_name`, `paid_at`. Transition approved → paid only, and a trigger refuses it unless recorded payouts equal `personnel_amount` exactly. Paid statements are frozen like approved ones (including `paid_at`), cannot be voided, and cannot hold unallocated amounts.
+
+**`PayoutService`** (Owner-only ability `finance.payouts.record`):
+- **Payable amounts come from the approval snapshot** (`approval_snapshot.lines`), grouped by recipient. Company and unallocated lines are excluded. The amount is never typed and never recalculated from current crew or rates. Recording also re-checks the snapshot's integrity.
+- **Record:** recipient, roles (from the snapshot), exact approved amount, actual payout date (not in the future, not before the statement period), method (Cash, GCash, Bank Transfer), transaction reference and/or evidence file, notes, and the recording Owner. Only for **Approved** statements (not draft, for review, voided or paid). One recorded payout per recipient per statement: idempotency key, row lock, service check, and the database unique index.
+- **Supported workflow:** one **full** payout per person. Partial disbursements and one combined (group) payout for several people are pending client confirmation and are not supported.
+- **Void / Correct:** reason required. Correct voids the wrong payout and records a linked replacement (`corrects_payout_id`) in one transaction. Originals stay with their reference, reason and audit rows. Not allowed once the statement is Paid.
+- **Reconciliation:** per person approved amount vs recorded payout; totals for sharing base, company share (not a payout), crew payable, recorded and remaining; issues list.
+- **Mark Paid:** explicit Owner action, only when every payable person has exactly their approved amount recorded and the total equals the personnel amount. Audited (`finance_statement_paid`).
+
+**Pages:**
+- The statement detail page has a **Payouts** section (Approved and Paid statements): base / company / crew payable / recorded-remaining figures, a row per person with approved amount and payout status, record and correct forms (read-only amount, date, method, reference, evidence, notes), void, the voided-payout history, and **Mark statement Paid** (enabled only when reconciled). Evidence is served only to the Owner through `/superadmin/finance/payouts/{id}/evidence`.
+- **Printable statement** `/superadmin/finance/commission-statements/{id}/print` (browser Print / Save as PDF) and `/pdf` (rendered by the existing `DocumentGenerationService::renderReportPdf`, Dompdf, with the company letterhead settings). It shows statement number and revision, period, unit, policy version, status (Draft / For Review / Approved / Paid / Voided, with a "must not be paid" warning before approval), summary (collections, expenses, deductions, base, company share, personnel payable, unallocated), included bookings, approved expenses and deductions with references, personnel names, roles, rates, jobs and amounts, unallocated rows, approval details and hash, recorded payouts (date, method, reference, recorder) with totals, voided payouts, and signature lines. Approved, Paid and Voided statements print from the frozen snapshot.
+
+**Phase 6 review (Job Crew):** the Owner can record Driver, Rider / Substitute and Crew Mate participants from existing **personnel records**; no login account is needed. Only *user accounts* are limited to Team Leaders (so a Driver or Customer account cannot be chosen by mistake). The restriction was correct and was not changed; a regression test records all three roles from personnel records through the page and confirms no user account is created or linked.
+
+**Audit actions:** `finance_payout_recorded/voided/corrected`, `finance_statement_paid`.
+
+## Phase 7 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Feature/Finance/PayoutsTest.php` | **15 passed** |
+| `pest tests/Unit/Finance tests/Feature/Finance` | **203 passed** (1,460 assertions) |
+| Full suite `pest` | **3339 passed, 0 failed**, 52 risky (pre-existing); 2,259 s |
+
+The tests cover:
+- **Baseline:** base 12,050.00, company 7,230.00 (refused as a payee), crew payable **4,820.00** = 1,446 + 1,205 + 1,205 + 964. After all four payouts the statement is still Approved until the Owner marks it Paid; then it is Paid, the base is unchanged, and payouts total 4,820.00.
+- **Payout record fields:** statement, recipient, role, amount, date, GCash label, reference, recording Owner, audit row.
+- **Restrictions:** refused for For Review, Voided and Paid statements. Reference or evidence required; invalid method, future date and pre-period date refused. Evidence is stored privately with sha256, hidden from serialization, served to the Owner only, and frozen.
+- **Duplicates and concurrency:** idempotent replay, same key with different details refused, second payout for the same person refused, and the database unique index blocks a payout that bypasses the service.
+- **Reconciliation:** partial recording (remaining 2,169.00) cannot be marked Paid; the database refuses a direct status change; recording never marks Paid; double mark-Paid refused.
+- **Unallocated and company:** neither is payable (service, CHECK); an approved statement cannot be given an unallocated amount.
+- **Snapshot authority:** after a crew correction and a new 40/30/10/10/10 policy, the original driver is still paid 1,446.00 and the new driver has no earnings.
+- **Immutability:** payout amount, evidence and deletion are refused; voiding a Paid statement's payout is refused (service and trigger); a Paid statement's amounts, status and paid time cannot change; it cannot be voided; snapshot hash and integrity unchanged.
+- **Corrections:** reason required; the original is voided and kept (reference intact), the replacement is linked and exact, the history appears on the page.
+- **Printable statement:** reference, unit, period, booking, collections 15,000.00, expenses 2,950.00, base 12,050.00, company 7,230.00, personnel 4,820.00, unallocated 0.00, names, roles, 12% rate, amounts, Approved status, approver, payout reference; the PDF route returns a real PDF. An unapproved statement prints as "FOR REVIEW — NOT APPROVED … must not be paid" with no payout section.
+- **Pages and access:** Owner end-to-end (record four payouts, Mark Paid enabled only when reconciled, Paid shown). Five non-Owner roles get 403 on record, void, mark Paid, print, PDF and evidence, and the services refuse them.
+- **Phase 6 regression:** Driver, Rider and Crew Mate recorded from personnel records without login accounts.
+- **Updated earlier tests:** the Phase 1 payout tests now supply a transaction reference (now required).
+
 ## Open client decisions
 
 - Commission interpretation C1–C6 ([spec.md §6](spec.md#6-commission-pending-client-confirmation)).
@@ -333,6 +384,7 @@ The new tests cover:
   - *C3 empty roles:* the share stays unallocated (as instructed). To confirm: whether unallocated shares ever go to Company.
   - *C4 role mapping:* since Phase 6 the Owner records each person's performed role explicitly; the provisional slot mapping only applies to rows without a role, which block. Paying a Rider, a substitute, or one person in two roles each blocks until the policy records the client's answer (`rider_role`, `substitutes`, `combined_roles`). To confirm, including how a substitute who replaces the main driver is paid.
   - *C5 group trips:* each vehicle's allocated collection is the base for its unit. To confirm.
+  - *Payout distribution (Phase 7):* only one full payout per person per statement is supported. To confirm: whether partial disbursements (advances, instalments) or one combined payout for a group (for example to the Team Leader for the whole crew) are allowed, and how they are evidenced.
   - *C6 corrections after approval:* implemented in Phase 6 as void (with reason, original and snapshot kept) plus a re-issued draft revision for the same jobs. To confirm: whether corrections should instead be adjustments in a later week (relevant once payouts exist in Phase 7).
   - *Which date puts a job in a week:* implemented as the **service date**. A late payment makes the job wait, blocked, until verified. To confirm, including Sunday jobs (currently outside every week and reported as a notice).
 
@@ -341,6 +393,8 @@ The new tests cover:
 - The crew is stored only on `Unit` as live data, so per-job crew exists only where the Owner records it on the Job Crew page (Phase 6). Past jobs are not backfilled. Jobs & Collections never uses the current crew.
 - Recording a person as borrowed from another unit makes the job's revenue allocation "pending review" (Phase 4 rule: another unit appears to have helped), so a split must be recorded before that job can be approved.
 - A statement's figures are tied to the moment of calculation. Any later change to payments, expenses, deductions, crew or policy makes an open statement stale, and approval refuses it until it is recalculated. Approved statements never change; corrections go through void and re-issue.
+- A Paid statement is final: its payouts cannot be voided and it cannot be voided or corrected. A payout mistake must be corrected before marking Paid. Whether a reopening procedure is needed after Paid is a client decision.
+- Payout evidence files live on the private `local` disk under `finance/payouts/{statement}`; like expense evidence they are not in the database backups unless the storage folder is backed up.
 - The Phase 1 statement fixture `finDraftStatement` (manual lines) is still used by schema tests for draft-only behaviour; such a statement can no longer be approved because approval recalculates.
 - `ReportMetricsService` sums with floats. The Phase 4 consistency test shows its confirmed-revenue total equals the exact Jobs & Collections total for the tested cases. It was not changed.
 - **Existing Revenue page defect (found, not changed):** the "Cash Received" card sums `bookings.cash_received` over every vehicle row, but a group payment stores the same group cash on every vehicle row, so group cash is counted once per vehicle. Jobs & Collections reads it once per job. Fixing the Revenue page is outside this module and needs approval.

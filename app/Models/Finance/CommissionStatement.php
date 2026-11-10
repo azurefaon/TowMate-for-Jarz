@@ -20,12 +20,14 @@ class CommissionStatement extends Model
     public const STATUS_DRAFT = 'draft';
     public const STATUS_FOR_REVIEW = 'for_review';
     public const STATUS_APPROVED = 'approved';
+    public const STATUS_PAID = 'paid';
     public const STATUS_VOIDED = 'voided';
 
     public const STATUS_LABELS = [
         self::STATUS_DRAFT => 'Draft',
         self::STATUS_FOR_REVIEW => 'For Review',
         self::STATUS_APPROVED => 'Approved',
+        self::STATUS_PAID => 'Paid',
         self::STATUS_VOIDED => 'Voided',
     ];
 
@@ -62,6 +64,7 @@ class CommissionStatement extends Model
         'returned_at' => 'datetime',
         'approved_at' => 'datetime',
         'voided_at' => 'datetime',
+        'paid_at' => 'datetime',
         'approval_snapshot' => 'array',
     ];
 

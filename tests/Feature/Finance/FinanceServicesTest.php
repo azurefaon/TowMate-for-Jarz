@@ -268,12 +268,12 @@ it('records a payout equal to exact approved earnings, once per recipient, with 
         ->and($payout->fresh()->audit_log_id)->not->toBeNull()
         ->and(AuditLog::find($payout->fresh()->audit_log_id)->action)->toBe('finance_payout_recorded');
 
-    expect(fn () => $payouts->record($owner, $statement, "personnel:{$driver->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid()))
+    expect(fn () => $payouts->record($owner, $statement, "personnel:{$driver->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid(), 'ACK-0001'))
         ->toThrow(FinanceException::class, 'already recorded')
-        ->and(fn () => $payouts->record($owner, $statement, 'company', 'cash', now()->toDateTimeString(), (string) Str::uuid()))
+        ->and(fn () => $payouts->record($owner, $statement, 'company', 'cash', now()->toDateTimeString(), (string) Str::uuid(), 'ACK-0001'))
         ->toThrow(FinanceException::class, 'no approved earnings');
 
-    expect($payouts->record($owner, $statement, "user:{$teamLeader->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid())->amount)->toBe('100.00');
+    expect($payouts->record($owner, $statement, "user:{$teamLeader->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid(), 'ACK-0001')->amount)->toBe('100.00');
 
     // Earned stays separate from paid: commission lines are untouched by payouts.
     expect(\App\Models\Finance\CommissionLine::where('statement_id', $statement->id)->sum('amount'))->toEqual('1000.00')
@@ -286,7 +286,7 @@ it('cannot void a statement that has recorded payouts, but can after the payout 
     $statements = app(CommissionStatementService::class);
     $statement = $statements->approve($owner, $statement);
 
-    $payout = app(PayoutService::class)->record($owner, $statement, "personnel:{$driver->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid());
+    $payout = app(PayoutService::class)->record($owner, $statement, "personnel:{$driver->id}", 'cash', now()->toDateTimeString(), (string) Str::uuid(), 'ACK-0001');
 
     expect(fn () => $statements->void($owner, $statement, 'Wrong week'))->toThrow(FinanceException::class, 'Void the recorded payouts');
 

@@ -59,10 +59,11 @@ return [
         'personal_advance_reimbursement' => 'Personal advance reimbursement rules are pending client confirmation. No Team Leader debt is created.',
     ],
 
+    // Recording a payout never initiates a transfer; it records one the Owner already made.
     'payout_methods' => [
         'cash' => 'Cash',
         'gcash' => 'GCash',
-        'bank_transfer' => 'Bank transfer',
+        'bank_transfer' => 'Bank Transfer',
     ],
 
     // Expense evidence: private disk only, served through an authorised route.

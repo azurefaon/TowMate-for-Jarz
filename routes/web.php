@@ -309,12 +309,24 @@ Route::prefix('superadmin')
                 Route::post('/job-crew/entries/{entry}/confirm', [$crew, 'confirm'])->whereNumber('entry')->name('crew.confirm');
             });
 
+            // Phase 7: payout records (no transfers are made by TowMate).
+            $payouts = \App\Http\Controllers\SuperAdmin\Finance\PayoutController::class;
+            Route::middleware(['can:finance.payouts.record', 'throttle:30,1'])->group(function () use ($payouts) {
+                Route::post('/commission-statements/{statement}/payouts', [$payouts, 'store'])->whereNumber('statement')->name('payouts.store');
+                Route::post('/commission-statements/{statement}/mark-paid', [$payouts, 'markPaid'])->whereNumber('statement')->name('payouts.mark-paid');
+                Route::post('/payouts/{payout}/void', [$payouts, 'void'])->whereNumber('payout')->name('payouts.void');
+                Route::post('/payouts/{payout}/correct', [$payouts, 'correct'])->whereNumber('payout')->name('payouts.correct');
+            });
+
             // Phase 6: weekly commission statements (Draft → For Review → Approved).
             $statements = \App\Http\Controllers\SuperAdmin\Finance\CommissionStatementController::class;
             Route::middleware('can:finance.view')->group(function () use ($statements) {
                 Route::get('/commission-statements', [$statements, 'index'])->name('statements.index');
                 Route::get('/commission-statements/new', [$statements, 'create'])->name('statements.create');
                 Route::get('/commission-statements/{statement}', [$statements, 'show'])->whereNumber('statement')->name('statements.show');
+                Route::get('/commission-statements/{statement}/print', [$statements, 'print'])->whereNumber('statement')->name('statements.print');
+                Route::get('/commission-statements/{statement}/pdf', [$statements, 'pdf'])->whereNumber('statement')->name('statements.pdf');
+                Route::get('/payouts/{payout}/evidence', [\App\Http\Controllers\SuperAdmin\Finance\PayoutController::class, 'evidence'])->whereNumber('payout')->name('payouts.evidence');
             });
             Route::middleware(['can:finance.statements.prepare', 'throttle:30,1'])->group(function () use ($statements) {
                 Route::post('/commission-statements', [$statements, 'store'])->name('statements.store');

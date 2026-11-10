@@ -7,11 +7,15 @@ use App\Models\AuditLog;
 use App\Models\Finance\CommissionStatement;
 use App\Models\Unit;
 use App\Services\Finance\CommissionStatementService;
+use App\Services\DocumentGenerationService;
 use App\Services\Finance\FinanceException;
+use App\Services\Finance\PayoutService;
 use App\Support\Finance\FinanceAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -23,7 +27,11 @@ class CommissionStatementController extends Controller
 {
     use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
-    public function __construct(private readonly CommissionStatementService $statements)
+    public function __construct(
+        private readonly CommissionStatementService $statements,
+        private readonly PayoutService $payouts,
+        private readonly DocumentGenerationService $documents,
+    )
     {
     }
 
@@ -101,7 +109,49 @@ class CommissionStatementController extends Controller
             'integrity' => $model->approval_hash ? $this->statements->verifyIntegrity($model) : null,
             'corrections' => CommissionStatement::where('supersedes_statement_id', $model->id)->get(['id', 'reference_code', 'status']),
             'history' => AuditLog::where('entity_type', 'CommissionStatement')->where('entity_id', $model->id)->orderBy('id')->get(),
+            'payouts' => $model->approval_snapshot ? $this->payouts->reconciliation($model) : null,
+            'payoutKey' => (string) Str::uuid(),
         ]);
+    }
+
+    /** Printable statement for the browser (Print / Save as PDF). */
+    public function print(int $statement): View
+    {
+        $this->authorize(FinanceAccess::VIEW);
+
+        return view('documents.commission-statement', $this->documentData(CommissionStatement::findOrFail($statement)) + ['forPdf' => false]);
+    }
+
+    /** The same statement rendered to PDF by the existing TowMate document generator (Dompdf). */
+    public function pdf(int $statement): Response
+    {
+        $this->authorize(FinanceAccess::VIEW);
+        $model = CommissionStatement::findOrFail($statement);
+        $bytes = $this->documents->renderReportPdf('documents.commission-statement', $this->documentData($model) + ['forPdf' => true]);
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $model->reference_code . '.pdf"',
+            'Cache-Control' => 'private, no-store, max-age=0',
+        ]);
+    }
+
+    private function documentData(CommissionStatement $model): array
+    {
+        $model->loadMissing(['unit:id,name', 'policy', 'supersedes:id,reference_code']);
+        $final = in_array($model->status, [CommissionStatement::STATUS_APPROVED, CommissionStatement::STATUS_PAID, CommissionStatement::STATUS_VOIDED], true);
+
+        return [
+            'statement' => $model,
+            'final' => $final,
+            'calc' => $final ? ($model->approval_snapshot['calculation'] ?? []) : ($model->calculation['content'] ?? []),
+            'policy' => $final ? ($model->approval_snapshot['policy'] ?? null) : ($model->calculation['content']['policy'] ?? null),
+            'review' => $model->isOpen() ? $this->statements->review($model) : null,
+            'payouts' => $model->approval_snapshot ? $this->payouts->reconciliation($model) : null,
+            'settings' => $this->documents->documentSettings(),
+            'generatedAt' => now(),
+            'generatedBy' => auth()->user()?->full_name ?: auth()->user()?->name,
+        ];
     }
 
     public function recalculate(Request $request, int $statement): RedirectResponse
