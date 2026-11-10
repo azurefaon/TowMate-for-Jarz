@@ -16,7 +16,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-09 | Phase 1: database and authorization foundation | Done (`77ac792f`). See "Phase 1 verification" below |
 | 2026-11-10 | Phase 2: Unit Funds | Done (`42245cb9`). See "Phase 2 verification" below |
 | 2026-11-10 | Phase 3: Expenses and receipt review, plus the Phase 2 daily-funds correction | Backend, Owner page and Dispatcher page done (`96842391`). **Unfinished:** Team Leader mobile expense screen; browser visual check |
-| 2026-11-10 | Phase 4: Jobs & Collections | Done. See "Phase 4" below |
+| 2026-11-10 | Phase 4: Jobs & Collections | Done (`f01a4eb9`). See "Phase 4" below |
+| 2026-11-10 | Phase 5: Commission calculation (draft, read-only) | Done. See "Phase 5" below |
 
 ## Phases
 
@@ -45,18 +46,20 @@ Spec: [spec.md](spec.md).
   - A read-only `JobCollectionService` over bookings, invoices and payment transactions.
   - Unit revenue allocation, with an Owner split for multi-unit jobs.
   - A consistency test against the Revenue page.
-- [ ] **Phase 4b: Overview** (finance summary cards across modules). Not started.
-- [ ] **Phase 5: Job crew capture.**
-  - Write `finance_job_personnel` when payment is confirmed (an additive hook).
-  - A flagged backfill for past jobs.
-  - The Owner review of flagged rows.
-  - *The `commission_role` mapping needs C4.*
-- [ ] **Phase 6: Weekly Commission computation.**
-  - Generate revenue allocations and lines from the confirmed policy.
-  - The approve and payout screens.
-  - *Blocked by C1–C6.*
-- [ ] **Phase 7: Reports exports.**
-- [ ] **Phase 8: Verification and client walkthrough.**
+- [x] **Phase 5: Commission calculation.**
+  - `CommissionCalculator` is the one authoritative, read-only service.
+  - `finance_commission_deductions` holds non-expense deductions.
+  - The Owner page "Commission (Draft)" shows the breakdown and the blockers.
+- [ ] **Phase 6: Commission statement approval.** Persist a week's draft as a statement with lines, and approve it once there are no blockers (approval integrity already exists in `CommissionStatementService`).
+- [ ] **Phase 7: Payout recording.** Owner screens on top of the existing `PayoutService`.
+- [ ] **Phase 8: Overview page.**
+- [ ] **Later (not yet scheduled):** reports and exports; client walkthrough.
+
+### Open items carried forward (not complete)
+- [ ] **Team Leader mobile expense screen** (from Phase 3): Flutter UI for the `/api/v1/team-leader/expenses` endpoints.
+- [ ] **Browser visual verification** (from Phase 3): the Unit Funds, Expenses, Expense Review, Jobs & Collections and Commission (Draft) pages have only been verified through rendered-HTML tests.
+- [ ] **Existing Revenue page "Cash Received" duplication** (found in Phase 4, not fixed): group cash is summed once per vehicle row. Fixing it needs approval.
+- [ ] **Job crew capture is not implemented.** Nothing writes `finance_job_personnel` automatically yet: no hook at payment confirmation, no backfill, no Owner entry screen. Until it exists, every real job's commission is blocked with "no personnel recorded"; the calculator correctly refuses to invent people. Placement needs a decision (it must exist before Phase 6 approvals can succeed on real data).
 
 ## Phase 1 verification
 
@@ -194,6 +197,56 @@ No booking confirmation, payment verification or dispatch code was changed. No c
 - **Page and authorization:** the Owner page shows exact totals (2 bookings, 3 vehicles, 17,500 agreed, 15,000 collected, 2,500 outstanding); 5 non-Owner roles get 403 on view and split; guests are redirected.
 - **No writes and consistency:** viewing writes no payment, invoice, receipt or booking record. Dispatcher-confirmed collections equal the existing Revenue page total (12,100.00). Bookings are counted per job (2) where the Revenue page counts vehicle rows (3).
 
+## Phase 5: what was built
+
+**`CommissionCalculator::draft(weekStart, ?unitId, ?policy)`** is the one authoritative calculation. It is read-only: it writes no statement, line or payout.
+
+- **Lines:** for each job in the Monday–Saturday week (by service date) whose collection Jobs & Collections allocated to units, one line per (job, unit).
+  - **Sharing base = allocated verified collection − that unit's approved expenses for the job − that unit's approved deductions for the job.**
+  - Each expense and deduction belongs to one job and unit, so it is subtracted exactly once. Collections come from the Phase 4 allocation, so a multi-unit job's collection is never duplicated.
+  - Unit fund issuances and returns never enter the base.
+- **Shares:** every percentage applies to the same base (policy rates: Company 60 / Driver 12 / Team Leader 10 / Rider-Substitute 10 / Crew Mate 8). They are calculated with `Money::allocateByPercent` (half-up to the centavo, remainder to Company), so Company + crew + unallocated = base, exactly.
+- **People:** only `finance_job_personnel` rows for that job and unit. A role nobody held keeps its share **unallocated** (never redistributed). Two people in one role are shown split equally to the centavo, flagged pending C2. Unconfirmed role mappings use a provisional slot mapping (`driver_2` → Rider, `crew_member_*` → Crew Mate) and are flagged.
+- **Output:** the breakdown per line (collection, each expense, each deduction, base, Company, each role with recipients, unallocated, a reconciliation check), totals by role and by person, Sunday notices, jobs left out and why, and **blockers**. `can_approve` is true only with zero blockers and at least one line.
+- **Blockers:**
+
+  | Code | Meaning |
+  |---|---|
+  | `policy_for_client_review` | Policy not active and confirmed: Draft / For Client Review |
+  | `invalid_percentages` | Rates outside 0–100 or not totalling exactly 100 |
+  | `job_unfinished` | The job is not finished |
+  | `payment_not_verified`, `allocation_pending`, `not_allocated` | Payment incomplete or unverified; unit allocation unresolved |
+  | `expenses_pending` | Job expenses awaiting review |
+  | `monthly_allocation_pending` | A unit/monthly expense for the unit touches the week |
+  | `personal_advance_pending` | A personal advance in a job or unit expense |
+  | `no_personnel`, `missing_role`, `role_mapping_unresolved`, `shared_role_rule_pending`, `personnel_needs_review` | Personnel and role mapping |
+  | `non_positive_base` | Zero or negative sharing base |
+  | `deduction_pending`, `refund_unresolved`, `payment_fee_unresolved` | Unresolved deductions, refunds and fees; a live online payment needs an approved payment-fee deduction |
+
+**Deductions** (`finance_commission_deductions` + `CommissionDeductionService`, Owner-only ability `finance.deductions.manage`):
+- Types: payment fee, refund, damage, other. Recorded as pending review; only approved ones reduce the base.
+- Duplicates are refused by an idempotency key, by the service (same job, unit and type, plus the same reference, or the same amount when there is no reference), and by a partial unique index on reference.
+- Never deleted (trigger); void with a reason.
+
+**Owner page "Commission (Draft)"** (`/superadmin/finance/commission`): week and unit pickers, the Draft / For Client Review banner with the rates, six totals, the blocker list, a breakdown per job and unit, draft shares by person, the deductions list (approve or void), and the record-deduction form. It has no approve or pay controls (Phases 6 and 7).
+
+## Phase 5 verification
+
+| Check | Result |
+|---|---|
+| `pest tests/Feature/Finance/CommissionCalculationTest.php` | **21 passed** (126 assertions) |
+| `pest tests/Unit/Finance tests/Feature/Finance` | **168 passed** (971 assertions) |
+| Full suite `pest` | **3304 passed, 0 failed**, 52 risky (pre-existing); 1,350 s |
+
+The tests cover:
+- **Client baseline (exact):** collection 15,000.00; funds issued 3,000.00; diesel 1,700 + food 1,000 + toll/parking 250 = **2,950.00** expenses; **50.00** returned (unit balance 0.00); base **12,050.00**; Company **7,230.00**, Driver **1,446.00**, Team Leader **1,205.00**, Rider **1,205.00**, Crew Mate **964.00**; crew total **4,820.00**; reconciles; no blockers under a confirmed policy. The base and Company share are identical before and after the 50.00 return.
+- **Missing people:** under the seeded draft policy the result is "Draft / For Client Review" with the only blocker `policy_for_client_review`. An absent rider leaves 1,205.00 **unallocated**, nobody else gets more, and the line still reconciles to 12,050.00. No personnel recorded means no invented people (even with a booking TL and driver), all crew shares unallocated, and blocked. An unmapped role is shown provisionally and blocked.
+- **Blockers:** a partial payment is left out of the calculation and blocked. A pending expense blocks and is not deducted. A monthly maintenance expense blocks and stays out of the base. A personal advance blocks and is counted once. A zero base (and a −100.00 base) blocks with no shares. Invalid percentages (sum 99, or a negative rate) block with no shares.
+- **Two units:** a group trip of 10,000 + 5,000 with expenses of 1,000 and 500 gives two independent lines (bases 9,000 / 4,500; Company 5,400 / 2,700). Collections total 15,000.00 once, expenses 1,500.00 once; the unit filter works.
+- **Rounding:** 1,000.01, 1,234.57, 9,999.99 − 0.02, and 0.03 all reconcile to the centavo. A shared crew-mate role splits exactly.
+- **Deductions:** replay is idempotent; duplicate by reference and duplicate by amount are refused; the database index rejects duplicates too; pending blocks and is not deducted; approved deducts once (base 14,500.00). A live online payment blocks until an approved payment-fee deduction exists (base 9,750.00).
+- **Page and access:** the Owner page shows base 12,050 / Company 7,230 / crew 4,820 and the Draft blocker, and writes no statement, line or payout. Five non-Owner roles get 403 on the page and on deductions; the service refuses them too.
+
 ## Open client decisions
 
 - Commission interpretation C1–C6 ([spec.md §6](spec.md#6-commission-pending-client-confirmation)).
@@ -203,7 +256,15 @@ No booking confirmation, payment verification or dispatch code was changed. No c
 - **Evidence exemptions:** every expense currently needs evidence before verification and approval (enforced by a DB trigger). If the client wants exemptions (for example, a toll with no receipt), that needs a rule decision and a migration.
 - **Sunday activity (minor):** reporting weeks are Monday–Saturday. Sunday-dated entries count in balances and carry into the next week; the default view includes today when today is Sunday. Jobs & Collections flags Sunday service and late payments. Which week Sunday belongs to in reports still needs confirming.
 - **Multi-unit revenue (new):** when another unit helps on a one-booking job, or a job is only partly paid, the allocation stays pending until the Owner records a split. Whether a standard rule should apply to an approved scenario (for example, a fixed share for assistance) is the client's decision. Splitting a group trip by hand is not supported yet (group vehicles are allocated to their own units).
-- **Refunds and provider fees (new):** TowMate does not record refunds or PayMongo fees. Collections are shown gross, and transactions flagged for refund review are marked. How refunds and fees should be recorded is a client and accounting decision.
+- **Refunds and provider fees:** TowMate does not record refunds or PayMongo fees automatically. Since Phase 5 they can be entered as commission deductions (pending review, then approved). Whether fees and refunds should reduce the sharing base at all, and who bears them, is part of C1.
+- **Commission (Phase 5), all Draft / For Client Review:**
+  - *C1 sharing base:* implemented as allocated verified collection − approved job expenses − approved deductions, with **all expense categories and funding sources** (company-paid and personal advances included) treated as job costs. To confirm: whether VAT is excluded first, and whether any category is excluded.
+  - *C2 shared roles:* two people in one role are shown splitting one share equally. To confirm: pool vs per person.
+  - *C3 empty roles:* the share stays unallocated (as instructed). To confirm: whether unallocated shares ever go to Company.
+  - *C4 role mapping:* provisional `driver_2` → Rider/Substitute, `crew_member_*` → Crew Mate. To confirm, including how a substitute who replaces the main driver is recorded.
+  - *C5 group trips:* each vehicle's allocated collection is the base for its unit. To confirm.
+  - *C6 corrections after approval:* not yet relevant (approval is Phase 6).
+  - *Which date puts a job in a week:* implemented as the **service date**. A late payment makes the job wait, blocked, until verified. To confirm, including Sunday jobs (currently outside every week and reported as a notice).
 
 ## Known risks and notes
 

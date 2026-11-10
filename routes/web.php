@@ -288,6 +288,14 @@ Route::prefix('superadmin')
             Route::post('/jobs-collections/{booking}/split', [$collections, 'split'])->whereNumber('booking')
                 ->middleware(['can:finance.revenue.allocate', 'throttle:30,1'])->name('collections.split');
 
+            $commission = \App\Http\Controllers\SuperAdmin\Finance\CommissionController::class;
+            Route::get('/commission', [$commission, 'index'])->middleware('can:finance.view')->name('commission.index');
+            Route::middleware(['can:finance.deductions.manage', 'throttle:30,1'])->group(function () use ($commission) {
+                Route::post('/commission/deductions', [$commission, 'storeDeduction'])->name('commission.deductions.store');
+                Route::post('/commission/deductions/{deduction}/approve', [$commission, 'approveDeduction'])->whereNumber('deduction')->name('commission.deductions.approve');
+                Route::post('/commission/deductions/{deduction}/void', [$commission, 'voidDeduction'])->whereNumber('deduction')->name('commission.deductions.void');
+            });
+
             $expenses = \App\Http\Controllers\SuperAdmin\Finance\ExpenseController::class;
             Route::middleware('can:finance.view')->group(function () use ($expenses) {
                 Route::get('/expenses', [$expenses, 'index'])->name('expenses.index');

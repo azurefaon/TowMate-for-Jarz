@@ -95,7 +95,14 @@ These rules hold even for raw SQL or tinker. Laravel `migrate:fresh` still works
 
 ## 6. Commission (pending client confirmation)
 
-Initial rates: **Company 60%, Driver 12%, Team Leader 10%, Rider 10%, Crew Mate 8%** (total 100%).
+Initial rates: **Company 60%, Driver 12%, Team Leader 10%, Rider / Substitute 10%, Crew Mate 8%** (total 100%).
+
+**Implemented in Phase 5 (`CommissionCalculator`, read-only, Draft / For Client Review):**
+- Sharing base per job and unit = allocated verified collection − that unit's approved job expenses − that unit's approved deductions (`finance_commission_deductions`). Each is counted once.
+- Unit fund issuances and returns never enter the base. Unit/monthly expenses are not applied; they block approval.
+- All percentages apply to the same base. Rounding is half-up per share with the remainder to Company, so shares always sum to the base.
+- Missing roles keep their share unallocated (never redistributed). People come only from `finance_job_personnel`.
+- Approval is blocked by any blocker (listed in progress.md, "Phase 5"). Worked baseline: 15,000 − 2,950 = 12,050 → 7,230 / 1,446 / 1,205 / 1,205 / 964.
 Policy v1 stays a draft until these questions are answered. Statements cannot be approved under an unconfirmed policy (this is enforced in `CommissionStatementService::approve` and by the DB CHECK `fcp_active_confirmed`).
 
 | # | Open interpretation question | Blocks |
@@ -144,6 +151,7 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
 | `finance.expenses.submit` | Team Leader (own unit only, checked in the service) and Owner |
 | `finance.expenses.verify` | Dispatcher (a Dispatcher may also reject at this step) |
 | `finance.revenue.allocate` (Phase 4) | **Owner only**: record a unit revenue split |
+| `finance.deductions.manage` (Phase 5) | **Owner only**: record, approve or void commission deductions |
 
 Every finance service method calls `Gate::forUser($actor)->authorize(...)`, so a future controller cannot skip the check. Phase 2 routes will sit under `/superadmin/finance/*` (`role:1`) and also use `can:` middleware.
 
