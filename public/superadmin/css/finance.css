@@ -289,3 +289,33 @@
     #ownerClientReview .fin-table td { display: block; width: auto !important; padding-left: 0; }
     #ownerClientReview .fin-table th { padding-bottom: 0; border-bottom: 0; }
 }
+
+/* ---------- Live filters: booking search box (matches the Finance filter selects) ---------- */
+.superadmin-shell .fin-page input.fin-search {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 220px;
+    height: 44px;
+    padding: 0 14px 0 38px;
+    border: 1px solid #e5e5e5 !important;           /* neutral grey, like the selects */
+    border-radius: 8px;
+    background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") no-repeat 13px center;
+    color: var(--ob-text, #171717);
+    font: inherit;
+    font-size: 14px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.superadmin-shell .fin-page input.fin-search::placeholder { color: #737373; }
+.superadmin-shell .fin-page input.fin-search:focus,
+.superadmin-shell .fin-page input.fin-search:focus-visible {
+    border-color: #171717 !important;               /* solid black while focused or typing; no yellow outline */
+    box-shadow: 0 0 0 1px #171717;
+    outline: none;
+}
+.fin-live-status { margin: 8px 0 0; min-height: 0; font-size: 12px; color: var(--ob-body, #525252); }
+.fin-live-status:empty { display: none; }
+.fin-live-region { transition: opacity .15s ease; }
+.fin-live-region.is-loading { opacity: .55; pointer-events: none; }
+@media (max-width: 640px) {
+    .superadmin-shell .fin-page input.fin-search { min-width: 0; }
+}
