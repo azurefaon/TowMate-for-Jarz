@@ -40,8 +40,10 @@
         });
     }
 
-    function initOnce() {
-        document.querySelectorAll('form[data-fin-once]').forEach(function (form) {
+    function initOnce(root) {
+        (root || document).querySelectorAll('form[data-fin-once]').forEach(function (form) {
+            if (form.dataset.finOnceBound === '1') { return; }
+            form.dataset.finOnceBound = '1';
             form.addEventListener('submit', function (event) {
                 if (event.defaultPrevented) { return; }
                 if (form.dataset.submitted === '1') { event.preventDefault(); return; }
@@ -142,4 +144,7 @@
         initOnce();
         document.querySelectorAll('[data-fin-expense-form]').forEach(initExpenseForm);
     });
+
+    // Live filters replace part of the page; bind the double-submit guard on the new forms.
+    document.addEventListener('fin:region-updated', function (event) { initOnce(event.target); });
 })();

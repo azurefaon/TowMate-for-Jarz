@@ -27,7 +27,7 @@
 
         @include('superadmin.finance._flashes')
 
-        <form method="GET" action="{{ route('superadmin.finance.collections.index') }}" class="oa-card oa-filter-card fin-filters" role="search">
+        <form method="GET" action="{{ route('superadmin.finance.collections.index') }}" class="oa-card oa-filter-card fin-filters" role="search" id="jcFilters" data-fin-live data-fin-target="#jcResults">
             <div class="oa-filters">
                 <div class="oa-field">
                     <label for="jcUnit">Unit</label>
@@ -40,7 +40,8 @@
                 </div>
                 <div class="oa-field">
                     <label for="jcBooking">Booking</label>
-                    <input id="jcBooking" type="text" name="booking" class="oa-select" value="{{ $filters['booking'] }}" placeholder="Booking or group code">
+                    <input id="jcBooking" type="search" name="booking" class="fin-search" value="{{ $filters['booking'] }}" placeholder="Booking or group code, e.g. TM-00148"
+                           autocomplete="off" spellcheck="false" maxlength="40" aria-describedby="jcLiveStatus" data-fin-live-search>
                 </div>
                 <div class="oa-field">
                     <label for="jcStatus">Collection status</label>
@@ -81,12 +82,15 @@
                     <span class="oa-field-label">Period</span>
                     <div style="display:flex; gap:12px; flex-wrap:wrap;">
                         @include('superadmin.analytics._range', ['label' => $periodLabel, 'from' => $from->toDateString(), 'to' => $to->toDateString()])
-                        <button type="submit" class="oa-btn oa-btn--primary">Apply</button>
+                        <noscript><button type="submit" class="oa-btn oa-btn--primary">Apply</button></noscript>
                         <a href="{{ route('superadmin.finance.collections.index') }}" class="oa-btn">This week</a>
                     </div>
                 </div>
             </div>
+            <p class="fin-live-status" id="jcLiveStatus" role="status" aria-live="polite" data-fin-live-status></p>
         </form>
+
+        <div id="jcResults" class="fin-live-region" aria-busy="false">
 
         <div class="oa-kpis oa-kpis--six" style="--oa-kpi-count: 6;">
             <div class="oa-kpi">
@@ -304,13 +308,19 @@
                 </div>
                 <div class="fin-pager">{{ $jobs->links() }}</div>
             @else
-                <div class="oa-empty">No jobs match these filters.</div>
+                <div class="oa-empty" data-jc-empty>
+                    No bookings match these filters.
+                    @if ($filters['booking']) No booking or group code contains “{{ $filters['booking'] }}”. @endif
+                    Clear the search or change a filter to see more.
+                </div>
             @endif
         </section>
+        </div>
     </div>
 @endsection
 
 @push('scripts')
     <script src="{{ asset('superadmin/js/analytics.js') }}?v={{ filemtime(public_path('superadmin/js/analytics.js')) }}" defer></script>
     <script src="{{ asset('superadmin/js/finance.js') }}?v={{ filemtime(public_path('superadmin/js/finance.js')) }}" defer></script>
+    <script src="{{ asset('superadmin/js/finance-live-filters.js') }}?v={{ filemtime(public_path('superadmin/js/finance-live-filters.js')) }}" defer></script>
 @endpush

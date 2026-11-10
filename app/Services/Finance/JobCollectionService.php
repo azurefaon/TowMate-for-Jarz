@@ -597,9 +597,13 @@ class JobCollectionService
             }
         }
         if (! empty($f['booking'])) {
-            $needle = mb_strtolower($f['booking']);
-            $haystack = collect($job['members'])->pluck('booking_code')->push($job['group_code'])->filter()->map(fn ($v) => mb_strtolower($v));
-            if (! $haystack->contains(fn ($v) => str_contains($v, $needle))) {
+            // Booking reference or group code, ignoring case, spaces, hyphens and "#" ("tm00148" finds "TM-00148").
+            // Every member's own group code counts, even when the group is not a normalized group trip.
+            $normalize = fn (?string $v) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $v));
+            $needle = $normalize($f['booking']);
+            $haystack = collect($job['members'])->flatMap(fn ($m) => [$m->booking_code, $m->group_code])->push($job['group_code'])
+                ->filter()->map($normalize)->filter()->unique();
+            if ($needle !== '' && ! $haystack->contains(fn ($v) => str_contains($v, $needle))) {
                 return false;
             }
         }
