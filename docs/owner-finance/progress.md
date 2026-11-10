@@ -23,7 +23,8 @@ Spec: [spec.md](spec.md).
 | 2026-11-10 | Phase 8: Finance Overview, UI completion, Team Leader expense screen, Revenue cash fix | Done (`f6d3e273`). See "Phase 8" below. Live click-through and on-phone checks remain on the manual checklist |
 | 2026-11-10 | Phase 9: Finance Reports and exports (page, print/PDF, Excel) | Done (`4f25a175`). See "Phase 9" below |
 | 2026-11-10 | Phase 10: Demo environment and Client Review | Done (`5effc13b`). See "Phase 10" below |
-| 2026-11-10 | Phase 11: Final integration and QA | Done. See "Phase 11" (acceptance matrix) below |
+| 2026-11-10 | Phase 11: Final integration and QA | Done (`f569c045`). See "Phase 11" (acceptance matrix) below |
+| 2026-11-10 | Phase 12: Staging preparation and handoff | Done. See [handoff.md](handoff.md) and "Phase 12" below. Ready for staging review; real approvals blocked by pending client decisions |
 
 ## Phases
 
@@ -69,6 +70,8 @@ Spec: [spec.md](spec.md).
   - Finance Overview (actual collections, expenses, unit funds, draft commission, approved commission and payouts, needs attention), unit and period filters.
   - UI review with fixes from real browser renders; Team Leader expense screen (Flutter); Revenue "Cash Received" group duplication fixed.
 - [x] **Phase 9: Finance Reports and exports.** Report page with period, unit, personnel, payment, expense and statement filters; printable report / PDF and Excel from one data set.
+- [x] **Phase 11: Final integration and QA.** Acceptance matrix below; 4 defects fixed and re-tested.
+- [x] **Phase 12: Staging preparation and handoff.** [handoff.md](handoff.md): ERD, routes and permissions, calculation rules, demo setup, Owner guide, client demo checklist, decisions, deployment and rollback.
 - [x] **Phase 10: Demo environment and Client Review.** Isolated `*_demo` database with six scenarios built through the real services, a guarded reset, simulated payouts, and a Client Review register with a downloadable summary.
 
 ### Open items carried forward (not complete)
@@ -624,6 +627,20 @@ The tests cover:
 | `flutter analyze --no-pub` | 0 errors, 0 warnings; 27 infos (pre-existing, none in Finance files) |
 | `flutter test --no-pub` | **1,560 passed** |
 | Browser QA (headless Chrome) | run 1: 23 / 26; **run 2: 26 / 26** |
+
+## Phase 12: staging preparation and handoff
+
+- **[handoff.md](handoff.md)** contains:
+  - status and database migrations, with an ERD (Mermaid)
+  - every Finance screen, route, permission and integration
+  - the exact calculation and reconciliation rules
+  - demo setup and reset instructions
+  - a short Owner usage guide and a 10-step client demonstration checklist
+  - the remaining client decisions and the actions each blocks, plus how to enable real approvals once answered
+  - migration, environment, private-storage (Railway volume) and rollback notes
+  - what is verified and what is not
+- **Final verification after the last code change:** `pest tests/Feature/Finance tests/Unit/Finance` + Revenue regression + sidebar test: **260 passed** (1,978 assertions). `php artisan finance:demo-reset --env=demo --force` rebuilt `towmate_finance_demo` cleanly. The last full suite (3,374 passed) ran on the same code; Phase 12 changed only documentation.
+- **The demo database is left freshly reset** for review (Owner `demo.owner@towmate.test`; password is `FINANCE_DEMO_PASSWORD` in the local, git-ignored `.env.demo`). The QA demo server was stopped.
 
 ## Open client decisions
 

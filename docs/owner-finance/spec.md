@@ -1,5 +1,7 @@
 # Owner Finance and Commission Module — Specification
 
+> Programmer handoff, ERD, routes, demo and deployment notes: [handoff.md](handoff.md). Progress and test evidence: [progress.md](progress.md).
+
 Status: Phase 1 (database and authorization foundation) implemented on branch `feat/owner-finance`. Last updated: 2026-11-09.
 Items marked **[CLIENT DECISION]** are commission interpretation questions that still need the client's confirmation.
 
@@ -142,6 +144,8 @@ Already decided and implemented: the week (Mon–Sat), the rounding rule (half-u
   - `UnitFundLedger` deducts only approved `unit_fund` splits.
 - **Job Crew** (built in Phase 6, `/superadmin/finance/job-crew`): record who actually worked each completed job per unit and performed role; correct or remove with a reason; confirm flagged rows; booking, loan and roster information is shown as supporting information only.
 - **Weekly Commission**: preview (Phase 5, `/superadmin/finance/commission`); statements (Phase 6, `/superadmin/finance/commission-statements`): choose a week and unit, select jobs, Draft → For Review → Approved, void or correct; payouts (Phase 7, on the statement page): record each person's full approved payout (Cash, GCash, Bank Transfer; reference or evidence), void or correct with history, Mark Paid when reconciled; printable statement (`/print`, `/pdf`). TowMate never transfers money.
+- **Client Review** (built in Phase 10, `/superadmin/finance/client-review`): pending client decisions (CR-001 … CR-011), requested revisions and remarks, with an audited status history and a PDF summary. Recording an answer never changes a policy.
+- **Demo** (built in Phase 10): `php artisan finance:demo-reset --env=demo` on a separate `*_demo` database; six scenarios through the real services; a labelled demo stand-in policy that the services refuse outside demo and test databases.
 - **Reports** (built in Phase 9, `/superadmin/finance/reports`, `FinanceReportService`, `FinanceReportWorkbook`): filters for period (Asia/Manila; default Monday–Saturday), unit, historical personnel, payment, expense and statement status. Sections: bookings and vehicles (separate counts), agreed charges, verified collections, outstanding, unit allocations, items for review (Sunday, late, unsettled, blockers), expenses by category, unit and status with funding sources, unit funds with carried-forward opening balances, draft commission (labelled Draft / Pending Client Confirmation), approved commission from frozen snapshots, and recorded payouts. One data set drives the page, the printable report (`/print`), the PDF (`/pdf`, existing Dompdf generator) and the Excel workbook (`/excel`, PhpSpreadsheet with the existing formula-injection guard).
 
 ## 8. Authorization (implemented)
