@@ -432,7 +432,8 @@ it('agrees with the existing Revenue page on Dispatcher-confirmed revenue', func
     jcGroup([[$unit, '5000.00'], [$unit, '5000.00']], 'confirmed', fee: '300.00');
     jcBooking($unit, '999.00', 'submitted');   // not confirmed: excluded by both
 
-    $start = jcNow()->startOfDay();
+    // Fixtures are dated three hours ago, which is yesterday just after midnight: include yesterday.
+    $start = jcNow()->subDay()->startOfDay();
     $end = jcNow()->endOfDay();
     $ours = app(JobCollectionService::class)->totals(app(JobCollectionService::class)->jobs($start, $end, ['basis' => 'payment']));
     $revenuePage = app(\App\Services\ReportMetricsService::class)->revenueSummary($start, $end);

@@ -680,3 +680,14 @@ The tests cover:
 - `cash_received` is the cash tendered, not the amount collected.
 - The finance tables use FK `RESTRICT` to bookings and units. `UnitController::forceDelete` now refuses units with finance history. The dev seeding commands (`SeedTlDemo*`, `SeedQuotationTestScenarios`) delete bookings and would be blocked only if those bookings had finance rows, which they never do.
 - The migration `down()` drops the finance tables. It is for development rollback only and must never be run against real data.
+
+## Client notes of 2026-11-12 (after release)
+
+| Client note | Status |
+|---|---|
+| Record of drivers: number towed per week | **Built (local branch `feat/finance-driver-records`, not released):** Finance → Driver Records shows completed jobs and vehicles towed per person per Monday–Saturday week, from the Owner's Job Crew records. Production bookings store no driver (0 of 37 completed jobs), so a job counts only after its crew is recorded; unrecorded jobs are listed. |
+| Performance history of drivers | **Built (same branch):** per-person history (jobs, vehicles, weeks active, first and latest job, each job with unit, role and customer payment status). |
+| Expenses should be recorded for the computation of commission | **Already live:** approved job expenses reduce the sharing base (base = allocated verified collection − approved job expenses − approved deductions). |
+| Commission should be computed based on the number of complete jobs | **Not changed; needs the client's meaning.** Today only completed, fully paid jobs enter the commission, as percentages of each job's sharing base. A fixed amount per completed job would be a different formula and is a client decision. |
+
+Also fixed a test-only midnight boundary in `JobsCollectionsTest` (fixtures dated three hours ago fell on "yesterday" between 00:00 and 03:00 Manila time).
