@@ -710,4 +710,11 @@ The midnight-sensitive `JobsCollectionsTest` case now freezes the clock at Manil
 
 Confirmed: percentage-based commission per completed, fully paid job, aggregated per crew member and towing unit per week. Not confirmed: the rates themselves (policy v1 stays a draft), C1–C6, the Rider / substitute / shared / combined role rules, Sunday's week, monthly allocation and personal advances.
 
-Audit result: no code change needed. One line per job and unit (`CommissionCalculator::line`); weekly totals, Commission (Draft) by unit, Driver Records and statements only sum those lines. Jobs that are not fully paid appear in the draft with the `payment_not_verified` blocker and cannot be approved. Note: Driver Records shows the draft share for such a job too (computed on what was collected so far), next to its payment status; it is a preview, not an eligible amount.
+Audit result: no code change needed. One line per job and unit (`CommissionCalculator::line`); weekly totals, Commission (Draft) by unit, Driver Records and statements only sum those lines. Jobs that are not fully paid appear in the draft with the `payment_not_verified` blocker and cannot be approved. Driver Records was then corrected so it never shows such a share as earned (see below).
+
+### Driver Records commission display (2026-11-12)
+
+- Completed-job and vehicle counts follow recorded work whatever the payment status; unfinished jobs are not counted. Partially paid and unpaid jobs stay in each person's history.
+- Commission column, from the authoritative `JobCollectionService` status: **paid** → the calculator's draft share; **partial** → "Pending Collection"; **unpaid / awaiting verification / completed but unverified** → "Awaiting Payment"; over-collected → "Under review".
+- Weekly, per-person and page draft totals add fully paid jobs only. Pending Collection and Awaiting Payment jobs are counted separately (KPI note, weekly "not fully paid" count).
+- No change to `CommissionCalculator`, the rates, bookings or payment verification. The Commission (Draft) page still previews blocked lines (it shows the `payment_not_verified` blocker); statements cannot be approved with them.
