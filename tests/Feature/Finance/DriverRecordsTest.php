@@ -128,3 +128,70 @@ it('lets only the Owner open Driver Records', function () {
     auth()->logout();
     $this->get(route('superadmin.finance.driver-records.index'))->assertRedirect();
 });
+
+/** A finished tow (Team Leader submitted) whose customer payment is not yet verified in full. */
+function drvUnpaidBooking($unit, string $total, ?string $onlinePaid = null): Booking
+{
+    $booking = finServicedBooking($unit, $total, ['status' => 'waiting_verification', 'completed_at' => null, 'payment_method' => 'gcash', 'cash_received' => null]);
+    if ($onlinePaid !== null) {
+        \App\Models\PaymentTransaction::create([
+            'provider' => 'paymongo', 'reference' => 'TM-' . Str::upper(Str::random(10)), 'payable_type' => 'booking', 'payable_id' => $booking->id,
+            'booking_id' => $booking->id, 'customer_id' => $booking->customer_id, 'method' => 'gcash',
+            'amount_centavos' => (int) bcmul($onlinePaid, '100', 0), 'status' => 'paid', 'livemode' => true, 'paid_at' => finLastWeek()->addDays(2)->setTime(12, 0),
+        ]);
+    }
+
+    return $booking->fresh();
+}
+
+it('counts paid, partially paid and unpaid completed jobs as work but adds commission only for fully paid jobs', function () {
+    $owner = finOwner();
+    $unit = finUnit();
+    $ana = finPersonnel('driver');
+    $paid = finServicedBooking($unit, '1000.00');
+    $partial = drvUnpaidBooking($unit, '2000.00', '800.00');
+    $unpaid = drvUnpaidBooking($unit, '3000.00');
+    $unfinished = finServicedBooking($unit, '4000.00', ['status' => 'in_progress', 'completed_at' => null, 'completion_requested_at' => null, 'payment_submitted_at' => null]);
+    foreach ([$paid, $partial, $unpaid] as $job) {
+        drvRecord($owner, $job, $unit, $ana);
+    }
+
+    // The Owner allocates the partial 800.00 to the unit, so the calculator DOES produce a (blocked) line with a share for it.
+    app(\App\Services\Finance\JobCollectionService::class)->recordSplit($owner, $partial, [$unit->id => '800.00']);
+
+    $calc = app(\App\Services\Finance\CommissionCalculator::class)->draft(finLastWeek(), $unit->id);
+    $share = fn ($booking) => collect(collect($calc['lines'])->firstWhere('booking_id', $booking->id)['roles']['driver']['recipients'] ?? [])->first()['amount'] ?? null;
+    $paidShare = $share($paid);
+    expect($share($partial)?->toString())->toBe('96.00');   // 12% of 800.00: exists in the calculator, must not be earned here
+
+    $d = drvBuild();
+    $person = $d['people']["personnel:{$ana->id}"];
+    $week = $person['weeks'][finLastWeek()->toDateString()];
+    $history = collect($person['history'])->keyBy('booking_id');
+
+    // Completed-job and vehicle counts follow recorded work, whatever the payment status; unfinished work is not counted.
+    expect($person['jobs'])->toBe(3)->and($person['vehicles'])->toBe(3)->and($week['jobs'])->toBe(3)
+        ->and($d['totals']['completed_jobs'])->toBe(3)
+        ->and($history->has($unfinished->id))->toBeFalse()
+        // Paid: the calculator's draft share. Partial: Pending Collection. Unpaid: Awaiting Payment.
+        ->and($history[$paid->id]['commission_state'])->toBe('eligible')->and($history[$paid->id]['draft']->toString())->toBe($paidShare->toString())
+        ->and($history[$partial->id]['commission_state'])->toBe('pending_collection')->and($history[$partial->id]['draft'])->toBeNull()
+        ->and($history[$partial->id]['draft_note'])->toBe('Pending Collection')
+        ->and($history[$unpaid->id]['commission_state'])->toBe('awaiting_payment')->and($history[$unpaid->id]['draft'])->toBeNull()
+        ->and($history[$unpaid->id]['draft_note'])->toBe('Awaiting Payment')
+        // Weekly, personal and page totals hold the fully paid job only; the others are counted separately.
+        ->and($week['draft']->toString())->toBe($paidShare->toString())
+        ->and($person['draft']->toString())->toBe($paidShare->toString())
+        ->and($d['totals']['draft']->toString())->toBe($paidShare->toString())
+        ->and($week['pending_collection'])->toBe(1)->and($week['awaiting_payment'])->toBe(1)
+        ->and($d['totals'])->toMatchArray(['paid_jobs' => 1, 'pending_collection' => 1, 'awaiting_payment' => 1]);
+
+    $q = ['from' => finLastWeek()->toDateString(), 'to' => finLastWeek()->addDays(5)->toDateString(), 'person' => "personnel:{$ana->id}"];
+    $this->actingAs($owner)->get(route('superadmin.finance.driver-records.index', $q))->assertOk()
+        ->assertSee('data-dr-job="' . $partial->booking_code . '"', false)->assertSee('data-dr-job="' . $unpaid->booking_code . '"', false)
+        ->assertSee('data-dr-commission-state="pending_collection"', false)->assertSee('Pending Collection')
+        ->assertSee('data-dr-commission-state="awaiting_payment"', false)->assertSee('Awaiting Payment')
+        ->assertSee('data-dr-total="draft">' . $paidShare->format() . '<', false)
+        ->assertSee('1 pending collection · 1 awaiting payment')
+        ->assertDontSee('data-dr-job="' . $unfinished->booking_code . '"', false);
+});

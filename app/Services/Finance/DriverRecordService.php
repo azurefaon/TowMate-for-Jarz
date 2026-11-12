@@ -16,8 +16,10 @@ use Carbon\CarbonImmutable;
  *
  * Jobs come from JobCollectionService (service date): a group trip is one job with several vehicles. Draft
  * commission comes from CommissionCalculator (through FinanceOverviewService::draftCommission); nothing is
- * calculated here. A job has a draft amount only when the calculator produced a line for it (verified, fully paid
- * and allocated to the unit). Weeks start on Monday; a Sunday job is shown in the week of the Monday before it.
+ * calculated here. Only a completed, FULLY PAID job (authoritative JobCollectionService status 'paid') shows and adds
+ * its draft amount. A partially paid job shows "Pending Collection", an unpaid or unverified one "Awaiting Payment":
+ * they still count as completed work but never add to the commission totals. Unfinished jobs are not counted at all.
+ * Weeks start on Monday; a Sunday job is shown in the week of the Monday before it.
  */
 class DriverRecordService
 {
@@ -80,12 +82,15 @@ class DriverRecordService
                     ? collect($job['units'])->filter(fn ($u) => $unitIds->isEmpty() || $unitIds->contains($u['unit_id']))->count()
                     : (int) $job['vehicles'];
                 $pending = $rows->contains(fn (JobPersonnel $r) => $r->isPending());
-                $amount = $draft[$job['key']][$key] ?? null;
+                // Draft commission only for a fully paid job; partial and unpaid jobs stay visible but earn nothing yet.
+                $commissionState = CommissionEligibility::state($job['status']);
+                $eligible = $commissionState === CommissionEligibility::ELIGIBLE;
+                $amount = $eligible ? ($draft[$job['key']][$key] ?? null) : null;
 
                 $people[$key] ??= ['key' => $key, 'name' => $rows->first()->name_snapshot, 'roles' => [], 'units' => [], 'weeks' => [],
-                    'jobs' => 0, 'confirmed_jobs' => 0, 'pending_jobs' => 0, 'vehicles' => 0, 'draft' => Money::zero(), 'first' => null, 'last' => null, 'history' => []];
+                    'jobs' => 0, 'confirmed_jobs' => 0, 'pending_jobs' => 0, 'vehicles' => 0, 'draft' => Money::zero(), 'pending_collection' => 0, 'awaiting_payment' => 0, 'under_review' => 0, 'first' => null, 'last' => null, 'history' => []];
                 $p = &$people[$key];
-                $p['weeks'][$week] ??= ['jobs' => 0, 'vehicles' => 0, 'pending' => 0, 'draft' => Money::zero()];
+                $p['weeks'][$week] ??= ['jobs' => 0, 'vehicles' => 0, 'pending' => 0, 'draft' => Money::zero(), 'pending_collection' => 0, 'awaiting_payment' => 0, 'under_review' => 0];
                 $p['jobs']++;
                 $p['vehicles'] += $vehicles;
                 $p['weeks'][$week]['jobs']++;
@@ -95,6 +100,10 @@ class DriverRecordService
                     $p['weeks'][$week]['pending']++;
                 } else {
                     $p['confirmed_jobs']++;
+                }
+                if ($commissionState !== 'eligible') {
+                    $p[$commissionState]++;
+                    $p['weeks'][$week][$commissionState]++;
                 }
                 if ($amount) {
                     $p['draft'] = $p['draft']->plus($amount);
@@ -114,9 +123,9 @@ class DriverRecordService
                     'unit' => $rows->pluck('unit.name')->filter()->unique()->implode(', '), 'role' => $rows->map->roleLabel()->unique()->implode(', '),
                     'substitute' => (bool) $rows->contains(fn ($r) => $r->is_substitute || $r->borrowed_from_unit_id),
                     'pending' => $pending, 'source' => $rows->map->sourceLabel()->unique()->implode(', '),
-                    'vehicles' => $vehicles, 'payment_status' => $job['status_label'],
-                    'draft' => $amount,
-                    'draft_note' => $amount ? null : ($job['status'] !== 'paid' ? 'Not eligible yet: ' . mb_strtolower($job['status_label']) : 'No draft yet (allocation or week pending)'),
+                    'vehicles' => $vehicles,
+                    'draft' => $amount, 'commission_state' => $commissionState, 'payment_status' => $job['status'], 'payment_label' => $job['status_label'],
+                    'draft_note' => $amount ? null : ($eligible ? 'No draft yet (allocation or week pending)' : CommissionEligibility::LABELS[$commissionState]),
                 ];
                 unset($p);
             }
@@ -146,7 +155,12 @@ class DriverRecordService
                 'jobs_without_record' => count($unrecorded),
                 'vehicles' => (int) $jobs->sum('vehicles'),
                 'pending_participations' => (int) collect($people)->sum('pending_jobs'),
-                'draft' => Money::sum(collect($people)->pluck('draft')),
+                'draft' => Money::sum(collect($people)->pluck('draft')),   // fully paid jobs only
+                // Completed jobs by payment state (each job once, whether or not its crew is recorded).
+                'paid_jobs' => $jobs->where('status', 'paid')->count(),
+                'pending_collection' => $jobs->where('status', 'partial')->count(),
+                'awaiting_payment' => $jobs->whereIn('status', ['unpaid', 'awaiting_verification', 'completed_unverified'])->count(),
+                'under_review' => $jobs->where('status', 'overpaid')->count(),
             ],
         ];
     }

@@ -57,13 +57,13 @@
             <div class="oa-kpi is-dark"><span class="oa-kpi-label">Completed jobs</span><div class="oa-kpi-value" data-dr="jobs">{{ $t['completed_jobs'] }}</div><span class="fin-kpi-sub">{{ $t['vehicles'] }} vehicle(s) towed</span></div>
             <div class="oa-kpi"><span class="oa-kpi-label">Awaiting confirmation</span><div class="oa-kpi-value" data-dr="pending">{{ $t['pending_participations'] }}</div><span class="fin-kpi-sub">assignments not yet confirmed</span></div>
             <div class="oa-kpi"><span class="oa-kpi-label">Jobs with no crew recorded</span><div class="oa-kpi-value" data-dr="unrecorded">{{ $t['jobs_without_record'] }}</div></div>
-            <div class="oa-kpi"><span class="oa-kpi-label">Draft commission (estimate)</span><div class="oa-kpi-value" data-dr="draft">{{ $t['draft']->format() }}</div></div>
+            <div class="oa-kpi"><span class="oa-kpi-label">Draft commission, fully paid jobs</span><div class="oa-kpi-value" data-dr="draft">{{ $t['draft']->format() }}</div><span class="fin-kpi-sub" data-dr="not-paid">{{ $t['pending_collection'] }} pending collection · {{ $t['awaiting_payment'] }} awaiting payment</span></div>
         </div>
 
         <section class="oa-card oa-card-body" aria-labelledby="drWeekly">
             <div class="oa-card-head"><div>
                 <h2 class="oa-card-title" id="drWeekly"><i data-lucide="calendar-range" aria-hidden="true"></i> Jobs and vehicles towed per week</h2>
-                <p class="oa-card-sub">Each week shows completed jobs / vehicles towed, then the draft commission. A group trip is one job with several vehicles.</p>
+                <p class="oa-card-sub">Each week shows completed jobs / vehicles towed, then the draft commission from fully paid jobs only. Partially paid and unpaid jobs count as work but add no commission until they are paid in full. A group trip is one job with several vehicles.</p>
             </div></div>
             @if ($d['people'])
                 <div class="oa-table-wrap">
@@ -83,6 +83,7 @@
                                                 <span class="fin-strong">{{ $p['weeks'][$key]['jobs'] }}</span> <span class="is-dim">/ {{ $p['weeks'][$key]['vehicles'] }}</span>
                                                 <div class="is-dim">{{ $p['weeks'][$key]['draft']->format() }}</div>
                                                 @if ($p['weeks'][$key]['pending'])<div class="fin-flag">{{ $p['weeks'][$key]['pending'] }} pending</div>@endif
+                                                @if ($p['weeks'][$key]['pending_collection'] + $p['weeks'][$key]['awaiting_payment'] + $p['weeks'][$key]['under_review'])<div class="is-dim" data-dr-week-unpaid>{{ $p['weeks'][$key]['pending_collection'] + $p['weeks'][$key]['awaiting_payment'] + $p['weeks'][$key]['under_review'] }} not fully paid</div>@endif
                                             @else<span class="is-dim">–</span>@endif
                                         </td>
                                     @endforeach
@@ -108,7 +109,7 @@
                 </div><a class="oa-btn oa-btn--sm" href="{{ route('superadmin.finance.driver-records.index', $query) }}">Close</a></div>
                 <div class="oa-table-wrap">
                     <table class="oa-table fin-table">
-                        <thead><tr><th scope="col">Service date</th><th scope="col">Booking</th><th scope="col">Unit</th><th scope="col">Role</th><th scope="col">Participation</th><th scope="col" class="is-num">Vehicles</th><th scope="col" class="is-num">Draft commission</th></tr></thead>
+                        <thead><tr><th scope="col">Service date</th><th scope="col">Booking</th><th scope="col">Unit</th><th scope="col">Role</th><th scope="col">Participation</th><th scope="col" class="is-num">Vehicles</th><th scope="col" class="is-num">Draft commission <span class="fin-sr">(fully paid jobs only)</span></th></tr></thead>
                         <tbody>
                             @foreach (collect($person['history'])->groupBy('week') as $weekKey => $rows)
                                 @foreach ($rows as $h)
@@ -123,7 +124,13 @@
                                             <div class="is-dim">{{ $h['source'] }}</div>
                                         </td>
                                         <td class="is-num">{{ $h['vehicles'] }}</td>
-                                        <td class="is-num">@if ($h['draft'])<span class="fin-strong" data-dr-job-draft>{{ $h['draft']->format() }}</span>@else<span class="is-dim">{{ $h['draft_note'] }}</span>@endif</td>
+                                        <td class="is-num" data-dr-commission-state="{{ $h['commission_state'] }}">
+                                            @if ($h['draft'])<span class="fin-strong" data-dr-job-draft>{{ $h['draft']->format() }}</span>
+                                            @elseif (in_array($h['commission_state'], ['pending_collection', 'under_review'], true))<span class="fin-status fin-status--amber">{{ $h['draft_note'] }}</span>
+                                            @elseif ($h['commission_state'] === 'awaiting_payment')<span class="fin-status fin-status--red">{{ $h['draft_note'] }}</span>
+                                            @else<span class="is-dim">{{ $h['draft_note'] }}</span>@endif
+                                            @if ($h['commission_state'] !== 'eligible')<div class="is-dim">{{ $h['payment_label'] }}</div>@endif
+                                        </td>
                                     </tr>
                                 @endforeach
                                 <tr class="fin-week-total" data-dr-week-total="{{ $weekKey }}">

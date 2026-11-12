@@ -66,7 +66,8 @@
             <div class="oa-kpi"><span class="oa-kpi-label">Approved expenses and deductions</span><div class="oa-kpi-value" data-cm-total="costs">{{ $t['expenses']->plus($t['deductions'])->format() }}</div></div>
             <div class="oa-kpi is-dark"><span class="oa-kpi-label">Sharing base</span><div class="oa-kpi-value" data-cm-total="base">{{ $t['base']->format() }}</div></div>
             <div class="oa-kpi"><span class="oa-kpi-label">Company share</span><div class="oa-kpi-value" data-cm-total="company">{{ $t['company']->format() }}</div></div>
-            <div class="oa-kpi"><span class="oa-kpi-label">Crew shares</span><div class="oa-kpi-value" data-cm-total="crew">{{ $t['crew_allocated']->format() }}</div></div>
+            <div class="oa-kpi"><span class="oa-kpi-label">Crew draft, fully paid jobs</span><div class="oa-kpi-value" data-cm-total="crew">{{ $eligibility['eligible']->format() }}</div>
+                @if ($eligibility['estimate']->isPositive())<span class="fin-kpi-sub" data-cm-total="estimate">+ {{ $eligibility['estimate']->format() }} estimate, not payable</span>@endif</div>
             <div class="oa-kpi"><span class="oa-kpi-label">Unallocated (missing roles)</span><div class="oa-kpi-value" data-cm-total="unallocated">{{ $t['unallocated']->format() }}</div></div>
         </div>
 
@@ -93,18 +94,18 @@
         <section class="oa-card oa-card-body" aria-labelledby="cmLinesTitle">
             <div class="oa-card-head"><div>
                 <h2 class="oa-card-title" id="cmLinesTitle"><i data-lucide="truck" aria-hidden="true"></i> Draft commission by unit</h2>
-                <p class="oa-card-sub">Each completed, fully paid job: who worked it, the approved expenses taken off, and the crew's draft commission. Shares are rounded to the centavo; any remainder goes to Company.</p>
+                <p class="oa-card-sub">Each job: who worked it, the approved expenses taken off, and the crew's draft commission. Only completed, fully paid jobs count toward the weekly total. Partially paid, unpaid and over-collected jobs stay listed with their status; their shares are an estimate and not payable. Shares are rounded to the centavo; any remainder goes to Company.</p>
             </div></div>
             @forelse ($byUnit as $uid => $unitLines)
                 @php
-                    $unitCrew = \App\Support\Money::sum(collect($unitLines)->pluck('crew_allocated'));
+                    $unitSummary = $eligibility['units'][$uid];
                     $unitExpenses = \App\Support\Money::sum(collect($unitLines)->pluck('expense_total'))->plus(\App\Support\Money::sum(collect($unitLines)->pluck('deduction_total')));
                     $unitPending = collect($unitLines)->flatMap(fn ($l) => collect($l['roles'])->flatMap(fn ($r) => $r['recipients']))->where('pending', true)->count();
                 @endphp
                 <div class="fin-unit-block" data-cm-unit="{{ $uid }}">
                     <div class="fin-unit-head">
                         <h3>{{ $unitLines->first()['unit_name'] }}</h3>
-                        <span class="is-dim">{{ $unitLines->count() }} job(s) · {{ collect($unitLines)->sum('vehicles') }} vehicle(s)@if ($unitPending) · <span class="fin-status fin-status--amber">{{ $unitPending }} crew pending confirmation</span>@endif</span>
+                        <span class="is-dim">{{ $unitLines->count() }} job(s) · {{ $unitSummary['eligible_jobs'] }} fully paid · {{ collect($unitLines)->sum('vehicles') }} vehicle(s)@if ($unitPending) · <span class="fin-status fin-status--amber">{{ $unitPending }} crew pending confirmation</span>@endif</span>
                     </div>
                     <div class="oa-table-wrap">
                         <table class="oa-table fin-table fin-cm-table">
@@ -117,7 +118,11 @@
                             </tr></thead>
                             <tbody>
                                 @foreach ($unitLines as $line)
-                                    <tr data-cm-line="{{ $line['reference'] }}-{{ $line['unit_id'] }}">
+                                    @php
+                                        $state = \App\Services\Finance\CommissionEligibility::forLine($line);
+                                        $isEligible = $state === \App\Services\Finance\CommissionEligibility::ELIGIBLE;
+                                    @endphp
+                                    <tr data-cm-line="{{ $line['reference'] }}-{{ $line['unit_id'] }}" data-cm-line-state="{{ $state }}" @class(['fin-cm-estimate' => ! $isEligible])>
                                         <td>
                                             <span class="fin-ref">{{ $line['reference'] }}</span>
                                             <div class="is-dim">{{ $line['service_date']?->format('D, M j') }} · {{ $line['vehicles'] }} vehicle(s){{ $line['group_code'] ? ' · Group ' . $line['group_code'] : '' }}</div>
@@ -160,15 +165,29 @@
                                             @endforeach
                                         </td>
                                         <td class="is-num" data-cm-line-base>{{ $line['base']->format() }}<div class="is-dim">Company {{ $line['company']->format() }}</div></td>
-                                        <td class="is-num fin-strong" data-cm-line-crew>{{ $line['crew_allocated']->format() }}</td>
+                                        @if ($isEligible)
+                                            <td class="is-num fin-strong" data-cm-line-crew>{{ $line['crew_allocated']->format() }}</td>
+                                        @else
+                                            <td class="is-num" data-cm-line-crew-estimate>
+                                                <span @class(['fin-status', 'fin-status--amber' => $state !== 'awaiting_payment', 'fin-status--red' => $state === 'awaiting_payment'])>{{ \App\Services\Finance\CommissionEligibility::LABELS[$state] }}</span>
+                                                <div class="is-dim">{{ $line['payment_label'] }}</div>
+                                                <div class="is-dim">Estimate {{ $line['crew_allocated']->format() }}, not payable</div>
+                                            </td>
+                                        @endif
                                     </tr>
                                 @endforeach
                                 <tr class="fin-week-total" data-cm-unit-total="{{ $uid }}">
-                                    <td colspan="2">Weekly total · {{ $unitLines->first()['unit_name'] }}</td>
+                                    <td colspan="2">Weekly total, fully paid jobs · {{ $unitLines->first()['unit_name'] }}</td>
                                     <td>@if ($unitExpenses->isPositive())− {{ $unitExpenses->format() }}@else<span class="is-dim">None</span>@endif</td>
                                     <td class="is-num">{{ \App\Support\Money::sum(collect($unitLines)->pluck('base'))->format() }}</td>
-                                    <td class="is-num" data-cm-unit-crew>{{ $unitCrew->format() }}</td>
+                                    <td class="is-num" data-cm-unit-crew>{{ $unitSummary['eligible']->format() }}</td>
                                 </tr>
+                                @if ($unitSummary['estimate']->isPositive())
+                                    <tr class="fin-cm-estimate-total" data-cm-unit-estimate="{{ $uid }}">
+                                        <td colspan="4">Not payable yet: estimate on {{ $unitSummary['other_jobs'] }} job(s) not fully paid</td>
+                                        <td class="is-num">{{ $unitSummary['estimate']->format() }}</td>
+                                    </tr>
+                                @endif
                             </tbody>
                         </table>
                     </div>
@@ -178,19 +197,27 @@
             @endforelse
 
             @foreach ($draft['blocked_jobs'] as $bj)
-                <div class="fin-inline-warning">Job {{ $bj['job']['reference'] }} is not in the calculation: {{ collect($bj['blockers'])->pluck('message')->implode(' ') }}</div>
+                @php $bjState = \App\Services\Finance\CommissionEligibility::state($bj['job']['status'], (bool) $bj['job']['service_completed']); @endphp
+                <div class="fin-inline-warning" data-cm-blocked-job="{{ $bj['job']['reference'] }}" data-cm-line-state="{{ $bjState }}">
+                    @if ($bjState !== 'eligible')<span @class(['fin-status', 'fin-status--amber' => $bjState !== 'awaiting_payment', 'fin-status--red' => $bjState === 'awaiting_payment'])>{{ \App\Services\Finance\CommissionEligibility::LABELS[$bjState] }}</span>@endif
+                    Job {{ $bj['job']['reference'] }} is not in the calculation yet: {{ collect($bj['blockers'])->pluck('message')->implode(' ') }}
+                </div>
             @endforeach
         </section>
 
-        @if ($t['by_recipient'])
+        @if ($eligibility['people'])
             <section class="oa-card oa-card-body" aria-labelledby="cmPeopleTitle">
                 <div class="oa-card-head"><div><h2 class="oa-card-title" id="cmPeopleTitle"><i data-lucide="users" aria-hidden="true"></i> Draft shares by person</h2></div></div>
                 <div class="oa-table-wrap">
                     <table class="oa-table fin-table">
-                        <thead><tr><th scope="col">Person</th><th scope="col">Roles</th><th scope="col" class="is-num">Jobs</th><th scope="col" class="is-num">Draft share</th></tr></thead>
+                        <thead><tr><th scope="col">Person</th><th scope="col">Roles</th><th scope="col" class="is-num">Fully paid jobs</th><th scope="col" class="is-num">Draft share</th><th scope="col" class="is-num">Not payable (estimate)</th></tr></thead>
                         <tbody>
-                            @foreach ($t['by_recipient'] as $r)
-                                <tr><td>{{ $r['name'] }}</td><td>{{ $r['role_list'] }}</td><td class="is-num">{{ $r['jobs'] }}</td><td class="is-num fin-strong">{{ $r['amount']->format() }}</td></tr>
+                            @foreach ($eligibility['people'] as $key => $r)
+                                <tr data-cm-person="{{ $key }}">
+                                    <td>{{ $r['name'] }}</td><td>{{ $r['role_list'] }}</td><td class="is-num">{{ $r['eligible_jobs'] }}</td>
+                                    <td class="is-num fin-strong" data-cm-person-eligible>{{ $r['eligible']->format() }}</td>
+                                    <td class="is-num is-dim" data-cm-person-estimate>@if ($r['other_jobs']){{ $r['estimate']->format() }} <span>({{ $r['other_jobs'] }} job(s))</span>@else–@endif</td>
+                                </tr>
                             @endforeach
                         </tbody>
                     </table>

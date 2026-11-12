@@ -288,6 +288,10 @@ class CommissionCalculator
             'booking_id' => $job['anchor']->id,
             'member_booking_ids' => $memberIds,
             'allocation_status' => $job['allocation']['status'],
+            // Display only (not part of the statement hash): see CommissionEligibility.
+            'payment_status' => $job['status'],
+            'payment_label' => $job['status_label'],
+            'service_completed' => (bool) $job['service_completed'],
             'service_date' => $job['service_date'],
             'unit_id' => $unitId,
             'unit_name' => $alloc['unit_name'],

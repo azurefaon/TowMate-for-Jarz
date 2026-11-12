@@ -688,7 +688,7 @@ The tests cover:
 | Record of drivers: number towed per week | **Built:** Finance → Driver Records shows completed jobs and vehicles towed per person per Monday–Saturday week, with the draft commission per week. A group trip is one job with several vehicles. |
 | Performance history of drivers | **Built:** per-person history: service date, booking, historical unit, role, participation (Confirmed / Pending confirmation), source, vehicles and draft commission per job, with a subtotal per week. |
 | Expenses should be recorded for the computation of commission | **Live and shown:** approved job expenses reduce each job's sharing base; Commission (Draft) now lists them per job under each unit. |
-| Commission should be computed based on the number of complete jobs | **Unchanged, pending the client's meaning.** Commission stays the provisional percentage of each completed, fully paid job's sharing base, calculated per job and added up per week. No fixed per-tow amount was invented. Approval stays blocked. |
+| Commission should be computed based on the number of complete jobs | **Method confirmed (2026-11-12):** a percentage of each completed, fully paid job, calculated per job and added up per crew member and unit for the week; no fixed amount per tow. The audit found the existing calculator, Driver Records and the weekly breakdown already work this way, so no code changed. The **rates** (60/12/10/10/8) remain provisional; approval and payout stay blocked. |
 
 ### Automatic Job Crew recording (approved 2026-11-12)
 
@@ -705,3 +705,23 @@ Production bookings store no driver, so crew is now captured from Dispatch:
 Commission (Draft) now groups the calculator's lines by unit: completed job → crew members (Pending / Confirmed, share) → approved expenses and deductions → sharing base → draft commission per job → weekly unit total. Nothing is recalculated in the view.
 
 The midnight-sensitive `JobsCollectionsTest` case now freezes the clock at Manila midday (`travelTo`) and checks today's window again, instead of widening the window.
+
+### Commission method clarification (2026-11-12)
+
+Confirmed: percentage-based commission per completed, fully paid job, aggregated per crew member and towing unit per week. Not confirmed: the rates themselves (policy v1 stays a draft), C1–C6, the Rider / substitute / shared / combined role rules, Sunday's week, monthly allocation and personal advances.
+
+Audit result: no code change needed. One line per job and unit (`CommissionCalculator::line`); weekly totals, Commission (Draft) by unit, Driver Records and statements only sum those lines. Jobs that are not fully paid appear in the draft with the `payment_not_verified` blocker and cannot be approved. Driver Records was then corrected so it never shows such a share as earned (see below).
+
+### Driver Records commission display (2026-11-12)
+
+- Completed-job and vehicle counts follow recorded work whatever the payment status; unfinished jobs are not counted. Partially paid and unpaid jobs stay in each person's history.
+- Commission column, from the authoritative `JobCollectionService` status: **paid** → the calculator's draft share; **partial** → "Pending Collection"; **unpaid / awaiting verification / completed but unverified** → "Awaiting Payment"; over-collected → "Under review".
+- Weekly, per-person and page draft totals add fully paid jobs only. Pending Collection and Awaiting Payment jobs are counted separately (KPI note, weekly "not fully paid" count).
+- No change to `CommissionCalculator`, the rates, bookings or payment verification. The Commission (Draft) page still previews blocked lines (it shows the `payment_not_verified` blocker); statements cannot be approved with them.
+
+### Commission (Draft) consistent with Driver Records (2026-11-12)
+
+- One shared rule, `CommissionEligibility`: completed + fully paid → eligible; partial → Pending Collection; unpaid / awaiting verification / completed but unverified → Awaiting Payment; over-collected → Under review.
+- Commission (Draft): per-unit weekly totals, the "Crew draft, fully paid jobs" KPI and Draft shares by person add eligible lines only. Other lines stay listed with their label and an "Estimate …, not payable" amount, totalled separately per unit and per person. Jobs with nothing collected (no calculator line) are listed below the units with their label.
+- Eligible totals per unit and per person equal Driver Records for the same week and unit (tested with paid, partial, unpaid, a group trip over two units and a job split between two units).
+- `CommissionCalculator` only gained display fields on each line (`payment_status`, `payment_label`, `service_completed`); they are not part of the statement hash. No formula, rate, approval rule, statement or payment record changed.
