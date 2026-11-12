@@ -41,8 +41,8 @@ it('counts each driver\'s completed jobs and vehicles towed per week', function 
     $d = drvBuild();
     $people = collect($d['people'])->keyBy('name');
     expect($people[$ana->full_name]['jobs'])->toBe(3)
-        ->and($people[$ana->full_name]['weeks'][$lastWeek])->toBe(['jobs' => 2, 'vehicles' => 2])
-        ->and($people[$ana->full_name]['weeks'][$earlier->toDateString()])->toBe(['jobs' => 1, 'vehicles' => 1])
+        ->and($people[$ana->full_name]['weeks'][$lastWeek])->toMatchArray(['jobs' => 2, 'vehicles' => 2, 'pending' => 0])
+        ->and($people[$ana->full_name]['weeks'][$earlier->toDateString()])->toMatchArray(['jobs' => 1, 'vehicles' => 1, 'pending' => 0])
         ->and($people[$ana->full_name]['weeks_active'])->toBe(2)
         ->and($people[$ben->full_name]['jobs'])->toBe(1)
         ->and(array_keys($d['people'])[0])->toBe("personnel:{$ana->id}")              // most jobs first
@@ -115,7 +115,7 @@ it('shows the weekly record and a person\'s performance history on the Owner pag
 
     $this->actingAs($owner)->get(route('superadmin.finance.driver-records.index', $q + ['person' => "personnel:{$ana->id}"]))->assertOk()
         ->assertSee('data-dr-history="' . $ana->full_name . '"', false)->assertSee('data-dr-job="' . $job->booking_code . '"', false)
-        ->assertSee('1 completed job(s), 1 vehicle(s) towed');
+        ->assertSee('1 completed job(s) (1 confirmed, 0 pending confirmation), 1 vehicle(s) towed')->assertSee('data-dr-participation="confirmed"', false);
 
     $this->actingAs($owner)->get(route('superadmin.finance.driver-records.index', ['from' => '2026-01-05', 'to' => '2026-01-10']))->assertOk()->assertSee('data-dr-empty', false);
     $this->actingAs($owner)->get(route('superadmin.finance.driver-records.index'))->assertOk();   // default: last eight weeks

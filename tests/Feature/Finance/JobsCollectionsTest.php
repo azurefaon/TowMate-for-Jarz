@@ -427,13 +427,16 @@ it('reads payments without writing any customer payment record', function () {
 // ---------- Consistency with the existing Revenue page ----------
 
 it('agrees with the existing Revenue page on Dispatcher-confirmed revenue', function () {
+    // Fixtures are dated three hours before "now". Freeze the clock at Manila midday so they always fall on today,
+    // whatever time the suite runs (before 03:00 they used to land on yesterday).
+    $this->travelTo(jcNow()->setTime(12, 0));
+
     $unit = finUnit();
     jcBooking($unit, '1800.00');
     jcGroup([[$unit, '5000.00'], [$unit, '5000.00']], 'confirmed', fee: '300.00');
     jcBooking($unit, '999.00', 'submitted');   // not confirmed: excluded by both
 
-    // Fixtures are dated three hours ago, which is yesterday just after midnight: include yesterday.
-    $start = jcNow()->subDay()->startOfDay();
+    $start = jcNow()->startOfDay();
     $end = jcNow()->endOfDay();
     $ours = app(JobCollectionService::class)->totals(app(JobCollectionService::class)->jobs($start, $end, ['basis' => 'payment']));
     $revenuePage = app(\App\Services\ReportMetricsService::class)->revenueSummary($start, $end);

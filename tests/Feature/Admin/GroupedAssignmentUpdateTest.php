@@ -525,3 +525,33 @@ it('lets Vehicle 2 arrival advance independently while Vehicle 1 is far along it
     $currentB = test()->getJson('/api/v1/team-leader/task');
     $currentB->assertOk()->assertJsonPath('data.status', 'arrived_pickup');
 });
+
+it('records each unit\'s assigned crew as Pending confirmation when Dispatch assigns a grouped trip over HTTP', function () {
+    $dispatcher = gauDispatcher();
+    $customer = gauCustomer();
+    $truckType = gauTruckType();
+    $bookingA = gauGroupedBooking($customer, $truckType, 'GAU-GROUP-CREW');
+    $bookingB = gauGroupedBooking($customer, $truckType, 'GAU-GROUP-CREW');
+    gauAcceptedGroupQuotation($customer, $truckType, $bookingA, $bookingB);
+    [$unitA, $leaderA] = gauReadyUnit($truckType, 'GAU Crew Unit A');
+    [$unitB, $leaderB] = gauReadyUnit($truckType, 'GAU Crew Unit B');
+    $leaderA->forceFill(['must_change_password' => false])->save();
+
+    foreach ([[$bookingA, $unitA], [$bookingB, $unitB]] as [$booking, $unit]) {
+        test()->actingAs($dispatcher)->postJson(route('admin.booking.assign', $booking), ['action' => 'accept', 'assigned_unit_id' => $unit->id])
+            ->assertOk()->assertJson(['success' => true]);
+    }
+
+    $crew = fn (Unit $unit) => \App\Models\Finance\JobPersonnel::current()->whereIn('booking_id', [$bookingA->id, $bookingB->id])->where('unit_id', $unit->id)->get()->keyBy('slot');
+    expect($crew($unitA)->keys()->sort()->values()->all())->toBe(['driver_1', 'team_leader'])
+        ->and($crew($unitA)['team_leader']->user_id)->toBe($leaderA->id)
+        ->and($crew($unitA)['driver_1']->name_snapshot)->toBe('Fixture Driver')
+        ->and($crew($unitB)['team_leader']->user_id)->toBe($leaderB->id)
+        ->and($crew($unitA)->merge($crew($unitB))->every(fn ($r) => $r->needs_review && $r->source === 'assignment_capture' && $r->captured_by === $dispatcher->id))->toBeTrue();
+
+    // Accepting the task is not completion: the crew stays pending, and nothing is duplicated.
+    Sanctum::actingAs($leaderA, ['*']);
+    test()->postJson('/api/v1/team-leader/task/' . $bookingA->booking_code . '/accept')->assertOk()->assertJson(['success' => true]);
+    expect($crew($unitA))->toHaveCount(2)->and($crew($unitA)->every(fn ($r) => $r->needs_review))->toBeTrue()
+        ->and(\App\Models\Finance\JobPersonnel::whereIn('booking_id', [$bookingA->id, $bookingB->id])->count())->toBe(4);
+});

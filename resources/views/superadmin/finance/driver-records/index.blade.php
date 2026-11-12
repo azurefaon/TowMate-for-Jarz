@@ -15,7 +15,7 @@
         <header class="ob-header fin-header">
             <div>
                 <h1>Driver Records</h1>
-                <p>Completed jobs and vehicles towed per week, and each person's history. {{ $periodLabel }}. Weeks run Monday to Saturday.</p>
+                <p>Completed jobs, vehicles towed and draft commission per week, with each person's history. {{ $periodLabel }}. Weeks run Monday to Saturday.</p>
             </div>
             <div class="fin-header-actions"><button type="button" class="oa-btn" onclick="window.print()">Print</button></div>
         </header>
@@ -24,7 +24,7 @@
 
         <div class="fin-flash fin-flash--warning" role="status">
             <i data-lucide="users" aria-hidden="true"></i>
-            <span>A job counts for a person only after its crew is recorded under <a href="{{ route('superadmin.finance.crew.index') }}">Job Crew</a>. Bookings do not store a driver, and a unit's current crew is never assumed to have worked past jobs. This page does not calculate commission.</span>
+            <span>Crew is captured from Dispatch when a unit is assigned and stays <strong>Pending confirmation</strong> until you confirm it under <a href="{{ route('superadmin.finance.crew.index') }}">Job Crew</a>. Commission amounts are a draft estimate and cannot be approved until the commission policy is confirmed.</span>
         </div>
 
         <form method="GET" action="{{ route('superadmin.finance.driver-records.index') }}" class="oa-card oa-filter-card" role="search">
@@ -52,36 +52,43 @@
             </div>
         </form>
 
-        <div class="oa-kpis" style="--oa-kpi-count: 4;">
-            <div class="oa-kpi"><span class="oa-kpi-label">{{ $d['role_label'] }} with recorded jobs</span><div class="oa-kpi-value" data-dr="people">{{ $t['people'] }}</div></div>
+        <div class="oa-kpis oa-kpis--six" style="--oa-kpi-count: 5;">
+            <div class="oa-kpi"><span class="oa-kpi-label">{{ $d['role_label'] }} with jobs</span><div class="oa-kpi-value" data-dr="people">{{ $t['people'] }}</div></div>
             <div class="oa-kpi is-dark"><span class="oa-kpi-label">Completed jobs</span><div class="oa-kpi-value" data-dr="jobs">{{ $t['completed_jobs'] }}</div><span class="fin-kpi-sub">{{ $t['vehicles'] }} vehicle(s) towed</span></div>
-            <div class="oa-kpi"><span class="oa-kpi-label">Jobs with a recorded {{ $d['role'] === 'all' ? 'crew' : strtolower(rtrim($d['role_label'], 's')) }}</span><div class="oa-kpi-value" data-dr="recorded">{{ $t['jobs_with_record'] }}</div></div>
-            <div class="oa-kpi"><span class="oa-kpi-label">Jobs not yet recorded</span><div class="oa-kpi-value" data-dr="unrecorded">{{ $t['jobs_without_record'] }}</div></div>
+            <div class="oa-kpi"><span class="oa-kpi-label">Awaiting confirmation</span><div class="oa-kpi-value" data-dr="pending">{{ $t['pending_participations'] }}</div><span class="fin-kpi-sub">assignments not yet confirmed</span></div>
+            <div class="oa-kpi"><span class="oa-kpi-label">Jobs with no crew recorded</span><div class="oa-kpi-value" data-dr="unrecorded">{{ $t['jobs_without_record'] }}</div></div>
+            <div class="oa-kpi"><span class="oa-kpi-label">Draft commission (estimate)</span><div class="oa-kpi-value" data-dr="draft">{{ $t['draft']->format() }}</div></div>
         </div>
 
         <section class="oa-card oa-card-body" aria-labelledby="drWeekly">
             <div class="oa-card-head"><div>
                 <h2 class="oa-card-title" id="drWeekly"><i data-lucide="calendar-range" aria-hidden="true"></i> Jobs and vehicles towed per week</h2>
-                <p class="oa-card-sub">Each cell shows completed jobs, then vehicles towed. A group trip is one job with several vehicles.</p>
+                <p class="oa-card-sub">Each week shows completed jobs / vehicles towed, then the draft commission. A group trip is one job with several vehicles.</p>
             </div></div>
             @if ($d['people'])
                 <div class="oa-table-wrap">
                     <table class="oa-table fin-table" id="drTable">
                         <thead><tr>
-                            <th scope="col">Name</th><th scope="col">Role</th>
+                            <th scope="col">Name</th>
                             @foreach ($d['weeks'] as $w)<th scope="col" class="is-num">{{ $w->format('M j') }}</th>@endforeach
-                            <th scope="col" class="is-num">Jobs</th><th scope="col" class="is-num">Vehicles</th><th scope="col"><span class="fin-sr">History</span></th>
+                            <th scope="col" class="is-num">Jobs</th><th scope="col" class="is-num">Vehicles</th><th scope="col" class="is-num">Draft commission</th><th scope="col"><span class="fin-sr">History</span></th>
                         </tr></thead>
                         <tbody>
                             @foreach ($d['people'] as $p)
                                 <tr data-dr-person="{{ $p['name'] }}">
-                                    <td class="fin-strong">{{ $p['name'] }}<div class="is-dim">{{ $p['unit_list'] }}</div></td>
-                                    <td>{{ $p['role_list'] }}</td>
+                                    <td class="fin-strong">{{ $p['name'] }}<div class="is-dim">{{ $p['role_list'] }} · {{ $p['unit_list'] }}</div></td>
                                     @foreach ($d['weeks'] as $key => $w)
-                                        <td class="is-num" data-dr-week="{{ $key }}">@if (isset($p['weeks'][$key])){{ $p['weeks'][$key]['jobs'] }} <span class="is-dim">/ {{ $p['weeks'][$key]['vehicles'] }}</span>@else<span class="is-dim">–</span>@endif</td>
+                                        <td class="is-num" data-dr-week="{{ $key }}">
+                                            @if (isset($p['weeks'][$key]))
+                                                <span class="fin-strong">{{ $p['weeks'][$key]['jobs'] }}</span> <span class="is-dim">/ {{ $p['weeks'][$key]['vehicles'] }}</span>
+                                                <div class="is-dim">{{ $p['weeks'][$key]['draft']->format() }}</div>
+                                                @if ($p['weeks'][$key]['pending'])<div class="fin-flag">{{ $p['weeks'][$key]['pending'] }} pending</div>@endif
+                                            @else<span class="is-dim">–</span>@endif
+                                        </td>
                                     @endforeach
-                                    <td class="is-num fin-strong" data-dr-total="jobs">{{ $p['jobs'] }}</td>
+                                    <td class="is-num fin-strong" data-dr-total="jobs">{{ $p['jobs'] }}@if ($p['pending_jobs'])<div class="fin-flag">{{ $p['pending_jobs'] }} pending</div>@endif</td>
                                     <td class="is-num fin-strong" data-dr-total="vehicles">{{ $p['vehicles'] }}</td>
+                                    <td class="is-num fin-strong" data-dr-total="draft">{{ $p['draft']->format() }}</td>
                                     <td><a class="oa-btn oa-btn--sm" href="{{ route('superadmin.finance.driver-records.index', $query + ['person' => $p['key']]) }}#drHistory">History</a></td>
                                 </tr>
                             @endforeach
@@ -89,7 +96,7 @@
                     </table>
                 </div>
             @else
-                <div class="oa-empty" data-dr-empty>No one has a recorded job in this period. Record the crew for completed jobs under Job Crew.</div>
+                <div class="oa-empty" data-dr-empty>No one has a recorded job in this period. Crew is captured when Dispatch assigns a unit; earlier jobs can be recorded under Job Crew.</div>
             @endif
         </section>
 
@@ -97,19 +104,32 @@
             <section class="oa-card oa-card-body" aria-labelledby="drHistory" data-dr-history="{{ $person['name'] }}">
                 <div class="oa-card-head"><div>
                     <h2 class="oa-card-title" id="drHistory"><i data-lucide="history" aria-hidden="true"></i> Performance history: {{ $person['name'] }}</h2>
-                    <p class="oa-card-sub">{{ $person['role_list'] }} · {{ $person['unit_list'] }} · {{ $person['jobs'] }} completed job(s), {{ $person['vehicles'] }} vehicle(s) towed, active in {{ $person['weeks_active'] }} of {{ count($d['weeks']) }} week(s) · first job {{ $person['first']?->format('M j, Y') }}, latest {{ $person['last']?->format('M j, Y') }}</p>
+                    <p class="oa-card-sub">{{ $person['role_list'] }} · {{ $person['unit_list'] }} · {{ $person['jobs'] }} completed job(s) ({{ $person['confirmed_jobs'] }} confirmed, {{ $person['pending_jobs'] }} pending confirmation), {{ $person['vehicles'] }} vehicle(s) towed, active in {{ $person['weeks_active'] }} of {{ count($d['weeks']) }} week(s) · draft commission {{ $person['draft']->format() }}</p>
                 </div><a class="oa-btn oa-btn--sm" href="{{ route('superadmin.finance.driver-records.index', $query) }}">Close</a></div>
                 <div class="oa-table-wrap">
                     <table class="oa-table fin-table">
-                        <thead><tr><th scope="col">Service date</th><th scope="col">Booking</th><th scope="col">Customer</th><th scope="col">Unit</th><th scope="col">Role</th><th scope="col" class="is-num">Vehicles</th><th scope="col">Customer payment</th></tr></thead>
+                        <thead><tr><th scope="col">Service date</th><th scope="col">Booking</th><th scope="col">Unit</th><th scope="col">Role</th><th scope="col">Participation</th><th scope="col" class="is-num">Vehicles</th><th scope="col" class="is-num">Draft commission</th></tr></thead>
                         <tbody>
-                            @foreach ($person['history'] as $h)
-                                <tr data-dr-job="{{ $h['reference'] }}">
-                                    <td>{{ $h['service_date']->format('D, M j, Y') }}@if ($h['sunday'])<div class="fin-flag">Sunday (outside the Monday–Saturday week)</div>@endif</td>
-                                    <td><a href="{{ route('superadmin.finance.crew.show', $h['booking_id']) }}"><span class="fin-ref">{{ $h['reference'] }}</span></a>@if ($h['group_code'])<div class="is-dim">Group {{ $h['group_code'] }}</div>@endif</td>
-                                    <td>{{ $h['customer'] }}</td><td>{{ $h['unit'] }}</td>
-                                    <td>{{ $h['role'] }}@if ($h['substitute']) <span class="fin-status fin-status--amber">Substitute</span>@endif</td>
-                                    <td class="is-num">{{ $h['vehicles'] }}</td><td>{{ $h['payment_status'] }}</td>
+                            @foreach (collect($person['history'])->groupBy('week') as $weekKey => $rows)
+                                @foreach ($rows as $h)
+                                    <tr data-dr-job="{{ $h['reference'] }}">
+                                        <td>{{ $h['service_date']->format('D, M j, Y') }}@if ($h['sunday'])<div class="fin-flag">Sunday (outside the Monday–Saturday week)</div>@endif</td>
+                                        <td><a href="{{ route('superadmin.finance.crew.show', $h['booking_id']) }}"><span class="fin-ref">{{ $h['reference'] }}</span></a><div class="is-dim">{{ $h['customer'] }}{{ $h['group_code'] ? ' · Group ' . $h['group_code'] : '' }}</div></td>
+                                        <td>{{ $h['unit'] }}</td>
+                                        <td>{{ $h['role'] }}@if ($h['substitute']) <span class="fin-status fin-status--amber">Substitute</span>@endif</td>
+                                        <td>
+                                            @if ($h['pending'])<span class="fin-status fin-status--amber" data-dr-participation="pending">Pending confirmation</span>
+                                            @else<span class="fin-status fin-status--green" data-dr-participation="confirmed">Confirmed</span>@endif
+                                            <div class="is-dim">{{ $h['source'] }}</div>
+                                        </td>
+                                        <td class="is-num">{{ $h['vehicles'] }}</td>
+                                        <td class="is-num">@if ($h['draft'])<span class="fin-strong" data-dr-job-draft>{{ $h['draft']->format() }}</span>@else<span class="is-dim">{{ $h['draft_note'] }}</span>@endif</td>
+                                    </tr>
+                                @endforeach
+                                <tr class="fin-week-total" data-dr-week-total="{{ $weekKey }}">
+                                    <td colspan="5">Week of {{ \Carbon\CarbonImmutable::parse($weekKey)->format('M j, Y') }}: {{ $rows->count() }} job(s)</td>
+                                    <td class="is-num">{{ $rows->sum('vehicles') }}</td>
+                                    <td class="is-num">{{ $person['weeks'][$weekKey]['draft']->format() }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -121,8 +141,8 @@
         @if ($d['unrecorded'])
             <section class="oa-card oa-card-body" aria-labelledby="drMissing">
                 <div class="oa-card-head"><div>
-                    <h2 class="oa-card-title" id="drMissing"><i data-lucide="user-x" aria-hidden="true"></i> Completed jobs not yet recorded ({{ count($d['unrecorded']) }})</h2>
-                    <p class="oa-card-sub">These jobs are not in anyone's record yet. Open a job to record who worked it.</p>
+                    <h2 class="oa-card-title" id="drMissing"><i data-lucide="user-x" aria-hidden="true"></i> Completed jobs with no {{ $d['role'] === 'all' ? 'crew' : mb_strtolower(rtrim($d['role_label'], 's')) }} recorded ({{ count($d['unrecorded']) }})</h2>
+                    <p class="oa-card-sub">These jobs are not in anyone's record. They are not counted as zero work; open a job to record who worked it.</p>
                 </div></div>
                 <ul class="fin-trail">
                     @foreach ($d['unrecorded'] as $u)

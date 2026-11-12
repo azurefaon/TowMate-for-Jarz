@@ -3,18 +3,21 @@
 namespace App\Services\Finance;
 
 use App\Models\Finance\JobPersonnel;
+use App\Support\Money;
 use Carbon\CarbonImmutable;
 
 /**
- * Read-only driver (and crew) records: completed jobs and vehicles towed per week, and each person's history.
+ * Read-only driver (and crew) records: completed jobs and vehicles towed per week, each person's history, and the
+ * DRAFT commission per eligible job and per week.
  *
- * Source of truth: the Owner's Job Crew records (who actually worked each job, per unit and role). Bookings do not
- * store a driver, and a unit's current roster is never used, so a job counts for a person only once its crew is
- * recorded. Jobs with nobody recorded in the chosen role are counted separately so the gap stays visible.
+ * People come from the job crew records only: crew captured from Dispatch at assignment (Pending confirmation
+ * until the Owner confirms) and crew the Owner recorded or confirmed. A unit's current roster is never read, and a
+ * completed job with nobody recorded is listed as "not yet recorded", never as zero work or an invented driver.
  *
- * Jobs come from JobCollectionService (service date), so a group trip is one job with several vehicles.
- * Weeks start on Monday; a Sunday job is shown in the week of the Monday before it and flagged.
- * This service never calculates commission.
+ * Jobs come from JobCollectionService (service date): a group trip is one job with several vehicles. Draft
+ * commission comes from CommissionCalculator (through FinanceOverviewService::draftCommission); nothing is
+ * calculated here. A job has a draft amount only when the calculator produced a line for it (verified, fully paid
+ * and allocated to the unit). Weeks start on Monday; a Sunday job is shown in the week of the Monday before it.
  */
 class DriverRecordService
 {
@@ -26,7 +29,7 @@ class DriverRecordService
         'all' => 'All crew roles',
     ];
 
-    public function __construct(private readonly JobCollectionService $collections)
+    public function __construct(private readonly JobCollectionService $collections, private readonly FinanceOverviewService $overview)
     {
     }
 
@@ -42,14 +45,23 @@ class DriverRecordService
             $weeks[$m->toDateString()] = $m;
         }
 
+        // Draft commission per job and person, straight from the calculator.
+        $draft = [];
+        foreach ($this->overview->draftCommission(array_values($weeks), $unitId)['lines'] as $line) {
+            foreach ($line['roles'] as $row) {
+                foreach ($row['recipients'] as $r) {
+                    $draft[$line['job_key']][$r['recipient_key']] = ($draft[$line['job_key']][$r['recipient_key']] ?? Money::zero())->plus($r['amount']);
+                }
+            }
+        }
+
         $jobs = $this->collections->jobs($from, $to, ['basis' => 'service', 'unit_id' => $unitId])
             ->filter(fn (array $job) => $job['service_completed'])->values();
 
         $people = [];
         $unrecorded = [];
         foreach ($jobs as $job) {
-            $memberIds = collect($job['members'])->pluck('id');
-            $crew = JobPersonnel::current()->whereIn('booking_id', $memberIds)
+            $crew = JobPersonnel::current()->whereIn('booking_id', collect($job['members'])->pluck('id'))
                 ->when($role !== 'all', fn ($q) => $q->where('commission_role', $role))
                 ->when($unitId, fn ($q) => $q->where('unit_id', $unitId))
                 ->with('unit:id,name')->orderBy('id')->get();
@@ -67,15 +79,27 @@ class DriverRecordService
                 $vehicles = $job['is_group']
                     ? collect($job['units'])->filter(fn ($u) => $unitIds->isEmpty() || $unitIds->contains($u['unit_id']))->count()
                     : (int) $job['vehicles'];
+                $pending = $rows->contains(fn (JobPersonnel $r) => $r->isPending());
+                $amount = $draft[$job['key']][$key] ?? null;
 
                 $people[$key] ??= ['key' => $key, 'name' => $rows->first()->name_snapshot, 'roles' => [], 'units' => [], 'weeks' => [],
-                    'jobs' => 0, 'vehicles' => 0, 'first' => null, 'last' => null, 'history' => []];
+                    'jobs' => 0, 'confirmed_jobs' => 0, 'pending_jobs' => 0, 'vehicles' => 0, 'draft' => Money::zero(), 'first' => null, 'last' => null, 'history' => []];
                 $p = &$people[$key];
+                $p['weeks'][$week] ??= ['jobs' => 0, 'vehicles' => 0, 'pending' => 0, 'draft' => Money::zero()];
                 $p['jobs']++;
                 $p['vehicles'] += $vehicles;
-                $p['weeks'][$week] ??= ['jobs' => 0, 'vehicles' => 0];
                 $p['weeks'][$week]['jobs']++;
                 $p['weeks'][$week]['vehicles'] += $vehicles;
+                if ($pending) {
+                    $p['pending_jobs']++;
+                    $p['weeks'][$week]['pending']++;
+                } else {
+                    $p['confirmed_jobs']++;
+                }
+                if ($amount) {
+                    $p['draft'] = $p['draft']->plus($amount);
+                    $p['weeks'][$week]['draft'] = $p['weeks'][$week]['draft']->plus($amount);
+                }
                 foreach ($rows as $r) {
                     $p['roles'][$r->roleLabel()] = true;
                     if ($r->unit) {
@@ -86,10 +110,13 @@ class DriverRecordService
                 $p['last'] = $p['last'] === null || $job['service_date']->greaterThan($p['last']) ? $job['service_date'] : $p['last'];
                 $p['history'][] = [
                     'reference' => $job['reference'], 'booking_id' => $job['anchor']->id, 'group_code' => $job['group_code'], 'service_date' => $job['service_date'],
-                    'sunday' => $job['service_date']->isSunday(), 'customer' => $job['customer']?->full_name,
+                    'week' => $week, 'sunday' => $job['service_date']->isSunday(), 'customer' => $job['customer']?->full_name,
                     'unit' => $rows->pluck('unit.name')->filter()->unique()->implode(', '), 'role' => $rows->map->roleLabel()->unique()->implode(', '),
                     'substitute' => (bool) $rows->contains(fn ($r) => $r->is_substitute || $r->borrowed_from_unit_id),
+                    'pending' => $pending, 'source' => $rows->map->sourceLabel()->unique()->implode(', '),
                     'vehicles' => $vehicles, 'payment_status' => $job['status_label'],
+                    'draft' => $amount,
+                    'draft_note' => $amount ? null : ($job['status'] !== 'paid' ? 'Not eligible yet: ' . mb_strtolower($job['status_label']) : 'No draft yet (allocation or week pending)'),
                 ];
                 unset($p);
             }
@@ -103,11 +130,6 @@ class DriverRecordService
         }
         unset($p);
         uasort($people, fn ($a, $b) => [$b['jobs'], $a['name']] <=> [$a['jobs'], $b['name']]);
-
-        $weekTotals = [];
-        foreach (array_keys($weeks) as $w) {
-            $weekTotals[$w] = ['jobs' => 0, 'vehicles' => 0];
-        }
 
         return [
             'from' => $from->startOfDay(),
@@ -123,6 +145,8 @@ class DriverRecordService
                 'jobs_with_record' => $jobs->count() - count($unrecorded),
                 'jobs_without_record' => count($unrecorded),
                 'vehicles' => (int) $jobs->sum('vehicles'),
+                'pending_participations' => (int) collect($people)->sum('pending_jobs'),
+                'draft' => Money::sum(collect($people)->pluck('draft')),
             ],
         ];
     }

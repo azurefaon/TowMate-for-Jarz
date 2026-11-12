@@ -160,6 +160,10 @@ Before the meeting: run the demo reset, sign in as the demo Owner, and open Fina
 9. [ ] **Client Review:** go through CR-001 … CR-011, the 50:50 proposal and the personal advance item. Record the client's answers and statuses, then download the summary PDF.
 10. [ ] **Close:** explain that no real statement can be approved until the answers are implemented, and that TowMate never transfers money.
 
+## 6c. Automatic crew capture (2026-11-12)
+
+When Dispatch assigns a unit, its crew at that moment is recorded on Job Crew as **Pending confirmation**. The Owner confirms or corrects each person; pending rows block commission approval. The Team Leader's own row is confirmed automatically when that Team Leader completes the job in the app. Reassignment or cancellation withdraws the old unit's pending rows. Past jobs are never filled in from today's roster. Driver Records and Commission (Draft) show which participation is confirmed and which is pending. See progress.md, "Automatic Job Crew recording".
+
 ## 7. Remaining client decisions and what they block
 
 Tracked as items CR-001 … CR-011 on the Client Review screen.

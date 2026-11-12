@@ -87,49 +87,92 @@
             @endforeach
         </section>
 
+        {{-- Unit → completed jobs → crew → approved expenses → draft commission per job → weekly total. Every amount is
+             read from the calculator's lines (CommissionCalculator::draft); nothing is recalculated in the view. --}}
+        @php $byUnit = collect($draft['lines'])->groupBy('unit_id'); @endphp
         <section class="oa-card oa-card-body" aria-labelledby="cmLinesTitle">
             <div class="oa-card-head"><div>
-                <h2 class="oa-card-title" id="cmLinesTitle"><i data-lucide="calculator" aria-hidden="true"></i> Calculation by job and unit</h2>
-                <p class="oa-card-sub">Shares are rounded to the centavo; any rounding remainder goes to Company so every line adds up to its base exactly.</p>
+                <h2 class="oa-card-title" id="cmLinesTitle"><i data-lucide="truck" aria-hidden="true"></i> Draft commission by unit</h2>
+                <p class="oa-card-sub">Each completed, fully paid job: who worked it, the approved expenses taken off, and the crew's draft commission. Shares are rounded to the centavo; any remainder goes to Company.</p>
             </div></div>
-            @forelse ($draft['lines'] as $line)
-                <details class="fin-details fin-cm-line" data-cm-line="{{ $line['reference'] }}-{{ $line['unit_id'] }}">
-                    <summary>
-                        <span class="fin-ref">{{ $line['reference'] }}</span> · {{ $line['unit_name'] }} ·
-                        base <strong>{{ $line['base']->format() }}</strong>
-                        @if ($line['blockers'])<span class="fin-status fin-status--amber">{{ count($line['blockers']) }} blocker(s)</span>@endif
-                    </summary>
-                    <div class="fin-details-body">
-                        <table class="oa-table fin-table">
+            @forelse ($byUnit as $uid => $unitLines)
+                @php
+                    $unitCrew = \App\Support\Money::sum(collect($unitLines)->pluck('crew_allocated'));
+                    $unitExpenses = \App\Support\Money::sum(collect($unitLines)->pluck('expense_total'))->plus(\App\Support\Money::sum(collect($unitLines)->pluck('deduction_total')));
+                    $unitPending = collect($unitLines)->flatMap(fn ($l) => collect($l['roles'])->flatMap(fn ($r) => $r['recipients']))->where('pending', true)->count();
+                @endphp
+                <div class="fin-unit-block" data-cm-unit="{{ $uid }}">
+                    <div class="fin-unit-head">
+                        <h3>{{ $unitLines->first()['unit_name'] }}</h3>
+                        <span class="is-dim">{{ $unitLines->count() }} job(s) · {{ collect($unitLines)->sum('vehicles') }} vehicle(s)@if ($unitPending) · <span class="fin-status fin-status--amber">{{ $unitPending }} crew pending confirmation</span>@endif</span>
+                    </div>
+                    <div class="oa-table-wrap">
+                        <table class="oa-table fin-table fin-cm-table">
+                            <thead><tr>
+                                <th scope="col">Completed job</th>
+                                <th scope="col">Crew members</th>
+                                <th scope="col">Approved expenses</th>
+                                <th scope="col" class="is-num">Sharing base</th>
+                                <th scope="col" class="is-num">Draft commission</th>
+                            </tr></thead>
                             <tbody>
-                                <tr><td>Allocated verified collection</td><td class="is-num">{{ $line['collection']->format() }}</td></tr>
-                                @foreach ($line['expenses'] as $e)
-                                    <tr><td>− {{ $e['category'] }} ({{ $e['reference'] }})</td><td class="is-num">{{ $e['amount']->format() }}</td></tr>
-                                @endforeach
-                                @foreach ($line['deductions'] as $d)
-                                    <tr><td>− {{ $d['type'] }} ({{ $d['reference'] }})</td><td class="is-num">{{ $d['amount']->format() }}</td></tr>
-                                @endforeach
-                                <tr><th scope="row">Sharing base</th><td class="is-num fin-strong">{{ $line['base']->format() }}</td></tr>
-                                <tr><td>Company</td><td class="is-num">{{ $line['company']->format() }}</td></tr>
-                                @foreach ($line['roles'] as $row)
-                                    <tr>
-                                        <td>{{ $row['label'] }} ({{ rtrim(rtrim($row['rate'], '0'), '.') }}%):
-                                            @forelse ($row['recipients'] as $r)
-                                                {{ $r['name'] }} {{ $r['amount']->format() }}{{ $r['role_confirmed'] ? '' : ' (role provisional)' }}{{ $loop->last ? '' : ',' }}
-                                            @empty
-                                                <em>nobody recorded, unallocated</em>
-                                            @endforelse
+                                @foreach ($unitLines as $line)
+                                    <tr data-cm-line="{{ $line['reference'] }}-{{ $line['unit_id'] }}">
+                                        <td>
+                                            <span class="fin-ref">{{ $line['reference'] }}</span>
+                                            <div class="is-dim">{{ $line['service_date']?->format('D, M j') }} · {{ $line['vehicles'] }} vehicle(s){{ $line['group_code'] ? ' · Group ' . $line['group_code'] : '' }}</div>
+                                            <div class="is-dim">Collected {{ $line['collection']->format() }}</div>
+                                            @if ($line['blockers'])
+                                                <details class="fin-cm-why"><summary><span class="fin-status fin-status--amber">{{ count($line['blockers']) }} blocker(s)</span></summary>
+                                                    @foreach ($line['blockers'] as $b)<div class="fin-flag">{{ $b['message'] }}</div>@endforeach
+                                                </details>
+                                            @endif
                                         </td>
-                                        <td class="is-num">{{ $row['share']->format() }}</td>
+                                        <td>
+                                            <ul class="fin-crew-list">
+                                                @foreach ($line['roles'] as $row)
+                                                    @forelse ($row['recipients'] as $r)
+                                                        <li data-cm-crew="{{ $r['recipient_key'] }}">
+                                                            <div class="fin-crew-who">
+                                                                <span class="fin-strong">{{ $r['name'] }}</span>
+                                                                @if ($r['pending'] ?? false)<span class="fin-status fin-status--amber" data-cm-crew-state="pending">Pending</span>
+                                                                @else<span class="fin-status fin-status--green" data-cm-crew-state="confirmed">Confirmed</span>@endif
+                                                                <div class="is-dim">{{ $row['label'] }} {{ rtrim(rtrim($row['rate'], '0'), '.') }}%{{ $r['role_confirmed'] ? '' : ' (role provisional)' }}</div>
+                                                            </div>
+                                                            <span class="fin-crew-amount" data-cm-crew-amount>{{ $r['amount']->format() }}</span>
+                                                        </li>
+                                                    @empty
+                                                        @if ($row['share']->isPositive())
+                                                            <li class="fin-crew-missing"><div class="fin-crew-who">No {{ $row['label'] }} recorded</div><span class="fin-crew-amount">{{ $row['share']->format() }} unallocated</span></li>
+                                                        @endif
+                                                    @endforelse
+                                                @endforeach
+                                            </ul>
+                                        </td>
+                                        <td>
+                                            @forelse ($line['expenses'] as $e)
+                                                <div class="fin-cm-cost"><div>{{ $e['category'] }}<div class="is-dim">{{ $e['reference'] }}</div></div><span class="fin-strong">− {{ $e['amount']->format() }}</span></div>
+                                            @empty
+                                                @if (! $line['deductions'])<span class="is-dim">None</span>@endif
+                                            @endforelse
+                                            @foreach ($line['deductions'] as $d)
+                                                <div class="fin-cm-cost"><div>{{ $d['type'] }}<div class="is-dim">{{ $d['reference'] }}</div></div><span class="fin-strong">− {{ $d['amount']->format() }}</span></div>
+                                            @endforeach
+                                        </td>
+                                        <td class="is-num" data-cm-line-base>{{ $line['base']->format() }}<div class="is-dim">Company {{ $line['company']->format() }}</div></td>
+                                        <td class="is-num fin-strong" data-cm-line-crew>{{ $line['crew_allocated']->format() }}</td>
                                     </tr>
                                 @endforeach
+                                <tr class="fin-week-total" data-cm-unit-total="{{ $uid }}">
+                                    <td colspan="2">Weekly total · {{ $unitLines->first()['unit_name'] }}</td>
+                                    <td>@if ($unitExpenses->isPositive())− {{ $unitExpenses->format() }}@else<span class="is-dim">None</span>@endif</td>
+                                    <td class="is-num">{{ \App\Support\Money::sum(collect($unitLines)->pluck('base'))->format() }}</td>
+                                    <td class="is-num" data-cm-unit-crew>{{ $unitCrew->format() }}</td>
+                                </tr>
                             </tbody>
                         </table>
-                        @foreach ($line['blockers'] as $b)
-                            <div class="fin-flag">{{ $b['message'] }}</div>
-                        @endforeach
                     </div>
-                </details>
+                </div>
             @empty
                 <div class="oa-empty">No job in this week has an allocated verified collection yet.</div>
             @endforelse

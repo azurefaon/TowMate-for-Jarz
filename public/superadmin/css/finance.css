@@ -319,3 +319,51 @@
 @media (max-width: 640px) {
     .superadmin-shell .fin-page input.fin-search { min-width: 0; }
 }
+
+/* Week subtotal rows (Driver Records history, Commission by unit): TowMate black with yellow figures. */
+.fin-table tr.fin-week-total td {
+    background: #111827;
+    color: #fff;
+    font-weight: 700;
+    border-top: 2px solid #facc15;
+}
+.fin-table tr.fin-week-total td.is-num { color: #facc15; }
+.fin-table tr.fin-week-total .is-dim { color: #d1d5db; }
+
+/* Commission (Draft) by unit */
+.fin-unit-block + .fin-unit-block { margin-top: 22px; }
+.fin-unit-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 16px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border-left: 4px solid #facc15;
+    background: #fefce8;
+    border-radius: 8px;
+}
+.fin-unit-head h3 { margin: 0; font-size: 16px; font-weight: 800; color: #111827; }
+.fin-cm-table td { vertical-align: top; }
+.fin-cm-table td + td, .fin-cm-table th + th { padding-left: 22px; }
+.fin-crew-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 300px; }
+.fin-crew-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-bottom: 8px; border-bottom: 1px solid #f3f4f6; }
+.fin-crew-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.fin-crew-who .fin-status { margin-left: 6px; }
+.fin-crew-amount { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; text-align: right; }
+.fin-cm-cost { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; min-width: 210px; }
+.fin-cm-cost + .fin-cm-cost { margin-top: 8px; }
+.fin-cm-cost .fin-strong { white-space: nowrap; }
+.fin-cm-table td.is-num { white-space: nowrap; }
+.fin-table tr.fin-week-total td:first-child { padding-left: 14px; }
+.fin-table tr.fin-week-total td:last-child { padding-right: 14px; }
+.fin-crew-missing { color: #6b7280; }
+.fin-cm-why summary { cursor: pointer; list-style: none; margin-top: 4px; }
+.fin-cm-why summary::-webkit-details-marker { display: none; }
+.fin-cm-why .fin-flag { margin-top: 4px; }
+
+@media (max-width: 640px) {
+    .fin-crew-list { min-width: 200px; }
+    .fin-unit-head h3 { font-size: 15px; }
+}

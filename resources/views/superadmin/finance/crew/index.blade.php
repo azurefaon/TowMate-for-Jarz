@@ -21,7 +21,8 @@
 
         <div class="fin-flash fin-flash--warning" role="status">
             <i data-lucide="users" aria-hidden="true"></i>
-            <span>Nobody is added automatically. A unit's current crew is not assumed to have worked past jobs. Commission for a job stays blocked until its crew is recorded here.
+            <span>When Dispatch assigns a unit, its crew at that moment is recorded as <strong>Pending confirmation</strong>. Confirm or correct each person here; commission stays blocked until you do.
+                Jobs finished before this was turned on are not filled in from today's roster: record them by hand.
                 How Rider, substitute, shared and combined roles are paid is still pending client confirmation.</span>
         </div>
 
@@ -70,7 +71,7 @@
                                             @if ($u['people'] === 0)
                                                 <span class="fin-status fin-status--red">Not recorded</span>
                                             @elseif ($u['needs_review'] > 0)
-                                                <span class="fin-status fin-status--amber">Needs review</span>
+                                                <span class="fin-status fin-status--amber">Pending confirmation</span>
                                             @else
                                                 <span class="fin-status fin-status--green">Recorded</span>
                                             @endif

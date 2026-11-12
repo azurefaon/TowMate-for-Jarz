@@ -38,7 +38,7 @@
             <section class="oa-card oa-card-body" aria-labelledby="crUnit{{ $uid }}">
                 <div class="oa-card-head"><div>
                     <h2 class="oa-card-title" id="crUnit{{ $uid }}"><i data-lucide="truck" aria-hidden="true"></i> {{ $uname }}</h2>
-                    <p class="oa-card-sub">People who actually worked this job for this unit.</p>
+                    <p class="oa-card-sub">People who actually worked this job for this unit. Crew assigned by Dispatch stays Pending confirmation until you confirm or correct it.</p>
                 </div></div>
                 @php $rows = ($current[$uid] ?? collect())->merge($unitOptions->count() === 1 ? ($current[0] ?? collect()) : collect()); @endphp
                 @if ($rows->isEmpty())
@@ -60,8 +60,8 @@
                                             @if ($r->change_reason)<div class="is-dim">Correction: {{ $r->change_reason }}</div>@endif
                                         </td>
                                         <td>
-                                            {{ $r->captured_at?->format('M j, Y g:i A') }} <span class="is-dim">({{ $r->source === 'manual' ? 'Owner' : str_replace('_', ' ', $r->source) }})</span>
-                                            @if ($r->needs_review)<div><span class="fin-status fin-status--amber">Needs review</span></div>@endif
+                                            {{ $r->captured_at?->format('M j, Y g:i A') }} <span class="is-dim">({{ $r->sourceLabel() }})</span>
+                                            @if ($r->needs_review)<div><span class="fin-status fin-status--amber">Pending confirmation</span></div>@endif
                                         </td>
                                         <td class="fin-actions">
                                             @if ($canManage)
