@@ -312,6 +312,8 @@ Route::prefix('superadmin')
                 Route::post('/job-crew/entries/{entry}/correct', [$crew, 'correct'])->whereNumber('entry')->name('crew.correct');
                 Route::post('/job-crew/entries/{entry}/remove', [$crew, 'remove'])->whereNumber('entry')->name('crew.remove');
                 Route::post('/job-crew/entries/{entry}/confirm', [$crew, 'confirm'])->whereNumber('entry')->name('crew.confirm');
+                Route::post('/job-crew/{booking}/confirm-history', [$crew, 'confirmHistory'])->whereNumber('booking')->name('crew.confirm-history');
+                Route::post('/job-crew/{booking}/confirm-pending', [$crew, 'confirmPending'])->whereNumber('booking')->name('crew.confirm-pending');
             });
 
             // Phase 10: Client Review register and the demo page (demo page is 404 outside a *_demo database).

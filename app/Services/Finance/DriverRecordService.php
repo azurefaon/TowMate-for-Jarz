@@ -31,7 +31,7 @@ class DriverRecordService
         'all' => 'All crew roles',
     ];
 
-    public function __construct(private readonly JobCollectionService $collections, private readonly FinanceOverviewService $overview)
+    public function __construct(private readonly JobCollectionService $collections, private readonly FinanceOverviewService $overview, private readonly CrewHistoryService $crewHistory)
     {
     }
 
@@ -69,8 +69,11 @@ class DriverRecordService
                 ->with('unit:id,name')->orderBy('id')->get();
 
             if ($crew->isEmpty()) {
+                // Not counted until confirmed, but the crew found in the Dispatch history is named so the Owner can confirm it.
+                $inHistory = collect($this->crewHistory->forJob($job))->when($unitId, fn ($c) => $c->only([$unitId]))
+                    ->flatMap(fn ($u) => collect($u['members'])->map(fn ($m) => $m['name'] . ' (' . ($m['role'] ? JobPersonnel::ROLE_LABELS[$m['role']] : 'Second Driver') . ($m['uncertain'] ? ', uncertain' : '') . ')'))->values()->all();
                 $unrecorded[] = ['reference' => $job['reference'], 'booking_id' => $job['anchor']->id, 'service_date' => $job['service_date'],
-                    'units' => collect($job['units'])->pluck('unit_name')->filter()->unique()->implode(', ')];
+                    'units' => collect($job['units'])->pluck('unit_name')->filter()->unique()->implode(', '), 'in_history' => $inHistory];
                 continue;
             }
 

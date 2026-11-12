@@ -725,3 +725,17 @@ Audit result: no code change needed. One line per job and unit (`CommissionCalcu
 - Commission (Draft): per-unit weekly totals, the "Crew draft, fully paid jobs" KPI and Draft shares by person add eligible lines only. Other lines stay listed with their label and an "Estimate …, not payable" amount, totalled separately per unit and per person. Jobs with nothing collected (no calculator line) are listed below the units with their label.
 - Eligible totals per unit and per person equal Driver Records for the same week and unit (tested with paid, partial, unpaid, a group trip over two units and a job split between two units).
 - `CommissionCalculator` only gained display fields on each line (`payment_status`, `payment_label`, `service_completed`); they are not part of the statement hash. No formula, rate, approval rule, statement or payment record changed.
+
+### Job Crew shows the full unit crew automatically (2026-11-12)
+
+Root cause of the manual-first screen: live capture (PR #44) only records crew on Dispatch events after its release, so every job completed earlier (for example TM-00131) had no crew rows and the page offered only one-person-at-a-time manual entry.
+
+- `CrewHistoryService` (read-only) rebuilds each completed job's crew per unit from records:
+  - Team Leader: `bookings.assigned_team_leader_id` (set by Dispatch).
+  - Driver, second Driver and Crew slots: the unit roster at the start of the job. It is found by undoing every audited roster change after that moment, checking each step and the last value logged before the job; a mismatch marks that position as having a gap.
+  - Crew on loan at that moment: marked as borrowed.
+  - People are flagged uncertain (shown, not ticked) when their position changed during the job, has a gap, or the job is older than the audit history. Today's roster is never used on its own.
+- Job Crew shows that crew under each unit as "Assigned · not confirmed". The Owner confirms it in one action ("Confirm crew"; untick anyone who did not work; choose the second Driver's role). Rows are recorded with source `backfill` ("Rebuilt from records"), confirmed by the Owner and audited. Live captures get "Confirm crew (n)" to confirm all of a unit's pending rows at once. Manual entry is a collapsed fallback. Nothing is written until the Owner confirms.
+- The Job Crew list shows "Crew found in history"; Driver Records names that crew on unrecorded jobs. Jobs count, and enter commission, once confirmed.
+- Production copy (backup of 2026-11-12): 35 of 35 completed jobs have a rebuilt crew (93 people, none uncertain). TM-00131 / JARZ 5 at 12:07 on Oct 3: Team Leader Christian Tinaytinay Cong-o (completed the job from their account) and Driver Randolph Banyaga, not today's driver.
+- No migration; formula, rates and approval blocks unchanged.

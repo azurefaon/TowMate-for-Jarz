@@ -22,7 +22,7 @@ class JobPersonnel extends Model
         'manual' => 'Recorded by the Owner',
         'assignment_capture' => 'Assigned by Dispatch',
         'completion_capture' => 'Captured at completion',
-        'backfill' => 'Backfilled',
+        'backfill' => 'Rebuilt from records',   // Dispatch and fleet history, confirmed by the Owner
     ];
 
     public const ROLE_LABELS = [

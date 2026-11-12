@@ -328,7 +328,7 @@ it('shows the unit breakdown on Commission (Draft) and pending crew on Driver Re
     $this->actingAs($owner)->get(route('superadmin.finance.driver-records.index', $q + ['person' => "personnel:{$driver->id}"]))->assertOk()
         ->assertSee('data-dr-participation="pending"', false)->assertSee('Assigned by Dispatch')->assertSee('data-dr-week-total', false);
     $this->actingAs($owner)->get(route('superadmin.finance.crew.show', $booking->id))->assertOk()
-        ->assertSee('Pending confirmation')->assertSee('Assigned by Dispatch');
+        ->assertSee('Assigned · not confirmed')->assertSee('Assigned by Dispatch');
 });
 
 it('lets only the Owner confirm captured crew', function () {

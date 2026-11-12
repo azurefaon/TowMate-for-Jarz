@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Finance\JobPersonnel;
 use App\Models\Unit;
+use App\Services\Finance\CrewHistoryService;
 use App\Services\Finance\JobCollectionService;
 use App\Services\Finance\JobCrewService;
 use App\Services\Finance\FinanceException;
@@ -18,13 +19,15 @@ use Illuminate\View\View;
 
 /**
  * Owner > Finance > Job Crew. Records who actually worked each completed job, per towing unit and performed role.
- * Supporting booking information is shown but never turned into a record automatically.
+ * Each unit's crew is shown automatically: crew captured from Dispatch (pending until confirmed) or, for older jobs,
+ * the crew rebuilt from Dispatch and fleet history (CrewHistoryService), confirmed by the Owner in one action.
+ * Manual entry is the fallback for people missing from the records.
  */
 class JobCrewController extends Controller
 {
     use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
-    public function __construct(private readonly JobCollectionService $collections, private readonly JobCrewService $crew)
+    public function __construct(private readonly JobCollectionService $collections, private readonly JobCrewService $crew, private readonly CrewHistoryService $crewHistory)
     {
     }
 
@@ -38,6 +41,7 @@ class JobCrewController extends Controller
 
         $rows = $jobs->map(function (array $job) {
             $current = JobPersonnel::current()->whereIn('booking_id', collect($job['members'])->pluck('id'))->get();
+            $evidence = $job['service_completed'] ? $this->crewHistory->forJob($job) : [];
             $units = [];
             foreach ($this->crew->jobUnitIds($job) as $id) {
                 $people = $current->where('unit_id', $id);
@@ -48,6 +52,7 @@ class JobCrewController extends Controller
                     'people' => $people->count(),
                     'roles' => $roles,
                     'needs_review' => $people->where('needs_review', true)->count() + $people->whereNull('commission_role')->count(),
+                    'in_history' => $people->isEmpty() ? count($evidence[$id]['members'] ?? []) : 0,
                 ];
             }
 
@@ -76,6 +81,7 @@ class JobCrewController extends Controller
             'allUnits' => Unit::orderBy('name')->pluck('name', 'id'),
             'participants' => $this->crew->participantOptions(),
             'supporting' => $this->crew->supportingInfo($job),
+            'evidence' => $job['service_completed'] ? $this->crewHistory->forJob($job) : [],
             'settled' => $this->crew->settledStatements($job),
             'canManage' => FinanceAccess::isOwner(request()->user()),
         ]);
@@ -121,6 +127,40 @@ class JobCrewController extends Controller
         }
 
         return back()->with('success', "Removed {$row->name_snapshot} from this job. The record stays in the history.");
+    }
+
+    /** One action: record the ticked people from the Dispatch history of one unit, confirmed by the Owner. */
+    public function confirmHistory(Request $request, int $booking): RedirectResponse
+    {
+        $this->authorize(FinanceAccess::MANAGE_CREW);
+        $data = $request->validate([
+            'unit_id' => ['required', 'integer', Rule::exists('units', 'id')],
+            'slots' => ['required', 'array', 'min:1'],
+            'slots.*' => ['string', Rule::in(['team_leader', 'driver_1', 'driver_2', 'crew_member_1', 'crew_member_2'])],
+            'second_driver_role' => ['nullable', Rule::in(['driver', 'rider'])],
+        ], ['slots.required' => 'Tick at least one person who worked this job.']);
+        try {
+            $result = $this->crew->recordFromHistory($request->user(), Booking::findOrFail($booking), (int) $data['unit_id'], $data['slots'], $data['second_driver_role'] ?? null);
+        } catch (FinanceException $e) {
+            return back()->withErrors(['finance' => $e->getMessage()]);
+        }
+        $names = collect($result['recorded'])->pluck('name_snapshot')->implode(', ');
+
+        return back()->with('success', ($names !== '' ? "Confirmed crew: {$names}." : 'Nobody new was recorded.') . ($result['skipped'] ? ' ' . implode(' ', $result['skipped']) : ''));
+    }
+
+    /** One action: confirm every pending captured record of one unit. */
+    public function confirmPending(Request $request, int $booking): RedirectResponse
+    {
+        $this->authorize(FinanceAccess::MANAGE_CREW);
+        $data = $request->validate(['unit_id' => ['required', 'integer', Rule::exists('units', 'id')]]);
+        try {
+            $result = $this->crew->confirmPending($request->user(), Booking::findOrFail($booking), (int) $data['unit_id']);
+        } catch (FinanceException $e) {
+            return back()->withErrors(['finance' => $e->getMessage()]);
+        }
+
+        return back()->with('success', "Confirmed {$result['confirmed']} crew record(s)." . ($result['needs_role'] ? ' Choose the role for ' . implode(', ', $result['needs_role']) . ' with Correct.' : ''));
     }
 
     public function confirm(Request $request, int $entry): RedirectResponse
