@@ -63,7 +63,7 @@
                                 <div class="fin-crew-roster-role">{{ $r->roleLabel() }}</div>
                                 <div class="fin-crew-roster-who">
                                     <span class="fin-crew-roster-name">{{ $r->name_snapshot }}</span>
-                                    @if ($r->is_substitute)<span class="fin-status fin-status--amber">Substitute</span>@endif
+                                    @if ($r->is_substitute)<span class="fin-status fin-status--grey">Substitute</span>@endif
                                     @if ($r->borrowedFrom)<span class="is-dim">borrowed from {{ $r->borrowedFrom->name }}</span>@endif
                                     <div class="is-dim">{{ $r->sourceLabel() }} · {{ $r->captured_at?->format('M j, Y g:i A') }}@if (! $r->commission_role) · <span class="fin-flag">choose the role with Correct</span>@endif</div>
                                 </div>
@@ -111,12 +111,12 @@
                                     <label class="fin-crew-roster-who">
                                         @if ($canManage)<input type="checkbox" name="slots[]" value="{{ $slot }}" @checked(! $m['uncertain'] && $m['role'] !== null && ($m['personnel_id'] || $m['user_id']))>@endif
                                         <span class="fin-crew-roster-name">{{ $m['name'] }}</span>
-                                        @if ($m['borrowed_from'])<span class="fin-status fin-status--amber">Borrowed</span>@endif
+                                        @if ($m['borrowed_from'])<span class="fin-status fin-status--grey">Borrowed</span>@endif
                                         <div class="is-dim">{{ $m['evidence'] }}@if (! $m['personnel_id'] && ! $m['user_id']) · no personnel record (add manually)@endif</div>
                                         @if ($m['uncertain'])<div class="fin-flag">Uncertain: {{ $m['reason'] }}</div>@endif
                                     </label>
                                     <div class="fin-crew-roster-state">
-                                        @if ($m['uncertain'])<span class="fin-status fin-status--red" data-crew-state="uncertain">Uncertain</span>
+                                        @if ($m['uncertain'])<span class="fin-status fin-status--blue" data-crew-state="uncertain">Uncertain</span>
                                         @else<span class="fin-status fin-status--amber" data-crew-state="assigned">Assigned · not confirmed</span>@endif
                                     </div>
                                     @if ($slot === 'driver_2' && $canManage)

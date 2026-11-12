@@ -47,7 +47,7 @@
                                 <tr data-candidate="{{ $j['reference'] }}">
                                     <td>
                                         @if ($j['settled_by'])
-                                            <span class="fin-status fin-status--blue">Settled in {{ $j['settled_by'] }}</span>
+                                            <span class="fin-status fin-status--grey">Settled in {{ $j['settled_by'] }}</span>
                                         @else
                                             <input type="checkbox" name="jobs[]" value="{{ $j['key'] }}" checked aria-label="Include job {{ $j['reference'] }}">
                                         @endif

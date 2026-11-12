@@ -12,12 +12,12 @@
     $w = ['from' => $week->toDateString(), 'to' => $week->addDays(5)->toDateString()];
     $steps = [
         ['Overview', route('superadmin.finance.overview', $w), 'Actual collections, expenses, unit funds, draft and approved commission kept separate.'],
-        ['Jobs & Collections', route('superadmin.finance.collections.index', $w), 'Partial payment (₱7,500 of ₱15,000), the two-unit job pending allocation review, and the three-vehicle booking counted once.'],
-        ['Unit Funds', route('superadmin.finance.unit-funds.index', $w), 'Unit 1: ₱3,000 issued, ₱2,950 spent, ₱50 returned, ₱0 remaining.'],
-        ['Expenses', route('superadmin.finance.expenses.index', $w), 'Approved receipts, the ₱2,000 personal advance, and one Team Leader expense waiting for the Dispatcher.'],
+        ['Jobs & Collections', route('superadmin.finance.collections.index', $w), 'Partial payment (₱7,500.00 of ₱15,000.00), the two-unit job pending allocation review, and the three-vehicle booking counted once.'],
+        ['Unit Funds', route('superadmin.finance.unit-funds.index', $w), 'Unit 1: ₱3,000.00 issued, ₱2,950.00 spent, ₱50.00 returned, ₱0.00 remaining.'],
+        ['Expenses', route('superadmin.finance.expenses.index', $w), 'Approved receipts, the ₱2,000.00 personal advance, and one Team Leader expense waiting for the Dispatcher.'],
         ['Job Crew', route('superadmin.finance.crew.index', ['week' => $w['from']]), 'Who actually worked each job; Unit 2 has no Rider.'],
         ['Weekly Commission', route('superadmin.finance.commission.index', ['week' => $w['from']]), 'Draft calculation and every blocker.'],
-        ['Commission Statements', route('superadmin.finance.statements.index'), 'Unit 1 approved (base ₱12,050 → ₱7,230 / ₱4,820) with two simulated payouts; Unit 2 For Review and blocked.'],
+        ['Commission Statements', route('superadmin.finance.statements.index'), 'Unit 1 approved (base ₱12,050.00 → ₱7,230.00 / ₱4,820.00) with two simulated payouts; Unit 2 For Review and blocked.'],
         ['Payout records', route('superadmin.finance.statements.index', ['status' => 'approved']), 'Record the remaining simulated payouts, then Mark statement Paid. No money moves.'],
         ['Finance Reports', route('superadmin.finance.reports.index', $w), 'Same totals on screen, in print / PDF and in Excel.'],
         ['Client Review', route('superadmin.finance.client-review.index'), 'Pending decisions, including the review-only 50:50 proposal and the personal advance.'],

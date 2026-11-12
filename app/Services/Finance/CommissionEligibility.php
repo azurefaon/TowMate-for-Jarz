@@ -17,6 +17,14 @@ final class CommissionEligibility
     public const AWAITING_PAYMENT = 'awaiting_payment';
     public const UNDER_REVIEW = 'under_review';
 
+    /** Badge colour for each state (display only; see .fin-status in finance.css). */
+    public const TONES = [
+        self::ELIGIBLE => 'green',
+        self::PENDING_COLLECTION => 'amber',
+        self::AWAITING_PAYMENT => 'amber',
+        self::UNDER_REVIEW => 'blue',
+    ];
+
     public const LABELS = [
         self::PENDING_COLLECTION => 'Pending Collection',
         self::AWAITING_PAYMENT => 'Awaiting Payment',

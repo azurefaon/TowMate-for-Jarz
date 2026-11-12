@@ -10,7 +10,7 @@
 
 @php
     $m = fn ($v) => \App\Support\Money::of((string) $v)->format();
-    $badge = ['draft' => 'grey', 'for_review' => 'amber', 'approved' => 'green', 'paid' => 'blue', 'voided' => 'red'];
+    $badge = ['draft' => 'grey', 'for_review' => 'blue', 'approved' => 'green', 'paid' => 'green', 'voided' => 'red'];
     $lines = $calc['lines'] ?? [];
     $policy = $calc['policy'] ?? null;
     $blockers = $review['blockers'] ?? [];
@@ -142,7 +142,7 @@
                                             <div class="is-dim">{{ $row['payout']->methodLabel() }} · {{ $row['payout']->paid_at?->format('M j, Y') }} · {{ $row['payout']->external_reference ?: 'no reference' }} · by {{ $row['payout']->recorded_by_name }}</div>
                                             @if ($row['payout']->evidence_path)<a href="{{ route('superadmin.finance.payouts.evidence', $row['payout']->id) }}" target="_blank" rel="noopener">View evidence</a>@endif
                                         @else
-                                            <span class="fin-status fin-status--amber">Not recorded</span>
+                                            <span class="fin-status fin-status--grey">Not recorded</span>
                                         @endif
                                     </td>
                                     <td class="fin-actions">

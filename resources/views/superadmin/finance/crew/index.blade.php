@@ -70,13 +70,13 @@
                                             @if ($u['people'] === 0 && ($u['in_history'] ?? 0) > 0)
                                                 <span class="fin-status fin-status--amber" data-crew-status="history">Crew found in history ({{ $u['in_history'] }}) · confirm</span>
                                             @elseif ($u['people'] === 0)
-                                                <span class="fin-status fin-status--red">Not recorded</span>
+                                                <span class="fin-status fin-status--grey">Not recorded</span>
                                             @elseif ($u['needs_review'] > 0)
                                                 <span class="fin-status fin-status--amber">Pending confirmation</span>
                                             @else
                                                 <span class="fin-status fin-status--green">Recorded</span>
                                             @endif
-                                            @if ($row['settled'])<span class="fin-status fin-status--blue">In approved statement</span>@endif
+                                            @if ($row['settled'])<span class="fin-status fin-status--green">In approved statement</span>@endif
                                         </td>
                                         <td>@if ($loop->first)<a class="oa-btn oa-btn--sm" href="{{ route('superadmin.finance.crew.show', $row['job']['anchor']->id) }}">Open</a>@endif</td>
                                     </tr>

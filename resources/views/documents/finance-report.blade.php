@@ -25,7 +25,7 @@
         .fr-total td { font-weight: bold; background: #fafafa; }
         .fr-num { text-align: right !important; white-space: nowrap; }
         .fr-dim { color: #666; font-size: 9px; }
-        .footer { margin-top: 12px; color: #777; font-size: 8px; }
+        .footer { margin-top: 12px; color: #555; font-size: 8px; }
         .toolbar { background: #111; color: #fff; padding: 10px 16px; display: flex; gap: 10px; font-family: Arial, sans-serif; }
         .toolbar a, .toolbar button { color: #111; background: #fff; border: 0; padding: 6px 12px; border-radius: 4px; font-size: 13px; text-decoration: none; cursor: pointer; }
         @media print { .toolbar { display: none; } .sheet { padding: 0; } @page { size: A4 landscape; margin: 12mm; } }

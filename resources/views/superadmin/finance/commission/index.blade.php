@@ -128,7 +128,7 @@
                                             <div class="is-dim">{{ $line['service_date']?->format('D, M j') }} · {{ $line['vehicles'] }} vehicle(s){{ $line['group_code'] ? ' · Group ' . $line['group_code'] : '' }}</div>
                                             <div class="is-dim">Collected {{ $line['collection']->format() }}</div>
                                             @if ($line['blockers'])
-                                                <details class="fin-cm-why"><summary><span class="fin-status fin-status--amber">{{ count($line['blockers']) }} blocker(s)</span></summary>
+                                                <details class="fin-cm-why"><summary><span class="fin-status fin-status--red">{{ count($line['blockers']) }} blocker(s)</span></summary>
                                                     @foreach ($line['blockers'] as $b)<div class="fin-flag">{{ $b['message'] }}</div>@endforeach
                                                 </details>
                                             @endif
@@ -148,7 +148,7 @@
                                                         </li>
                                                     @empty
                                                         @if ($row['share']->isPositive())
-                                                            <li class="fin-crew-missing"><div class="fin-crew-who">No {{ $row['label'] }} recorded</div><span class="fin-crew-amount">{{ $row['share']->format() }} unallocated</span></li>
+                                                            <li class="fin-crew-missing"><div class="fin-crew-who">No {{ $row['label'] }} recorded <span class="fin-status fin-status--amber">Unallocated</span></div><span class="fin-crew-amount">{{ $row['share']->format() }}</span></li>
                                                         @endif
                                                     @endforelse
                                                 @endforeach
@@ -169,7 +169,7 @@
                                             <td class="is-num fin-strong" data-cm-line-crew>{{ $line['crew_allocated']->format() }}</td>
                                         @else
                                             <td class="is-num" data-cm-line-crew-estimate>
-                                                <span @class(['fin-status', 'fin-status--amber' => $state !== 'awaiting_payment', 'fin-status--red' => $state === 'awaiting_payment'])>{{ \App\Services\Finance\CommissionEligibility::LABELS[$state] }}</span>
+                                                <span class="fin-status fin-status--{{ \App\Services\Finance\CommissionEligibility::TONES[$state] }}">{{ \App\Services\Finance\CommissionEligibility::LABELS[$state] }}</span>
                                                 <div class="is-dim">{{ $line['payment_label'] }}</div>
                                                 <div class="is-dim">Estimate {{ $line['crew_allocated']->format() }}, not payable</div>
                                             </td>
@@ -178,7 +178,7 @@
                                 @endforeach
                                 <tr class="fin-week-total" data-cm-unit-total="{{ $uid }}">
                                     <td colspan="2">Weekly total, fully paid jobs · {{ $unitLines->first()['unit_name'] }}</td>
-                                    <td>@if ($unitExpenses->isPositive())− {{ $unitExpenses->format() }}@else<span class="is-dim">None</span>@endif</td>
+                                    <td class="is-num">@if ($unitExpenses->isPositive())− {{ $unitExpenses->format() }}@else<span class="is-dim">None</span>@endif</td>
                                     <td class="is-num">{{ \App\Support\Money::sum(collect($unitLines)->pluck('base'))->format() }}</td>
                                     <td class="is-num" data-cm-unit-crew>{{ $unitSummary['eligible']->format() }}</td>
                                 </tr>
@@ -199,7 +199,7 @@
             @foreach ($draft['blocked_jobs'] as $bj)
                 @php $bjState = \App\Services\Finance\CommissionEligibility::state($bj['job']['status'], (bool) $bj['job']['service_completed']); @endphp
                 <div class="fin-inline-warning" data-cm-blocked-job="{{ $bj['job']['reference'] }}" data-cm-line-state="{{ $bjState }}">
-                    @if ($bjState !== 'eligible')<span @class(['fin-status', 'fin-status--amber' => $bjState !== 'awaiting_payment', 'fin-status--red' => $bjState === 'awaiting_payment'])>{{ \App\Services\Finance\CommissionEligibility::LABELS[$bjState] }}</span>@endif
+                    @if ($bjState !== 'eligible')<span class="fin-status fin-status--{{ \App\Services\Finance\CommissionEligibility::TONES[$bjState] }}">{{ \App\Services\Finance\CommissionEligibility::LABELS[$bjState] }}</span>@endif
                     Job {{ $bj['job']['reference'] }} is not in the calculation yet: {{ collect($bj['blockers'])->pluck('message')->implode(' ') }}
                 </div>
             @endforeach
@@ -241,7 +241,7 @@
                                     <td>{{ $d->booking?->booking_code }} · {{ $d->unit?->name }}</td>
                                     <td>{{ $d->typeLabel() }}</td>
                                     <td class="is-num fin-strong">{{ \App\Support\Money::of($d->amount)->format() }}</td>
-                                    <td>{{ ['pending_review' => 'Awaiting review', 'approved' => 'Approved', 'voided' => 'Voided'][$d->status] }}</td>
+                                    <td><span class="fin-status fin-status--{{ ['pending_review' => 'amber', 'approved' => 'green', 'voided' => 'red'][$d->status] }}">{{ ['pending_review' => 'Awaiting review', 'approved' => 'Approved', 'voided' => 'Voided'][$d->status] }}</span></td>
                                     <td class="fin-actions">
                                         @if ($d->status === 'pending_review')
                                             <form method="POST" action="{{ route('superadmin.finance.commission.deductions.approve', $d->id) }}" data-fin-once>@csrf<button class="oa-btn oa-btn--sm oa-btn--primary" type="submit">Approve</button></form>
