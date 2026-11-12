@@ -6,24 +6,25 @@
     <link rel="stylesheet" href="{{ asset('superadmin/css/finance.css') }}?v={{ filemtime(public_path('superadmin/css/finance.css')) }}">
     <style>
         .xr-page { display: flex; flex-direction: column; gap: 16px; }
-        .xr-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 16px; padding: 18px 20px; }
+        .xr-card { background: #fff; border: 1px solid var(--fin-line); border-radius: 12px; padding: 18px 20px; }
         .xr-card h2 { margin: 0 0 4px; font-size: 18px; }
-        .xr-sub { margin: 0 0 14px; color: #525252; font-size: 14px; }
+        .xr-sub { margin: 0 0 14px; color: var(--fin-body); font-size: 14px; }
         .xr-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        .xr-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: #737373; padding: 8px 10px; border-bottom: 1px solid #e5e5e5; }
-        .xr-table td { padding: 12px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
-        .xr-table .is-num { text-align: right; white-space: nowrap; }
+        .xr-table th { text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--fin-ink); padding: 8px 10px; border-bottom: 2px solid var(--fin-ink); }
+        .xr-table td { padding: 12px 10px; border-bottom: 1px solid var(--fin-line); vertical-align: top; }
+        .xr-table .is-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .xr-wrap { overflow-x: auto; }
-        .xr-empty { padding: 24px; text-align: center; color: #737373; }
-        .xr-page .oa-btn { height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid #d4d4d4; background: #fff; color: #171717; font: inherit; font-weight: 600; cursor: pointer; }
-        .xr-page .oa-btn--primary { background: #171717; border-color: #171717; color: #fff; }
+        .xr-empty { padding: 24px; text-align: center; color: var(--fin-body); }
+        .xr-page .oa-btn { height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--fin-control-line); background: #fff; color: var(--fin-ink); font: inherit; font-weight: 600; cursor: pointer; }
+        .xr-page .oa-btn--primary { background: #facc15; border-color: #facc15; color: #171717; }
+        .xr-page .oa-btn--primary:hover { background: #eab308; border-color: #eab308; }
         .xr-page .oa-btn[disabled] { opacity: .45; cursor: not-allowed; }
-        .xr-page .is-dim { color: #737373; font-size: 13px; }
+        .xr-page .is-dim { color: var(--fin-muted); font-size: 13px; }
     </style>
 @endpush
 
 @section('content')
-    <div class="xr-page" id="dispatcherExpenseReview">
+    <div class="xr-page fin-page" id="dispatcherExpenseReview">
         <header>
             <h1 style="margin:0;">Expense Review</h1>
             <p class="xr-sub">Check each Team Leader expense against its receipt. Verified expenses go to the Owner for approval. You cannot approve expenses.</p>
@@ -113,7 +114,7 @@
                                     <td>{{ $expense->categoryLabel() }}</td>
                                     <td class="is-num">{{ \App\Support\Money::of($expense->amount)->format() }}</td>
                                     <td>{{ $expense->verifier?->full_name ?: $expense->verifier?->name }} · {{ $expense->verified_at?->timezone(config('finance.timezone'))->format('M j, g:i A') }}</td>
-                                    <td>{{ $expense->statusLabel() }}</td>
+                                    <td><span class="fin-status fin-status--{{ ['submitted' => 'amber', 'verified' => 'amber', 'approved' => 'green', 'rejected' => 'red', 'voided' => 'grey'][$expense->status] ?? 'grey' }}">{{ $expense->statusLabel() }}</span></td>
                                 </tr>
                             @endforeach
                         </tbody>

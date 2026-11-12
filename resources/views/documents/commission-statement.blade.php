@@ -43,9 +43,10 @@
         .brand .sub { margin: 2px 0 0; color: #555; font-size: 10px; }
         h1 { font-size: 16px; margin: 16px 0 2px; letter-spacing: .5px; }
         h2 { font-size: 12px; margin: 13px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #999; text-transform: uppercase; letter-spacing: .5px; }
-        .status { display: inline-block; padding: 3px 8px; border: 1.5px solid #111; font-weight: bold; font-size: 11px; margin-top: 4px; }
-        .status.warn { border-color: #b45309; color: #b45309; }
-        .status.void { border-color: #b91c1c; color: #b91c1c; }
+        .status { display: inline-block; padding: 3px 10px; border-radius: 10px; background: #404040; color: #fff; font-weight: bold; font-size: 11px; margin-top: 4px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .status.ok { background: #166534; }
+        .status.review { background: #1d4ed8; }
+        .status.void { background: #b91c1c; }
         .meta td { padding: 3px 6px 3px 0; vertical-align: top; }
         .meta td.k { color: #555; width: 150px; }
         .grid th, .grid td { border: 1px solid #bbb; padding: 4px 6px; text-align: left; vertical-align: top; }
@@ -53,14 +54,14 @@
         .num { text-align: right !important; white-space: nowrap; }
         .total td { font-weight: bold; background: #fafafa; }
         .note { color: #555; font-size: 10px; margin: 4px 0; }
-        .warn-box { border: 1px solid #b45309; color: #92400e; padding: 6px 8px; margin: 10px 0; }
+        .warn-box { border: 1px solid #b45309; color: #78350f; padding: 6px 8px; margin: 10px 0; }
         .summary td { padding: 4px 6px; border-bottom: 1px solid #ddd; }
         .summary td.num { font-weight: bold; }
         .summary tr.key td { font-size: 12px; background: #f5f5f5; }
         .sign td { padding-top: 22px; width: 50%; }
         .sign, .footer { page-break-inside: avoid; }
         .sign .line { border-top: 1px solid #111; padding-top: 3px; width: 85%; }
-        .footer { margin-top: 8px; color: #777; font-size: 9px; }
+        .footer { margin-top: 8px; color: #555; font-size: 9px; }
         .toolbar { background: #111; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; font-family: Arial, sans-serif; }
         .toolbar a, .toolbar button { color: #111; background: #fff; border: 0; padding: 6px 12px; border-radius: 4px; font-size: 13px; text-decoration: none; cursor: pointer; }
         @media print { .toolbar { display: none; } .sheet { padding: 0; } @page { size: A4; margin: 14mm; } }
@@ -87,7 +88,7 @@
 
     <h1>WEEKLY COMMISSION STATEMENT</h1>
     @if (\App\Services\Finance\Demo\FinanceDemoGuard::enabled())<div style="border:2px solid #b91c1c;color:#b91c1c;padding:5px 8px;margin:6px 0;font-weight:bold" data-doc-demo>DEMONSTRATION DATA — sample records, not real financial records; the commission policy is a demo stand-in.</div>@endif
-    <span class="status {{ in_array($statement->status, ['draft', 'for_review'], true) ? 'warn' : ($statement->status === 'voided' ? 'void' : '') }}" data-doc-status="{{ $statement->status }}">{{ $statusText }}</span>
+    <span class="status {{ ['draft' => '', 'for_review' => 'review', 'approved' => 'ok', 'paid' => 'ok', 'voided' => 'void'][$statement->status] ?? '' }}" data-doc-status="{{ $statement->status }}">{{ $statusText }}</span>
 
     <table class="meta" style="margin-top:10px">
         <tr><td class="k">Statement number</td><td><strong data-doc-ref>{{ $statement->reference_code }}</strong> (revision {{ $statement->revision }})</td>

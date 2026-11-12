@@ -10,7 +10,7 @@
 
 @php
     $openForm = old('form');
-    $statusTone = ['paid' => 'green', 'partial' => 'amber', 'awaiting_verification' => 'blue', 'completed_unverified' => 'red', 'unpaid' => 'red', 'overpaid' => 'amber'];
+    $statusTone = ['paid' => 'green', 'partial' => 'amber', 'awaiting_verification' => 'amber', 'completed_unverified' => 'amber', 'unpaid' => 'amber', 'overpaid' => 'blue'];
     $allocationTone = ['automatic' => 'green', 'manual' => 'green', 'pending_review' => 'amber', 'nothing_collected' => 'grey'];
     $fmtDate = fn ($d) => $d ? $d->format('M j, Y') : '—';
 @endphp

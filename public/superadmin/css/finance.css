@@ -1,4 +1,23 @@
-/* Owner Finance pages. Builds on bookings.css (ob-*) and analytics.css (oa-*). */
+/* Owner Finance pages. Builds on bookings.css (ob-*) and analytics.css (oa-*).
+ *
+ * One design for every Finance screen (black, yellow, white; contrast checked against WCAG AA):
+ *   text         --fin-ink on white 17:1, --fin-body 10:1, --fin-muted 7.8:1 (never lighter on a light background)
+ *   badges       solid background + white text (green / amber / red / grey / blue), see .fin-status
+ *   controls     44px high (36px compact inside tables), 8px radius, grey border, solid black border on focus
+ *   no decorative left borders or accent bars; yellow is for buttons, the active menu item and key totals only
+ */
+:root {
+    --fin-ink: #171717;
+    --fin-body: #404040;
+    --fin-muted: #525252;
+    --fin-line: #d4d4d4;
+    --fin-control-line: #8c8c8c;
+    --fin-green: #166534;
+    --fin-amber: #b45309;
+    --fin-red: #b91c1c;
+    --fin-gray: #404040;
+    --fin-blue: #1d4ed8;
+}
 
 .fin-header {
     display: flex;
@@ -22,13 +41,15 @@
     border-radius: 12px;
     border: 1px solid;
     font-size: 14px;
+    line-height: 1.5;
 }
 
 .fin-flash svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }
 .fin-flash ul { margin: 4px 0 0; padding-left: 18px; }
-.fin-flash--success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-.fin-flash--error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-.fin-flash--warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.fin-flash a { color: inherit; font-weight: 600; text-decoration: underline; }
+.fin-flash--success { background: #f0fdf4; border-color: var(--fin-green); color: #14532d; }
+.fin-flash--error { background: #fef2f2; border-color: var(--fin-red); color: #7f1d1d; }
+.fin-flash--warning { background: #fffbeb; border-color: var(--fin-amber); color: #78350f; }
 
 .fin-form-card[hidden] { display: none; }
 
@@ -50,7 +71,7 @@
     min-width: 0;
 }
 
-.fin-field small { font-weight: 400; color: var(--ob-body, #525252); }
+.fin-field small { font-weight: 400; color: var(--fin-muted); }
 .fin-field--wide { grid-column: 1 / -1; }
 
 .fin-field input,
@@ -59,8 +80,8 @@
     width: 100%;
     min-height: 44px;
     padding: 10px 12px;
-    border: 1px solid #d4d4d4;
-    border-radius: 10px;
+    border: 1px solid var(--fin-control-line);
+    border-radius: 8px;
     font: inherit;
     font-weight: 400;
     color: var(--ob-text, #171717);
@@ -70,15 +91,18 @@
 
 .fin-field textarea { min-height: 64px; resize: vertical; }
 
-.fin-field input:focus-visible,
-.fin-field textarea:focus-visible,
-.fin-field select:focus-visible {
-    outline: 2px solid var(--ob-text, #171717);
-    outline-offset: 1px;
+/* focus: solid black border (thickened to 2px with a ring); the transparent outline stays visible in forced-colours mode */
+.fin-page input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]):not([type=submit]):not([type=button]):focus,
+.fin-page select:focus:not(:disabled),
+.fin-page textarea:focus:not(:disabled) {   /* :not() raises specificity above panel.css (.superadmin-shell textarea:focus is yellow) */
+    border-color: var(--fin-ink) !important;
+    box-shadow: 0 0 0 1px var(--fin-ink);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
 }
 
 .fin-radios { border: 0; margin: 0; padding: 0; }
-.fin-radios legend { font-size: 13px; font-weight: 600; margin-bottom: 6px; padding: 0; }
+.fin-radios legend { font-size: 13px; font-weight: 600; margin-bottom: 6px; padding: 0; color: var(--fin-ink); }
 .fin-radios label { display: flex; align-items: center; gap: 8px; font-weight: 400; min-height: 32px; }
 .fin-radios input { width: auto; min-height: 0; }
 
@@ -92,42 +116,42 @@
 
 .fin-table td { vertical-align: top; }
 .fin-table tfoot th,
-.fin-table tfoot td { border-top: 2px solid #e5e5e5; font-weight: 700; padding-top: 12px; }
+.fin-table tfoot td { border-top: 2px solid var(--fin-ink); font-weight: 700; padding-top: 12px; }
 .fin-strong { font-weight: 700; }
-.fin-negative { color: #b91c1c; }
+.fin-negative { color: var(--fin-red); }
 
 .fin-ref { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 
 .fin-type { font-weight: 600; }
-.fin-type--return { color: #1d4ed8; }
+.fin-type--return { color: var(--fin-blue); }
 
 .fin-tag {
     display: inline-block;
     margin-left: 6px;
     padding: 2px 8px;
     border-radius: 999px;
-    background: #f5f5f5;
-    color: #525252;
+    background: var(--fin-gray);
+    color: #fff;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
 }
 
-.fin-tag--void { background: #fee2e2; color: #991b1b; }
+.fin-tag--void { background: var(--fin-red); }
 
 .fin-pending {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 999px;
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--fin-amber);
+    color: #fff;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     white-space: nowrap;
 }
 
-.fin-voided td { color: #a3a3a3; }
+.fin-voided td { color: var(--fin-muted); background: #f5f5f5; }
 .fin-voided .fin-strong { text-decoration: line-through; }
-.fin-voided .fin-void-note { color: #525252; }
+.fin-voided .fin-void-note { color: var(--fin-body); }
 
 .fin-actions { min-width: 150px; }
 
@@ -137,15 +161,15 @@
 .fin-details-body {
     margin-top: 10px;
     padding: 14px;
-    border: 1px solid #e5e5e5;
+    border: 1px solid var(--fin-line);
     border-radius: 12px;
     background: #fafafa;
     min-width: min(520px, 80vw);
 }
 
 .fin-void-form { margin-top: 14px; padding-top: 14px; border-top: 1px dashed #d4d4d4; }
-.fin-help { margin: 0 0 10px; font-size: 13px; color: var(--ob-body, #525252); }
-.fin-btn-danger { color: #b91c1c; border-color: #fecaca; }
+.fin-help { margin: 0 0 10px; font-size: 13px; color: var(--fin-body); }
+.fin-btn-danger { color: var(--fin-red); border-color: var(--fin-red); }
 .fin-pager { margin-top: 14px; }
 
 .fin-sr {
@@ -165,44 +189,51 @@
 
 /* ---------- Expenses ---------- */
 .fin-filters .oa-filters { flex-wrap: wrap; }
-.fin-kpi-sub { display: block; margin-top: 4px; font-size: 12px; color: var(--ob-body, #525252); }
+.fin-kpi-sub { display: block; margin-top: 4px; font-size: 12px; color: var(--fin-body); }
 .oa-kpi.is-dark .fin-kpi-sub { color: #d4d4d4; }
 
 .fin-status {
     display: inline-block;
-    padding: 2px 10px;
+    padding: 3px 10px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
+    line-height: 1.35;
     white-space: nowrap;
+    /* default and --grey: Draft, Not recorded, neutral labels */
+    background: var(--fin-gray);
+    color: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
 }
-.fin-status--amber { background: #fef3c7; color: #92400e; }
-.fin-status--blue { background: #dbeafe; color: #1e40af; }
-.fin-status--green { background: #dcfce7; color: #166534; }
-.fin-status--red { background: #fee2e2; color: #991b1b; }
-.fin-status--grey { background: #f5f5f5; color: #525252; }
+.fin-status--green { background: var(--fin-green); }   /* Confirmed, Approved, Paid, Recorded */
+.fin-status--amber { background: var(--fin-amber); }   /* Pending, Awaiting, Pending Collection */
+.fin-status--red { background: var(--fin-red); }       /* Rejected, Voided, Blocked, Failed */
+.fin-status--blue { background: var(--fin-blue); }     /* Under review */
+.fin-status--grey { background: var(--fin-gray); }     /* Draft, Not recorded, neutral */
 
-.fin-flag { margin-top: 4px; font-size: 12px; line-height: 1.35; color: #92400e; }
-.fin-flag--missing_evidence { color: #b91c1c; font-weight: 600; }
+.fin-flag { margin-top: 4px; font-size: 12px; line-height: 1.35; color: #78350f; }
+.fin-flag--missing_evidence { color: var(--fin-red); font-weight: 600; }
 .fin-flag--monthly_allocation,
-.fin-flag--personal_advance { color: #6d28d9; }
+.fin-flag--personal_advance { color: #5b21b6; }
 
 .fin-funding-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; white-space: nowrap; }
-.fin-funding legend small { font-weight: 400; color: var(--ob-body, #525252); }
-.fin-funding { border: 1px dashed #d4d4d4; border-radius: 12px; padding: 12px 14px; margin: 0; }
+.fin-funding legend small { font-weight: 400; color: var(--fin-muted); }
+.fin-funding { border: 1px dashed var(--fin-control-line); border-radius: 12px; padding: 12px 14px; margin: 0; }
 
 .fin-inline-warning {
     margin: 8px 0 0;
     padding: 8px 12px;
     border-radius: 10px;
+    border: 1px solid var(--fin-amber);
     background: #fffbeb;
-    color: #92400e;
+    color: #78350f;
     font-size: 13px;
     font-weight: 400;
 }
 .fin-inline-warning[hidden] { display: none; }
-.fin-ok { color: #166534; }
-.fin-mismatch { color: #b91c1c; }
+.fin-ok { color: var(--fin-green); }
+.fin-mismatch { color: var(--fin-red); }
 
 .fin-desc { margin: 0 0 12px; font-size: 14px; color: var(--ob-text, #171717); white-space: pre-line; }
 .fin-subhead { margin: 14px 0 6px; font-size: 13px; font-weight: 700; color: var(--ob-text, #171717); }
@@ -218,9 +249,11 @@
     flex: 1 1 200px;
     min-height: 36px;
     padding: 6px 10px;
-    border: 1px solid #d4d4d4;
+    border: 1px solid var(--fin-control-line);
     border-radius: 8px;
     font: inherit;
+    color: var(--fin-ink);
+    background: #fff;
 }
 .fin-review-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #d4d4d4; }
 .fin-review-actions .oa-btn[disabled] { opacity: .5; cursor: not-allowed; }
@@ -232,20 +265,19 @@
 .fin-page .oa-field select.oa-select {
     height: 44px;
     padding: 0 36px 0 14px;
-    border: 1px solid var(--ob-border, #e5e5e5);
+    border: 1px solid var(--fin-control-line);
     border-radius: 8px;
-    background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23525252' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23404040' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
     color: var(--ob-text, #171717);
     font: inherit;
     appearance: none;
     -webkit-appearance: none;
     cursor: pointer;
 }
-.fin-page .oa-field select.oa-select:focus-visible { outline: 2px solid #facc15; outline-offset: 2px; border-color: #171717; }
 .fin-page input.oa-select[type=date] {
     height: 44px;
     padding: 0 12px;
-    border: 1px solid var(--ob-border, #e5e5e5);
+    border: 1px solid var(--fin-control-line);
     border-radius: 8px;
     background: #ffffff;
     color: var(--ob-text, #171717);
@@ -267,19 +299,19 @@
 }
 
 /* ---------- Phase 9: Finance Reports (screen styles for the shared report body) ---------- */
-.fr-screen .fr-meta { padding: 12px 14px; border: 1px solid var(--ob-border, #e5e5e5); border-radius: 10px; background: #fafafa; font-size: 13px; line-height: 1.7; }
+.fr-screen .fr-meta { padding: 12px 14px; border: 1px solid var(--fin-line); border-radius: 10px; background: #fafafa; font-size: 13px; line-height: 1.7; }
 .fr-screen .fr-h { margin: 26px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #171717; font-size: 15px; font-weight: 700; }
 .fr-screen table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .fr-screen .fr-sum { max-width: 720px; }
-.fr-screen .fr-sum td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+.fr-screen .fr-sum td { padding: 7px 10px; border-bottom: 1px solid var(--fin-line); }
 .fr-screen .fr-sum tr.fr-key td { font-weight: 700; background: #171717; color: #facc15; }
 .fr-screen .fr-grid { margin-top: 10px; display: block; overflow-x: auto; }
-.fr-screen .fr-grid th, .fr-screen .fr-grid td { padding: 7px 10px; border-bottom: 1px solid #eee; text-align: left; vertical-align: top; }
+.fr-screen .fr-grid th, .fr-screen .fr-grid td { padding: 7px 10px; border-bottom: 1px solid var(--fin-line); text-align: left; vertical-align: top; }
 .fr-screen .fr-grid th { background: #facc15; color: #171717; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
 .fr-screen .fr-total td { font-weight: 700; border-top: 2px solid #171717; }
 .fr-screen .fr-num { text-align: right !important; white-space: nowrap; }
 .fr-screen .fr-num + td, .fr-screen .fr-num + th { padding-left: 20px; }
-.fr-screen .fr-dim { color: #737373; font-size: 12px; }
+.fr-screen .fr-dim { color: var(--fin-muted); font-size: 12px; }
 .fr-screen .fr-sub { margin: 8px 0 4px; font-size: 13px; }
 .fr-screen .fr-list { margin: 0 0 6px 18px; font-size: 13px; }
 
@@ -297,7 +329,7 @@
     min-width: 220px;
     height: 44px;
     padding: 0 14px 0 38px;
-    border: 1px solid #e5e5e5 !important;           /* neutral grey, like the selects */
+    border: 1px solid var(--fin-control-line) !important;   /* neutral grey, like the selects */
     border-radius: 8px;
     background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") no-repeat 13px center;
     color: var(--ob-text, #171717);
@@ -305,14 +337,8 @@
     font-size: 14px;
     transition: border-color .15s ease, box-shadow .15s ease;
 }
-.superadmin-shell .fin-page input.fin-search::placeholder { color: #737373; }
-.superadmin-shell .fin-page input.fin-search:focus,
-.superadmin-shell .fin-page input.fin-search:focus-visible {
-    border-color: #171717 !important;               /* solid black while focused or typing; no yellow outline */
-    box-shadow: 0 0 0 1px #171717;
-    outline: none;
-}
-.fin-live-status { margin: 8px 0 0; min-height: 0; font-size: 12px; color: var(--ob-body, #525252); }
+.superadmin-shell .fin-page input.fin-search::placeholder { color: #6b6b6b; }
+.fin-live-status { margin: 8px 0 0; min-height: 0; font-size: 12px; color: var(--fin-body); }
 .fin-live-status:empty { display: none; }
 .fin-live-region { transition: opacity .15s ease; }
 .fin-live-region.is-loading { opacity: .55; pointer-events: none; }
@@ -325,7 +351,7 @@
     background: #111827;
     color: #fff;
     font-weight: 700;
-    border-top: 2px solid #facc15;
+    border-top: 2px solid var(--fin-ink);
 }
 .fin-table tr.fin-week-total td.is-num { color: #facc15; }
 .fin-table tr.fin-week-total .is-dim { color: #d1d5db; }
@@ -340,15 +366,15 @@
     flex-wrap: wrap;
     padding: 10px 14px;
     margin-bottom: 8px;
-    border-left: 4px solid #facc15;
-    background: #fefce8;
+    border: 1px solid var(--fin-line);
+    background: #f5f5f5;
     border-radius: 8px;
 }
-.fin-unit-head h3 { margin: 0; font-size: 16px; font-weight: 800; color: #111827; }
+.fin-unit-head h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--fin-ink); }
 .fin-cm-table td { vertical-align: top; }
 .fin-cm-table td + td, .fin-cm-table th + th { padding-left: 22px; }
 .fin-crew-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 300px; }
-.fin-crew-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-bottom: 8px; border-bottom: 1px solid #f3f4f6; }
+.fin-crew-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-bottom: 8px; border-bottom: 1px solid var(--fin-line); }
 .fin-crew-list li:last-child { border-bottom: 0; padding-bottom: 0; }
 .fin-crew-who .fin-status { margin-left: 6px; }
 .fin-crew-amount { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; text-align: right; }
@@ -358,7 +384,7 @@
 .fin-cm-table td.is-num { white-space: nowrap; }
 .fin-table tr.fin-week-total td:first-child { padding-left: 14px; }
 .fin-table tr.fin-week-total td:last-child { padding-right: 14px; }
-.fin-crew-missing { color: #6b7280; }
+.fin-crew-missing { color: var(--fin-body); }
 .fin-cm-why summary { cursor: pointer; list-style: none; margin-top: 4px; }
 .fin-cm-why summary::-webkit-details-marker { display: none; }
 .fin-cm-why .fin-flag { margin-top: 4px; }
@@ -369,20 +395,20 @@
 }
 
 /* Commission (Draft): lines that are not fully paid stay visible but read as a non-payable estimate. */
-.fin-cm-estimate .fin-crew-amount { color: #6b7280; font-weight: 500; }
+.fin-cm-estimate .fin-crew-amount { color: var(--fin-muted); font-weight: 500; }
 .fin-cm-estimate .fin-crew-amount::after { content: " est."; font-size: 11px; }
 .fin-table tr.fin-cm-estimate-total td {
-    background: #fffbeb;
-    color: #92400e;
+    background: #f5f5f5;
+    color: var(--fin-ink);
     font-weight: 600;
-    border-top: 1px dashed #f59e0b;
+    border-top: 1px dashed var(--fin-control-line);
 }
 .fin-table tr.fin-cm-estimate-total td:first-child { padding-left: 14px; }
 .fin-table tr.fin-cm-estimate-total td:last-child { padding-right: 14px; }
 
 /* Job Crew: one readable list per unit (role · person · status · actions). */
 .fin-crew-unit .oa-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.fin-crew-roster { list-style: none; margin: 0; padding: 0; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
+.fin-crew-roster { list-style: none; margin: 0; padding: 0; border: 1px solid var(--fin-line); border-radius: 10px; overflow: hidden; }
 .fin-crew-roster li {
     display: grid;
     grid-template-columns: 130px minmax(0, 1fr) auto auto;
@@ -390,25 +416,130 @@
     align-items: center;
     padding: 12px 14px;
     background: #fff;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--fin-line);
 }
 .fin-crew-roster li:first-child { border-top: 0; }
-.fin-crew-roster-role { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #111827; }
-.fin-crew-roster-who { min-width: 0; color: #111827; }
+.fin-crew-roster-role { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--fin-body); }
+.fin-crew-roster-who { min-width: 0; color: var(--fin-ink); }
 .fin-crew-roster-who input[type="checkbox"] { width: 18px; height: 18px; margin-right: 8px; vertical-align: -3px; accent-color: #111827; }
 .fin-crew-roster-name { font-weight: 700; font-size: 15px; margin-right: 6px; }
 .fin-crew-roster-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .fin-crew-roster-actions .fin-field { margin: 0; min-width: 170px; }
-.fin-crew-history { margin-top: 14px; padding: 14px; border: 1px solid #facc15; border-left-width: 4px; border-radius: 10px; background: #fefce8; }
-.fin-crew-history .fin-crew-roster { border-color: #fde68a; }
-.fin-crew-history-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; color: #111827; }
+.fin-crew-history { margin-top: 14px; padding: 14px; border: 1px solid var(--fin-control-line); border-radius: 10px; background: #fafafa; }
+.fin-crew-history-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; color: var(--fin-ink); }
 .fin-crew-history .fin-form-actions { margin-top: 12px; }
-.fin-crew-manual > summary { cursor: pointer; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 8px; }
+.fin-crew-manual > summary { cursor: pointer; font-weight: 700; color: var(--fin-ink); display: flex; align-items: center; gap: 8px; }
 .fin-crew-manual > summary svg { width: 18px; height: 18px; }
 .fin-crew-manual[open] > summary { margin-bottom: 12px; }
 
 @media (max-width: 640px) {
-    .fin-crew-roster li { grid-template-columns: minmax(0, 1fr) auto; }
-    .fin-crew-roster-role { grid-column: 1 / -1; }
-    .fin-crew-roster-actions { grid-column: 1 / -1; justify-content: flex-start; }
+    .fin-crew-roster li { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .fin-crew-roster-state { justify-self: start; }
+    .fin-crew-roster-actions { justify-content: flex-start; }
+}
+
+/* =====================================================================================================================
+   Shared Finance rules. Everything below is scoped to .fin-page (every Finance screen and the Dispatcher expense review),
+   so Analytics, Bookings and the other Owner modules keep their own look.
+   ===================================================================================================================== */
+
+/* ---- Text: nothing lighter than --fin-muted on a light background (analytics.css uses #a3a3a3 for .is-dim: 2.5:1) ---- */
+.fin-page .is-dim,
+.fin-page .oa-table .is-dim { color: var(--fin-muted); }
+.fin-page .oa-card-sub,
+.fin-page .oa-kpi-label,
+.fin-page .oa-empty { color: var(--fin-body); }
+.fin-page .oa-kpi.is-dark .oa-kpi-label { color: #e5e5e5; }
+.fin-page .oa-range-label.is-placeholder { color: var(--fin-muted); }
+.fin-page td a:not(.oa-btn),
+.fin-page .oa-card-sub a,
+.fin-page .fin-help a,
+.fin-page .fin-trail a { color: var(--fin-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---- Tables: dark headers, clear row separators, amounts in tabular figures ---- */
+.fin-page .oa-table thead th { color: var(--fin-ink); font-weight: 600; border-bottom: 2px solid var(--fin-ink); }
+.fin-page .oa-table tbody tr + tr td { border-top: 1px solid var(--fin-line); }
+.fin-page .is-num { font-variant-numeric: tabular-nums; }
+.fin-page .fin-table :where(td + td, th + th) { padding-left: 16px; }
+
+/* ---- Cards and buttons: readable borders ---- */
+.fin-page .oa-card,
+.fin-page .oa-kpi:not(.is-dark) { border-color: var(--fin-line); }
+.fin-page .oa-btn:not(.oa-btn--primary):not(.fin-btn-danger),
+.fin-page .oa-range-trigger { border-color: var(--fin-control-line); color: var(--fin-ink); }
+.fin-page .oa-btn:not(.oa-btn--primary):hover { border-color: var(--fin-ink); }
+.fin-page .oa-btn--sm { font-weight: 600; }
+.fin-page .oa-pill { border-color: var(--fin-control-line); color: var(--fin-body); }
+
+/* ---- Controls: one look for every input, select, date and textarea (44px; 36px compact inside tables) ---- */
+.fin-page input[type=text],
+.fin-page input[type=search],
+.fin-page input[type=number],
+.fin-page input[type=date],
+.fin-page input[type=month],
+.fin-page input[type=email],
+.fin-page input[type=password],
+.fin-page input[type=tel],
+.fin-page input[type=url],
+.fin-page select,
+.fin-page textarea {
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--fin-control-line);
+    border-radius: 8px;
+    background-color: #fff;
+    color: var(--fin-ink);
+    font: inherit;
+}
+.fin-page .fin-inline-form input[type=text] { min-height: 36px; padding: 6px 10px; }
+.fin-page .oa-field select.oa-select,
+.fin-page input.oa-select[type=date] { padding-top: 0; padding-bottom: 0; }
+.fin-page ::placeholder { color: #6b6b6b; opacity: 1; }
+.fin-page input:disabled,
+.fin-page select:disabled,
+.fin-page textarea:disabled { background-color: #f5f5f5; color: var(--fin-muted); border-color: #bdbdbd; cursor: not-allowed; }
+.fin-page input[aria-invalid="true"],
+.fin-page select[aria-invalid="true"],
+.fin-page textarea[aria-invalid="true"],
+.fin-page input.is-invalid,
+.fin-page select.is-invalid,
+.fin-page textarea.is-invalid { border-color: var(--fin-red); box-shadow: 0 0 0 1px var(--fin-red); }
+.fin-page input:user-invalid,
+.fin-page select:user-invalid,
+.fin-page textarea:user-invalid { border-color: var(--fin-red); box-shadow: 0 0 0 1px var(--fin-red); }
+.fin-page input[type=checkbox],
+.fin-page input[type=radio] { accent-color: var(--fin-ink); }
+.fin-page input[type=file] {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px;
+    padding: 6px 10px;
+    border: 1px solid var(--fin-control-line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--fin-ink);
+    font: inherit;
+}
+.fin-page input[type=file]::file-selector-button {
+    margin-right: 10px;
+    padding: 6px 12px;
+    border: 1px solid var(--fin-control-line);
+    border-radius: 6px;
+    background: #f5f5f5;
+    color: var(--fin-ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ---- Keyboard focus on everything that is not a text control (text controls: see .fin-field above) ---- */
+.fin-page a:focus-visible,
+.fin-page button:focus-visible,
+.fin-page summary:focus-visible,
+.fin-page input[type=checkbox]:focus-visible,
+.fin-page input[type=radio]:focus-visible,
+.fin-page input[type=file]:focus-visible {
+    outline: 2px solid var(--fin-ink);
+    outline-offset: 2px;
 }

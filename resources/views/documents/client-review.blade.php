@@ -11,7 +11,7 @@
         .brand .name { font-size: 17px; font-weight: bold; margin: 0; letter-spacing: 1px; }
         h1 { font-size: 15px; margin: 12px 0 4px; }
         .note { color: #555; font-size: 9.5px; margin: 2px 0 10px; }
-        .policy { border: 1px solid #b45309; color: #92400e; padding: 6px 8px; margin-bottom: 10px; }
+        .policy { border: 1px solid #b45309; color: #78350f; padding: 6px 8px; margin-bottom: 10px; }
         .demo { border: 2px solid #b91c1c; color: #b91c1c; padding: 6px 8px; margin-bottom: 10px; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; }
         .item { margin-bottom: 10px; page-break-inside: avoid; }
@@ -19,7 +19,7 @@
         .item th { width: 165px; background: #f4f4f4; font-weight: bold; }
         .item .head td { background: #facc15; font-weight: bold; }
         .summary td { padding: 3px 6px; border-bottom: 1px solid #e3e3e3; }
-        .footer { margin-top: 12px; color: #777; font-size: 8.5px; }
+        .footer { margin-top: 12px; color: #555; font-size: 8.5px; }
         .toolbar { background: #111; padding: 10px 16px; display: flex; gap: 10px; font-family: Arial, sans-serif; }
         .toolbar a, .toolbar button { color: #111; background: #fff; border: 0; padding: 6px 12px; border-radius: 4px; font-size: 13px; text-decoration: none; cursor: pointer; }
         @media print { .toolbar { display: none; } .sheet { padding: 0; } @page { size: A4; margin: 14mm; } }

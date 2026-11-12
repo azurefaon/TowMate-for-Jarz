@@ -9,7 +9,7 @@
 @endpush
 
 @php
-    $badge = ['draft' => 'grey', 'for_review' => 'amber', 'approved' => 'green', 'paid' => 'blue', 'voided' => 'red'];
+    $badge = ['draft' => 'grey', 'for_review' => 'blue', 'approved' => 'green', 'paid' => 'green', 'voided' => 'red'];
 @endphp
 
 @section('content')

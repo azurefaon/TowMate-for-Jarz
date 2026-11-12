@@ -12,7 +12,7 @@
     $openForm = old('form');
     $name = fn ($user) => $user ? ($user->full_name ?: $user->name) : '—';
     $at = fn ($ts) => $ts ? $ts->timezone(config('finance.timezone'))->format('M j, Y g:i A') : '';
-    $statusTone = ['submitted' => 'amber', 'verified' => 'blue', 'approved' => 'green', 'rejected' => 'red', 'voided' => 'grey'];
+    $statusTone = ['submitted' => 'amber', 'verified' => 'amber', 'approved' => 'green', 'rejected' => 'red', 'voided' => 'grey'];
 @endphp
 
 @section('content')
