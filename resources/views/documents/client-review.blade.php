@@ -56,7 +56,7 @@
     <br>
     @foreach ($items as $item)
         <table class="item" data-crs-item="{{ $item->reference_code }}">
-            <tr class="head"><td colspan="2">{{ $item->reference_code }} — {{ $item->title }} ({{ $item->kindLabel() }}; {{ $item->statusLabel() }})</td></tr>
+            <tr class="head"><td colspan="2">{{ $item->reference_code }} — {{ $item->title }} ({{ $item->kindLabel() !== $item->statusLabel() ? $item->kindLabel() . '; ' : '' }}{{ $item->statusLabel() }})</td></tr>
             @if ($item->question)<tr><th>Decision needed</th><td>{{ $item->question }}</td></tr>@endif
             @if ($item->current_behaviour)<tr><th>Current behaviour</th><td>{{ $item->current_behaviour }}</td></tr>@endif
             @if ($item->blocks)<tr><th>Blocked until answered</th><td>{{ $item->blocks }}</td></tr>@endif

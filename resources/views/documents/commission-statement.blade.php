@@ -27,6 +27,8 @@
     uasort($people, fn ($a, $b) => [$a['name'], $a['role']] <=> [$b['name'], $b['role']]);
     $recordedPayouts = $payouts ? collect($payouts['history'])->where('status', 'recorded') : collect();
     $voidedPayouts = $payouts ? collect($payouts['history'])->where('status', 'voided') : collect();
+    $isVoided = $statement->status === 'voided';   // a voided statement keeps its figures but states no payment obligation
+    $payableLabel = $isVoided ? 'Total personnel commission (voided, not payable)' : 'Total personnel commission payable';
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -114,7 +116,7 @@
         <tr><td>Less: approved deductions</td><td class="num" data-doc-total="deductions">{{ $m($statement->total_deductions) }}</td></tr>
         <tr class="key"><td><strong>Sharing base</strong></td><td class="num" data-doc-total="base">{{ $m($statement->total_base) }}</td></tr>
         <tr><td>Company share (retained by the company, not a payout)</td><td class="num" data-doc-total="company">{{ $m($statement->company_amount) }}</td></tr>
-        <tr class="key"><td><strong>Total personnel commission payable</strong></td><td class="num" data-doc-total="personnel">{{ $m($statement->personnel_amount) }}</td></tr>
+        <tr class="key"><td><strong>{{ $payableLabel }}</strong></td><td class="num" data-doc-total="personnel">{{ $m($statement->personnel_amount) }}</td></tr>
         <tr><td>Unallocated / pending (not payable)</td><td class="num" data-doc-total="unallocated">{{ $m($statement->unallocated_amount) }}</td></tr>
     </table>
     <p class="note">Rates (each applied to the same sharing base):
@@ -169,7 +171,7 @@
             @foreach (collect($lines)->flatMap(fn ($l) => collect($l['roles'])->filter(fn ($r) => \App\Support\Money::of($r['unallocated'])->isPositive())->map(fn ($r) => ['ref' => $l['reference'], 'label' => $r['label'], 'rate' => $r['rate'], 'amount' => $r['unallocated']])) as $u)
                 <tr data-doc-unallocated><td><em>Unallocated (nobody recorded) — {{ $u['ref'] }}</em></td><td>{{ $u['label'] }}</td><td class="num">{{ $rate($u['rate']) }}</td><td class="num">—</td><td class="num">{{ $m($u['amount']) }}</td></tr>
             @endforeach
-            <tr class="total"><td colspan="4">Total personnel commission payable</td><td class="num">{{ $m($statement->personnel_amount) }}</td></tr>
+            <tr class="total"><td colspan="4">{{ $payableLabel }}</td><td class="num">{{ $m($statement->personnel_amount) }}</td></tr>
         </tbody>
     </table>
 
@@ -190,7 +192,11 @@
     @if ($payouts)
         <h2>Payouts recorded</h2>
         @if ($recordedPayouts->isEmpty())
-            <p class="note">No payouts recorded yet. Remaining payable: {{ $payouts['remaining']->format() }}.</p>
+            @if ($isVoided)
+                <p class="note">This statement is voided, so no payment is due and none can be recorded against it.</p>
+            @else
+                <p class="note">No payouts recorded yet. Remaining payable: {{ $payouts['remaining']->format() }}.</p>
+            @endif
         @else
             <table class="grid">
                 <thead><tr><th>Payout</th><th>Recipient</th><th>Role(s)</th><th>Date paid</th><th>Method</th><th>Reference</th><th>Recorded by</th><th class="num">Amount</th></tr></thead>
@@ -203,7 +209,11 @@
                             <td class="num">{{ $m($po->amount) }}</td>
                         </tr>
                     @endforeach
-                    <tr class="total"><td colspan="7">Total paid / remaining payable</td><td class="num">{{ $payouts['paid']->format() }} / {{ $payouts['remaining']->format() }}</td></tr>
+                    @if ($isVoided)
+                        <tr class="total"><td colspan="7">Total paid (statement voided; nothing remains payable)</td><td class="num">{{ $payouts['paid']->format() }}</td></tr>
+                    @else
+                        <tr class="total"><td colspan="7">Total paid / remaining payable</td><td class="num">{{ $payouts['paid']->format() }} / {{ $payouts['remaining']->format() }}</td></tr>
+                    @endif
                 </tbody>
             </table>
         @endif
@@ -211,7 +221,9 @@
             <p class="note">Voided payouts (kept for the record):
                 @foreach ($voidedPayouts as $po){{ $po->reference_code }} — {{ $po->recipient_name }} {{ $m($po->amount) }} ({{ $po->void_reason }}){{ $loop->last ? '.' : '; ' }}@endforeach</p>
         @endif
-        <p class="note">Payouts are recorded after the Owner pays each person by cash, GCash or bank transfer. TowMate does not transfer money.</p>
+        @unless ($isVoided)
+            <p class="note">Payouts are recorded after the Owner pays each person by cash, GCash or bank transfer. TowMate does not transfer money.</p>
+        @endunless
     @endif
 
     <table class="sign">
