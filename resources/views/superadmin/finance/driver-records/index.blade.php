@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Driver Records')
+@section('title', 'Crew & Driver Records · Driver Records')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('superadmin/css/bookings.css') }}?v={{ filemtime(public_path('superadmin/css/bookings.css')) }}">
@@ -14,17 +14,19 @@
     <div class="ob-page oa-page fin-page" id="ownerDriverRecords">
         <header class="ob-header fin-header">
             <div>
-                <h1>Driver Records</h1>
+                <h1>Crew & Driver Records</h1>
                 <p>Completed jobs, vehicles towed and draft commission per week, with each person's history. {{ $periodLabel }}. Weeks run Monday to Saturday.</p>
             </div>
             <div class="fin-header-actions"><button type="button" class="oa-btn" onclick="window.print()">Print</button></div>
         </header>
 
+        @include('superadmin.finance._tabs', ['group' => 'crew'])
+
         @include('superadmin.finance._flashes')
 
         <div class="fin-flash fin-flash--warning" role="status">
             <i data-lucide="users" aria-hidden="true"></i>
-            <span>Crew is captured from Dispatch when a unit is assigned and stays <strong>Pending confirmation</strong> until you confirm it under <a href="{{ route('superadmin.finance.crew.index') }}">Job Crew</a>. Commission amounts are a draft estimate and cannot be approved until the commission policy is confirmed.</span>
+            <span>Crew is captured from Dispatch and stays <strong>Pending confirmation</strong> until you confirm it under <a href="{{ route('superadmin.finance.crew.index') }}">Job Crew</a>. Draft commission cannot be approved until the commission policy is confirmed.</span>
         </div>
 
         <form method="GET" action="{{ route('superadmin.finance.driver-records.index') }}" class="oa-card oa-filter-card" role="search">
@@ -55,7 +57,7 @@
         <div class="oa-kpis oa-kpis--six" style="--oa-kpi-count: 5;">
             <div class="oa-kpi"><span class="oa-kpi-label">{{ $d['role_label'] }} with jobs</span><div class="oa-kpi-value" data-dr="people">{{ $t['people'] }}</div></div>
             <div class="oa-kpi is-dark"><span class="oa-kpi-label">Completed jobs</span><div class="oa-kpi-value" data-dr="jobs">{{ $t['completed_jobs'] }}</div><span class="fin-kpi-sub">{{ $t['vehicles'] }} vehicle(s) towed</span></div>
-            <div class="oa-kpi"><span class="oa-kpi-label">Awaiting confirmation</span><div class="oa-kpi-value" data-dr="pending">{{ $t['pending_participations'] }}</div><span class="fin-kpi-sub">assignments not yet confirmed</span></div>
+            <div class="oa-kpi"><span class="oa-kpi-label">Awaiting confirmation</span><div class="oa-kpi-value" data-dr="pending">{{ $t['pending_participations'] }}</div></div>
             <div class="oa-kpi"><span class="oa-kpi-label">Jobs with no crew recorded</span><div class="oa-kpi-value" data-dr="unrecorded">{{ $t['jobs_without_record'] }}</div></div>
             <div class="oa-kpi"><span class="oa-kpi-label">Draft commission, fully paid jobs</span><div class="oa-kpi-value" data-dr="draft">{{ $t['draft']->format() }}</div><span class="fin-kpi-sub" data-dr="not-paid">{{ $t['pending_collection'] }} pending collection · {{ $t['awaiting_payment'] }} awaiting payment</span></div>
         </div>

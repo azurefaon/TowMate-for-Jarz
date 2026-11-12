@@ -739,3 +739,19 @@ Root cause of the manual-first screen: live capture (PR #44) only records crew o
 - The Job Crew list shows "Crew found in history"; Driver Records names that crew on unrecorded jobs. Jobs count, and enter commission, once confirmed.
 - Production copy (backup of 2026-11-12): 35 of 35 completed jobs have a rebuilt crew (93 people, none uncertain). TM-00131 / JARZ 5 at 12:07 on Oct 3: Team Leader Christian Tinaytinay Cong-o (completed the job from their account) and Driver Randolph Banyaga, not today's driver.
 - No migration; formula, rates and approval blocks unchanged.
+
+### Finance navigation audit (2026-11-12)
+
+Redundancy found in the real screens and code:
+- **Menu:** ten Finance entries. Job Crew and Driver Records read the same per-job crew records and link to each other (unrecorded jobs, pending confirmation); Commission (Draft) and Commission Statements show the same calculation before and after it is frozen, and the draft page itself sent the Owner to Statements.
+- **Repeated text:** the same Assigned / Confirmed explanation printed in every unit card of a Job Crew job; "Pending client decision" printed twice on every Client Review item; a "KPI sub-line" repeating its own label; the payout instructions shown on Paid and Voided statements where nothing can be recorded.
+- **Stale wording:** "Payouts are recorded in a later phase" (Statements) and "Full crew capture comes in the job crew phase" (Jobs & Collections).
+- **Blank space:** empty states forced to a 140px-tall card.
+
+Changes (display only; no route, controller, permission, calculation or record changed):
+- Sidebar: eight entries. **Crew & Driver Records** (tabs Job Crew, Driver Records) and **Commissions** (tabs Draft Breakdown, Statements & Payouts). Overview, Jobs & Collections, Unit Funds, Expenses, Finance Reports and Client Review stay because each serves a different purpose. The tab bar carries the chosen unit (and Job Crew's week as Driver Records' period) between tabs. All old URLs and route names are unchanged.
+- The repeated and stale text above was removed or corrected; empty states are compact; the payout panel text now matches the statement's state (Approved, Paid, Voided).
+- Not changed: every warning, blocker, evidence list, audit trail, hash line, payout record and control.
+
+Client Review: it is **production functionality**, not demo-only. It was created by migration `2026_11_17_000000` with the 11 standard client decisions (project configuration, like policy v1), is Owner-only (`finance.view` to read, `finance.policies.manage` to record answers), never deletes rows (closed instead) and audits every change. It was in the sidebar because the entry was unconditional. The demo-only controls were already gated: the Finance Demo entry, the `/demo` page and reset (404 unless `FINANCE_DEMO_ENABLED`, a `*_demo` database and a non-production environment), the DEMONSTRATION banners and the stand-in policy note. Production returns 404 for `/demo`; no demo control is reachable there.
+

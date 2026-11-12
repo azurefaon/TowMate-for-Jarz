@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Commission Statements')
+@section('title', 'Commissions · Statements & Payouts')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('superadmin/css/bookings.css') }}?v={{ filemtime(public_path('superadmin/css/bookings.css')) }}">
@@ -16,10 +16,12 @@
     <div class="ob-page oa-page fin-page" id="ownerStatements">
         <header class="ob-header fin-header">
             <div>
-                <h1>Commission Statements</h1>
-                <p>One statement per towing unit and Monday–Saturday week: Draft → For Review → Approved. Payouts are recorded in a later phase.</p>
+                <h1>Commissions</h1>
+                <p>One statement per towing unit and Monday–Saturday week: Draft → For Review → Approved → Paid. Payouts are recorded on each approved statement.</p>
             </div>
         </header>
+
+        @include('superadmin.finance._tabs', ['group' => 'commission'])
 
         @include('superadmin.finance._flashes')
 

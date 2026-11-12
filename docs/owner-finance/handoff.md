@@ -76,18 +76,21 @@ erDiagram
 
 All Owner screens are under `/superadmin/finance` (route group `role:1`) and each route also has a `can:` Gate. **Every service method re-checks the Gate**, so a new controller cannot skip it.
 
-| Screen (sidebar) | Route | View / write ability |
+The sidebar has eight Finance entries. **Crew & Driver Records** and **Commissions** each hold two tabs; every tab is its own page with its own route, controller and permission (all URLs are unchanged).
+
+| Screen (sidebar → tab) | Route | View / write ability |
 |---|---|---|
 | Finance Overview | `GET /superadmin/finance` | `finance.view` |
+| Crew & Driver Records → Driver Records | `/driver-records` (read-only: jobs, vehicles and draft commission per week, per-person history) | `finance.view` |
 | Jobs & Collections | `/jobs-collections`, `POST …/{booking}/split` | view / `finance.revenue.allocate` |
 | Unit Funds | `/unit-funds`, `POST issuances, returns, {entry}/correct, {entry}/void` | view / `finance.funds.manage` |
 | Expenses | `/expenses`, `POST` create, approve, reject, correct, void, evidence | view / `finance.expenses.submit`, `finance.expenses.approve` |
-| Job Crew | `/job-crew`, `/job-crew/{booking}`, `POST` record, correct, remove, confirm | view / `finance.crew.manage` |
-| Commission (Draft) | `/commission`, `POST deductions…` | view / `finance.deductions.manage` |
-| Commission Statements | `/commission-statements` (list, new, show, print, pdf), `POST` store, recalculate, submit, return, approve, void, correct | view / `finance.statements.prepare`, `finance.statements.approve` |
+| Crew & Driver Records → Job Crew | `/job-crew`, `/job-crew/{booking}`, `POST` record, correct, remove, confirm | view / `finance.crew.manage` |
+| Commissions → Draft Breakdown | `/commission`, `POST deductions…` | view / `finance.deductions.manage` |
+| Commissions → Statements & Payouts | `/commission-statements` (list, new, show, print, pdf), `POST` store, recalculate, submit, return, approve, void, correct | view / `finance.statements.prepare`, `finance.statements.approve` |
 | Payout records (on the statement page) | `POST …/{statement}/payouts`, `…/mark-paid`, `/payouts/{id}/void`, `/correct`, `GET /payouts/{id}/evidence` | `finance.payouts.record` |
 | Finance Reports | `/reports`, `/reports/print`, `/reports/pdf`, `/reports/excel` | `finance.view` (downloads rate-limited, prefix `finance-exports`) |
-| Client Review | `/client-review`, print, pdf, `POST` store, update | view / `finance.policies.manage` |
+| Client Review | `/client-review`, print, pdf, `POST` store, update. Production feature (the register of open client decisions); never demo-only | view / `finance.policies.manage` |
 | Finance Demo (demo database only, else 404) | `/demo`, `POST /demo/reset` | view / `finance.policies.manage` (limit 3 per 10 min, prefix `finance-demo-reset`) |
 | Dispatcher: Expense Review | `/admin-dashboard/expense-review` (verify, reject) | `finance.expenses.verify` (Dispatcher only) |
 | Team Leader app | `GET/POST /api/v1/team-leader/expenses`, `…/options`, `…/{id}/evidence` | `finance.expenses.submit` (own unit only) |

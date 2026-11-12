@@ -254,7 +254,7 @@
                                                         @endforeach
                                                     </ul>
                                                     @if ($job['personnel']['source'] === 'booking')
-                                                        <p class="fin-help">From the booking's own assignment. Full crew capture comes in the job crew phase.</p>
+                                                        <p class="fin-help">From the booking's own assignment. Confirm the crew under Crew & Driver Records.</p>
                                                     @endif
                                                 @else
                                                     <p class="fin-help">No crew was recorded for this job. A unit's current crew is never used for past jobs.</p>

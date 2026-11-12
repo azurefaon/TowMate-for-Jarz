@@ -123,7 +123,7 @@
                 <h2 class="oa-card-title" id="ovDraftTitle"><i data-lucide="file-pen-line" aria-hidden="true"></i> Commission — draft estimate</h2>
                 <p class="oa-card-sub">Not approved and may change. Weeks {{ $o['weeks_from']?->format('M j') }} – {{ $o['weeks_to']?->format('M j, Y') }} (Monday to Saturday).
                     @if (! $d['policy'] || $d['policy']['interpretation_status'] !== 'confirmed') The commission interpretation is pending client confirmation (Draft / For Client Review). @endif</p>
-            </div><a class="oa-btn oa-btn--sm" href="{{ route('superadmin.finance.commission.index', array_filter(['week' => $o['weeks_from']?->toDateString(), 'unit_id' => $unitId])) }}">Weekly Commission</a></div>
+            </div><a class="oa-btn oa-btn--sm" href="{{ route('superadmin.finance.commission.index', array_filter(['week' => $o['weeks_from']?->toDateString(), 'unit_id' => $unitId])) }}">Draft breakdown</a></div>
             <div class="oa-kpis" style="--oa-kpi-count: 4;">
                 <div class="oa-kpi is-dark"><span class="oa-kpi-label">Draft sharing base</span><div class="oa-kpi-value" data-ov="draft-base">{{ $d['base']->format() }}</div></div>
                 <div class="oa-kpi"><span class="oa-kpi-label">Company share</span><div class="oa-kpi-value" data-ov="draft-company">{{ $d['company']->format() }}</div></div>
@@ -149,7 +149,7 @@
             <div class="oa-card-head"><div>
                 <h2 class="oa-card-title" id="ovApprovedTitle"><i data-lucide="badge-check" aria-hidden="true"></i> Approved commission and recorded payouts</h2>
                 <p class="oa-card-sub">From approved and Paid statements only (frozen figures). Payouts are records of payments the Owner already made; TowMate does not transfer money.</p>
-            </div><a class="oa-btn oa-btn--sm" href="{{ route('superadmin.finance.statements.index', array_filter(['unit_id' => $unitId])) }}">Commission Statements</a></div>
+            </div><a class="oa-btn oa-btn--sm" href="{{ route('superadmin.finance.statements.index', array_filter(['unit_id' => $unitId])) }}">Statements & payouts</a></div>
             <div class="oa-kpis oa-kpis--six" style="--oa-kpi-count: 5;">
                 <div class="oa-kpi"><span class="oa-kpi-label">Statements approved ({{ $a['paid_count'] }} paid)</span><div class="oa-kpi-value" data-ov="approved-count">{{ $a['count'] }}</div></div>
                 <div class="oa-kpi"><span class="oa-kpi-label">Approved sharing base</span><div class="oa-kpi-value" data-ov="approved-base">{{ $a['base']->format() }}</div></div>

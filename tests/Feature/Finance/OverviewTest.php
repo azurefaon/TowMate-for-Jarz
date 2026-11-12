@@ -142,9 +142,12 @@ it('lets only the Owner open the Overview', function () {
 it('links every Finance page from the sidebar and renders each one for the Owner', function () {
     $owner = finOwner();
     $page = $this->actingAs($owner)->get(route('superadmin.finance.overview'))->assertOk();
-    $routes = ['overview', 'collections.index', 'unit-funds.index', 'expenses.index', 'crew.index', 'commission.index', 'statements.index'];
+    // The sidebar links each module once; Driver Records and Statements & Payouts are tabs inside their module.
+    $routes = ['overview', 'collections.index', 'unit-funds.index', 'expenses.index', 'crew.index', 'commission.index', 'reports.index', 'client-review.index'];
     foreach ($routes as $name) {
         $page->assertSee('href="' . route("superadmin.finance.{$name}") . '"', false);
+    }
+    foreach ([...$routes, 'driver-records.index', 'statements.index'] as $name) {
         $this->actingAs($owner)->get(route("superadmin.finance.{$name}"))->assertOk()->assertDontSee('Lorem')->assertDontSee('TODO');
     }
 });

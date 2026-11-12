@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Job Crew')
+@section('title', 'Crew & Driver Records · Job Crew')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('superadmin/css/bookings.css') }}?v={{ filemtime(public_path('superadmin/css/bookings.css')) }}">
@@ -12,10 +12,12 @@
     <div class="ob-page oa-page fin-page" id="ownerJobCrew">
         <header class="ob-header fin-header">
             <div>
-                <h1>Job Crew</h1>
-                <p>Record who actually worked each completed job, for which towing unit and in which role. Week of {{ $week->format('M j') }} – {{ $week->addDays(5)->format('M j, Y') }} (Monday to Saturday).</p>
+                <h1>Crew & Driver Records</h1>
+                <p>Who worked each completed job, for which unit and in which role. Week of {{ $week->format('M j') }} – {{ $week->addDays(5)->format('M j, Y') }} (Monday to Saturday).</p>
             </div>
         </header>
+
+        @include('superadmin.finance._tabs', ['group' => 'crew'])
 
         @include('superadmin.finance._flashes')
 
