@@ -718,3 +718,10 @@ Audit result: no code change needed. One line per job and unit (`CommissionCalcu
 - Commission column, from the authoritative `JobCollectionService` status: **paid** → the calculator's draft share; **partial** → "Pending Collection"; **unpaid / awaiting verification / completed but unverified** → "Awaiting Payment"; over-collected → "Under review".
 - Weekly, per-person and page draft totals add fully paid jobs only. Pending Collection and Awaiting Payment jobs are counted separately (KPI note, weekly "not fully paid" count).
 - No change to `CommissionCalculator`, the rates, bookings or payment verification. The Commission (Draft) page still previews blocked lines (it shows the `payment_not_verified` blocker); statements cannot be approved with them.
+
+### Commission (Draft) consistent with Driver Records (2026-11-12)
+
+- One shared rule, `CommissionEligibility`: completed + fully paid → eligible; partial → Pending Collection; unpaid / awaiting verification / completed but unverified → Awaiting Payment; over-collected → Under review.
+- Commission (Draft): per-unit weekly totals, the "Crew draft, fully paid jobs" KPI and Draft shares by person add eligible lines only. Other lines stay listed with their label and an "Estimate …, not payable" amount, totalled separately per unit and per person. Jobs with nothing collected (no calculator line) are listed below the units with their label.
+- Eligible totals per unit and per person equal Driver Records for the same week and unit (tested with paid, partial, unpaid, a group trip over two units and a job split between two units).
+- `CommissionCalculator` only gained display fields on each line (`payment_status`, `payment_label`, `service_completed`); they are not part of the statement hash. No formula, rate, approval rule, statement or payment record changed.

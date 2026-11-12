@@ -367,3 +367,15 @@
     .fin-crew-list { min-width: 200px; }
     .fin-unit-head h3 { font-size: 15px; }
 }
+
+/* Commission (Draft): lines that are not fully paid stay visible but read as a non-payable estimate. */
+.fin-cm-estimate .fin-crew-amount { color: #6b7280; font-weight: 500; }
+.fin-cm-estimate .fin-crew-amount::after { content: " est."; font-size: 11px; }
+.fin-table tr.fin-cm-estimate-total td {
+    background: #fffbeb;
+    color: #92400e;
+    font-weight: 600;
+    border-top: 1px dashed #f59e0b;
+}
+.fin-table tr.fin-cm-estimate-total td:first-child { padding-left: 14px; }
+.fin-table tr.fin-cm-estimate-total td:last-child { padding-right: 14px; }

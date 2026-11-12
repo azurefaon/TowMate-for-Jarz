@@ -7,8 +7,10 @@ use App\Models\Finance\CommissionDeduction;
 use App\Models\Unit;
 use App\Services\Finance\CommissionCalculator;
 use App\Services\Finance\CommissionDeductionService;
+use App\Services\Finance\CommissionEligibility;
 use App\Services\Finance\FinanceException;
 use App\Support\Finance\FinanceAccess;
+use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,6 +52,7 @@ class CommissionController extends Controller
 
         return view('superadmin.finance.commission.index', [
             'draft' => $draft,
+            'eligibility' => self::eligibility($draft['lines']),
             'week' => $week,
             'unitId' => $unitId,
             'units' => Unit::orderBy('name')->get(['id', 'name', 'archived_at']),
@@ -112,5 +115,48 @@ class CommissionController extends Controller
         }
 
         return back()->with('success', "Voided deduction {$model->reference_code}.");
+    }
+
+    /**
+     * Eligible vs not-payable draft commission, per line, unit and person, read from the calculator's lines (no
+     * recalculation). Only completed, fully paid jobs are eligible (same rule as Driver Records); other lines stay
+     * visible with their state and their shares count only as a non-payable estimate.
+     */
+    public static function eligibility(array $lines): array
+    {
+        $out = ['states' => [], 'units' => [], 'people' => [], 'eligible' => Money::zero(), 'estimate' => Money::zero()];
+        foreach ($lines as $i => $line) {
+            $state = CommissionEligibility::forLine($line);
+            $eligible = $state === CommissionEligibility::ELIGIBLE;
+            $bucket = $eligible ? 'eligible' : 'estimate';
+            $out['states'][$i] = $state;
+            $out[$bucket] = $out[$bucket]->plus($line['crew_allocated']);
+
+            $u = &$out['units'][$line['unit_id']];
+            $u ??= ['eligible' => Money::zero(), 'estimate' => Money::zero(), 'eligible_jobs' => 0, 'other_jobs' => 0];
+            $u[$bucket] = $u[$bucket]->plus($line['crew_allocated']);
+            $u[$eligible ? 'eligible_jobs' : 'other_jobs']++;
+            unset($u);
+
+            foreach ($line['roles'] as $row) {
+                foreach ($row['recipients'] as $r) {
+                    $p = &$out['people'][$r['recipient_key']];
+                    $p ??= ['name' => $r['name'], 'roles' => [], 'eligible' => Money::zero(), 'estimate' => Money::zero(), 'eligible_jobs' => [], 'other_jobs' => []];
+                    $p[$bucket] = $p[$bucket]->plus($r['amount']);
+                    $p['roles'][$row['label']] = true;
+                    $p[$eligible ? 'eligible_jobs' : 'other_jobs'][$line['job_key']] = true;
+                    unset($p);
+                }
+            }
+        }
+        foreach ($out['people'] as &$p) {
+            $p['role_list'] = implode(', ', array_keys($p['roles']));
+            $p['eligible_jobs'] = count($p['eligible_jobs']);
+            $p['other_jobs'] = count($p['other_jobs']);
+        }
+        unset($p);
+        uasort($out['people'], fn ($a, $b) => strcmp($a['name'], $b['name']));
+
+        return $out;
     }
 }

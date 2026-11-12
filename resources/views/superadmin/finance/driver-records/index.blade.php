@@ -83,7 +83,7 @@
                                                 <span class="fin-strong">{{ $p['weeks'][$key]['jobs'] }}</span> <span class="is-dim">/ {{ $p['weeks'][$key]['vehicles'] }}</span>
                                                 <div class="is-dim">{{ $p['weeks'][$key]['draft']->format() }}</div>
                                                 @if ($p['weeks'][$key]['pending'])<div class="fin-flag">{{ $p['weeks'][$key]['pending'] }} pending</div>@endif
-                                                @if ($p['weeks'][$key]['pending_collection'] + $p['weeks'][$key]['awaiting_payment'])<div class="is-dim" data-dr-week-unpaid>{{ $p['weeks'][$key]['pending_collection'] + $p['weeks'][$key]['awaiting_payment'] }} not fully paid</div>@endif
+                                                @if ($p['weeks'][$key]['pending_collection'] + $p['weeks'][$key]['awaiting_payment'] + $p['weeks'][$key]['under_review'])<div class="is-dim" data-dr-week-unpaid>{{ $p['weeks'][$key]['pending_collection'] + $p['weeks'][$key]['awaiting_payment'] + $p['weeks'][$key]['under_review'] }} not fully paid</div>@endif
                                             @else<span class="is-dim">–</span>@endif
                                         </td>
                                     @endforeach
@@ -126,7 +126,7 @@
                                         <td class="is-num">{{ $h['vehicles'] }}</td>
                                         <td class="is-num" data-dr-commission-state="{{ $h['commission_state'] }}">
                                             @if ($h['draft'])<span class="fin-strong" data-dr-job-draft>{{ $h['draft']->format() }}</span>
-                                            @elseif ($h['commission_state'] === 'pending_collection')<span class="fin-status fin-status--amber">{{ $h['draft_note'] }}</span>
+                                            @elseif (in_array($h['commission_state'], ['pending_collection', 'under_review'], true))<span class="fin-status fin-status--amber">{{ $h['draft_note'] }}</span>
                                             @elseif ($h['commission_state'] === 'awaiting_payment')<span class="fin-status fin-status--red">{{ $h['draft_note'] }}</span>
                                             @else<span class="is-dim">{{ $h['draft_note'] }}</span>@endif
                                             @if ($h['commission_state'] !== 'eligible')<div class="is-dim">{{ $h['payment_label'] }}</div>@endif
