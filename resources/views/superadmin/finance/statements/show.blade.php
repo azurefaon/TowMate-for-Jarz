@@ -11,6 +11,7 @@
 @php
     $m = fn ($v) => \App\Support\Money::of((string) $v)->format();
     $badge = ['draft' => 'grey', 'for_review' => 'blue', 'approved' => 'green', 'paid' => 'green', 'voided' => 'red'];
+    $isVoided = $statement->status === 'voided';   // a voided statement keeps its figures but states no payment obligation
     $lines = $calc['lines'] ?? [];
     $policy = $calc['policy'] ?? null;
     $blockers = $review['blockers'] ?? [];
@@ -43,6 +44,13 @@
         </header>
 
         @include('superadmin.finance._flashes')
+
+        @if ($isVoided)
+            <div class="fin-flash fin-flash--error" role="status" data-statement-voided>
+                <i data-lucide="ban" aria-hidden="true"></i>
+                <span><strong>Voided</strong> on {{ $statement->voided_at?->format('M j, Y g:i A') }}: {{ $statement->void_reason }}. The figures below are the original approved amounts, kept for the record. No payment is due on this statement.</span>
+            </div>
+        @endif
 
         @if ($statement->correction_reason)
             <div class="fin-flash fin-flash--warning" role="status"><i data-lucide="history" aria-hidden="true"></i><span>Correction reason: {{ $statement->correction_reason }}</span></div>
@@ -97,9 +105,6 @@
                 </div></div>
                 <p class="fin-help">Snapshot hash <span class="fin-ref">{{ $statement->approval_hash }}</span> ·
                     <span data-statement-integrity="{{ $integrity ? 'ok' : 'failed' }}">{{ $integrity ? 'Integrity verified' : 'Integrity check FAILED' }}</span></p>
-                @if ($statement->status === 'voided')
-                    <p class="fin-help fin-negative">Voided {{ $statement->voided_at?->format('M j, Y g:i A') }}: {{ $statement->void_reason }}</p>
-                @endif
                 @if ($statement->status === 'approved' && $isOwner)
                     <div class="fin-form-actions" style="flex-wrap:wrap; gap:10px;">
                         <form method="POST" action="{{ route('superadmin.finance.statements.correct', $statement->id) }}" class="fin-inline-form" data-fin-once>@csrf
@@ -130,8 +135,8 @@
                 <div class="oa-kpis" style="--oa-kpi-count: 4;">
                     <div class="oa-kpi"><span class="oa-kpi-label">Sharing base</span><div class="oa-kpi-value">{{ $payouts['base']->format() }}</div></div>
                     <div class="oa-kpi"><span class="oa-kpi-label">Company share (not a payout)</span><div class="oa-kpi-value" data-po-total="company">{{ $payouts['company']->format() }}</div></div>
-                    <div class="oa-kpi is-dark"><span class="oa-kpi-label">Crew payable</span><div class="oa-kpi-value" data-po-total="payable">{{ $payouts['payable']->format() }}</div></div>
-                    <div class="oa-kpi"><span class="oa-kpi-label">Recorded / remaining</span><div class="oa-kpi-value" data-po-total="paid">{{ $payouts['paid']->format() }}</div><span class="fin-kpi-sub" data-po-total="remaining">Remaining {{ $payouts['remaining']->format() }}</span></div>
+                    <div class="oa-kpi is-dark"><span class="oa-kpi-label">{{ $isVoided ? 'Original crew commission (Voided)' : 'Crew payable' }}</span><div class="oa-kpi-value" data-po-total="payable">{{ $payouts['payable']->format() }}</div></div>
+                    <div class="oa-kpi"><span class="oa-kpi-label">{{ $isVoided ? 'Payouts recorded' : 'Recorded / remaining' }}</span><div class="oa-kpi-value" data-po-total="paid">{{ $payouts['paid']->format() }}</div><span class="fin-kpi-sub" data-po-total="remaining">{{ $isVoided ? 'No active amount payable' : 'Remaining ' . $payouts['remaining']->format() }}</span></div>
                 </div>
                 <div class="oa-table-wrap">
                     <table class="oa-table fin-table">
@@ -148,7 +153,7 @@
                                             <div class="is-dim">{{ $row['payout']->methodLabel() }} · {{ $row['payout']->paid_at?->format('M j, Y') }} · {{ $row['payout']->external_reference ?: 'no reference' }} · by {{ $row['payout']->recorded_by_name }}</div>
                                             @if ($row['payout']->evidence_path)<a href="{{ route('superadmin.finance.payouts.evidence', $row['payout']->id) }}" target="_blank" rel="noopener">View evidence</a>@endif
                                         @else
-                                            <span class="fin-status fin-status--grey">Not recorded</span>
+                                            <span class="fin-status fin-status--grey">{{ $isVoided ? 'None (statement voided)' : 'Not recorded' }}</span>
                                         @endif
                                     </td>
                                     <td class="fin-actions">
@@ -189,7 +194,11 @@
                         </tbody>
                     </table>
                 </div>
-                @foreach ($payouts['issues'] as $issue)<div class="fin-flag" data-po-issue>{{ $issue }}</div>@endforeach
+                {{-- On a voided statement, "No payout recorded for …" would read as money still owed; real integrity issues stay. --}}
+                @foreach ($payouts['issues'] as $issue)
+                    @continue ($isVoided && str_starts_with($issue, 'No payout recorded for'))
+                    <div class="fin-flag" data-po-issue>{{ $issue }}</div>
+                @endforeach
                 @if ($statement->status === 'approved' && \App\Support\Finance\FinanceAccess::isOwner(auth()->user()))
                     <div class="fin-form-actions">
                         <form method="POST" action="{{ route('superadmin.finance.payouts.mark-paid', $statement->id) }}" data-fin-once>@csrf
