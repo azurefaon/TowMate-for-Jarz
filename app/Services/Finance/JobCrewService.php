@@ -257,7 +257,7 @@ class JobCrewService extends FinanceSupport
         $duplicate = $current->first(fn (JobPersonnel $p) => $p->commission_role === $role
             && (($personnelId && $p->personnel_id === $personnelId) || ($userId && $p->user_id === $userId)));
         if ($duplicate) {
-            throw new FinanceException("{$name} is already recorded as " . JobPersonnel::ROLE_LABELS[$role] . ' on this job and unit.');
+            throw new FinanceException("{$name} is already recorded as " . JobPersonnel::ROLE_LABELS[$role] . ' on this job and unit.' . ($duplicate->needs_review ? ' Confirm the pending record instead.' : ''));
         }
 
         $taken = $current->where('booking_id', $anchorId)->pluck('slot')->all();

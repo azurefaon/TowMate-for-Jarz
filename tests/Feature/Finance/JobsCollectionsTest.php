@@ -427,6 +427,10 @@ it('reads payments without writing any customer payment record', function () {
 // ---------- Consistency with the existing Revenue page ----------
 
 it('agrees with the existing Revenue page on Dispatcher-confirmed revenue', function () {
+    // Fixtures are dated three hours before "now". Freeze the clock at Manila midday so they always fall on today,
+    // whatever time the suite runs (before 03:00 they used to land on yesterday).
+    $this->travelTo(jcNow()->setTime(12, 0));
+
     $unit = finUnit();
     jcBooking($unit, '1800.00');
     jcGroup([[$unit, '5000.00'], [$unit, '5000.00']], 'confirmed', fee: '300.00');

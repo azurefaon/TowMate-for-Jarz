@@ -298,6 +298,9 @@ Route::prefix('superadmin')
                 Route::post('/commission/deductions/{deduction}/void', [$commission, 'voidDeduction'])->whereNumber('deduction')->name('commission.deductions.void');
             });
 
+            // Driver records: jobs and vehicles towed per week, and performance history (read-only).
+            Route::get('/driver-records', [\App\Http\Controllers\SuperAdmin\Finance\DriverRecordController::class, 'index'])->middleware('can:finance.view')->name('driver-records.index');
+
             // Phase 6: actual job crew recording.
             $crew = \App\Http\Controllers\SuperAdmin\Finance\JobCrewController::class;
             Route::middleware('can:finance.view')->group(function () use ($crew) {

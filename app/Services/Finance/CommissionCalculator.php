@@ -227,7 +227,7 @@ class CommissionCalculator
             ->where(fn ($q) => $unitsOnJob === 1 ? $q->where('unit_id', $unitId)->orWhereNull('unit_id') : $q->where('unit_id', $unitId))
             ->orderBy('id')->get();
         if ($people->isEmpty()) {
-            $blockers[] = $this->blocker('job', 'no_personnel', "Job {$ref} ({$alloc['unit_name']}): no personnel were recorded for this job. Nobody is assigned automatically.");
+            $blockers[] = $this->blocker('job', 'no_personnel', "Job {$ref} ({$alloc['unit_name']}): no personnel were recorded for this job. Record who worked it under Job Crew; no one is filled in from the current roster.");
         }
 
         $byRole = [];
@@ -338,6 +338,7 @@ class CommissionCalculator
                 'recipient_key' => self::recipientKey($p),
                 'is_substitute' => (bool) ($p->is_substitute || $p->borrowed_from_unit_id),
                 'role_confirmed' => (bool) $p->commission_role,
+                'pending' => (bool) $p->needs_review,   // display only (not part of the statement hash)
                 'amount' => $parts[$i],
             ];
         }

@@ -664,7 +664,7 @@ The tests cover:
 
 ## Known risks and notes
 
-- The crew is stored only on `Unit` as live data, so per-job crew exists only where the Owner records it on the Job Crew page (Phase 6). Past jobs are not backfilled. Jobs & Collections never uses the current crew.
+- The crew is stored on `Unit` as live data. Per-job crew comes from Dispatch capture at assignment (Pending confirmation, from 2026-11-12) or from the Owner on the Job Crew page. Past jobs are not backfilled. Jobs & Collections never uses the current crew.
 - Recording a person as borrowed from another unit makes the job's revenue allocation "pending review" (Phase 4 rule: another unit appears to have helped), so a split must be recorded before that job can be approved.
 - A statement's figures are tied to the moment of calculation. Any later change to payments, expenses, deductions, crew or policy makes an open statement stale, and approval refuses it until it is recalculated. Approved statements never change; corrections go through void and re-issue.
 - A Paid statement is final: its payouts cannot be voided and it cannot be voided or corrected. A payout mistake must be corrected before marking Paid. Whether a reopening procedure is needed after Paid is a client decision.
@@ -680,3 +680,28 @@ The tests cover:
 - `cash_received` is the cash tendered, not the amount collected.
 - The finance tables use FK `RESTRICT` to bookings and units. `UnitController::forceDelete` now refuses units with finance history. The dev seeding commands (`SeedTlDemo*`, `SeedQuotationTestScenarios`) delete bookings and would be blocked only if those bookings had finance rows, which they never do.
 - The migration `down()` drops the finance tables. It is for development rollback only and must never be run against real data.
+
+## Client notes of 2026-11-12 (after release)
+
+| Client note | Status |
+|---|---|
+| Record of drivers: number towed per week | **Built:** Finance → Driver Records shows completed jobs and vehicles towed per person per Monday–Saturday week, with the draft commission per week. A group trip is one job with several vehicles. |
+| Performance history of drivers | **Built:** per-person history: service date, booking, historical unit, role, participation (Confirmed / Pending confirmation), source, vehicles and draft commission per job, with a subtotal per week. |
+| Expenses should be recorded for the computation of commission | **Live and shown:** approved job expenses reduce each job's sharing base; Commission (Draft) now lists them per job under each unit. |
+| Commission should be computed based on the number of complete jobs | **Unchanged, pending the client's meaning.** Commission stays the provisional percentage of each completed, fully paid job's sharing base, calculated per job and added up per week. No fixed per-tow amount was invented. Approval stays blocked. |
+
+### Automatic Job Crew recording (approved 2026-11-12)
+
+Production bookings store no driver, so crew is now captured from Dispatch:
+
+- **When:** a unit is assigned or reassigned (Dispatch assign, Jobs reassign, next-task queue promotion, quotation price update with a unit, grouped sibling acceptance), and again when the Team Leader accepts or starts the job. One model observer (`JobCrewCaptureObserver`) covers every path because they all update the `Booking` model; booking creation never sets a unit.
+- **What:** the unit's crew at that moment: the Team Leader account, Driver, second Driver, Crew Members, with personnel ids, names, the capture time and the capturing user. Crew on loan from another unit is recorded as a substitute borrowed from that unit.
+- **Status:** every captured row is **Pending confirmation** (`needs_review`, source `assignment_capture`) and blocks commission approval. The Owner confirms or corrects it on Job Crew (audited). The only automatic confirmation is the Team Leader's own row, when that Team Leader's account moves the job to completion. The second Driver's role is left unset (the Rider mapping is a client decision).
+- **Changes:** reassignment, return to Dispatch and cancellation supersede the old unit's pending rows with a reason. A roster change before the job replaces only pending rows. Rows the Owner recorded or confirmed are never touched. A unit towing two vehicles of one group trip gets one crew. Duplicate person + role rows are prevented (also by unique indexes). Rows are never deleted.
+- **History:** nothing is backfilled and today's roster is never used for past jobs. Jobs finished before this release stay "no crew recorded" until the Owner records them.
+- **Safety:** a capture failure is reported and ignored; Dispatch is never blocked.
+- Migration `2026_11_18_000000` only widens the `fjp_source` check to allow `assignment_capture`; no rows change.
+
+Commission (Draft) now groups the calculator's lines by unit: completed job → crew members (Pending / Confirmed, share) → approved expenses and deductions → sharing base → draft commission per job → weekly unit total. Nothing is recalculated in the view.
+
+The midnight-sensitive `JobsCollectionsTest` case now freezes the clock at Manila midday (`travelTo`) and checks today's window again, instead of widening the window.

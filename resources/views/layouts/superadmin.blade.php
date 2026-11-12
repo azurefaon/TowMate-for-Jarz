@@ -334,6 +334,7 @@
                     ['label' => 'Unit Funds', 'route' => 'superadmin.finance.unit-funds.index', 'active' => ['superadmin.finance.unit-funds.*']],
                     ['label' => 'Expenses', 'route' => 'superadmin.finance.expenses.index', 'active' => ['superadmin.finance.expenses.*']],
                     ['label' => 'Job Crew', 'route' => 'superadmin.finance.crew.index', 'active' => ['superadmin.finance.crew.*']],
+                    ['label' => 'Driver Records', 'route' => 'superadmin.finance.driver-records.index', 'active' => ['superadmin.finance.driver-records.*']],
                     ['label' => 'Commission (Draft)', 'route' => 'superadmin.finance.commission.index', 'active' => ['superadmin.finance.commission.*']],
                     ['label' => 'Commission Statements', 'route' => 'superadmin.finance.statements.index', 'active' => ['superadmin.finance.statements.*']],
                     ['label' => 'Finance Reports', 'route' => 'superadmin.finance.reports.index', 'active' => ['superadmin.finance.reports.*']],

@@ -253,6 +253,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         Booking::observe(DispatcherNotificationObserver::class);
+        Booking::observe(\App\Observers\JobCrewCaptureObserver::class);   // job crew capture from Dispatch (Owner Finance)
 
         // Push "New Towing Assignment" to the assigned Team Leader, only once the assignment has committed. One hook
         // covers every assignment path; a Team Leader taking a task themselves is not notified.

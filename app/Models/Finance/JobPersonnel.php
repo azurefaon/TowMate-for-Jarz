@@ -16,7 +16,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class JobPersonnel extends Model
 {
     public const SLOTS = ['team_leader', 'driver_1', 'driver_2', 'crew_member_1', 'crew_member_2', 'extra_1', 'extra_2', 'extra_3'];
-    public const SOURCES = ['completion_capture', 'backfill', 'manual'];
+    public const SOURCES = ['completion_capture', 'backfill', 'manual', 'assignment_capture'];
+
+    public const SOURCE_LABELS = [
+        'manual' => 'Recorded by the Owner',
+        'assignment_capture' => 'Assigned by Dispatch',
+        'completion_capture' => 'Captured at completion',
+        'backfill' => 'Backfilled',
+    ];
 
     public const ROLE_LABELS = [
         'team_leader' => 'Team Leader',
@@ -77,6 +84,17 @@ class JobPersonnel extends Model
     public function supersededByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'superseded_by_user_id');
+    }
+
+    public function sourceLabel(): string
+    {
+        return self::SOURCE_LABELS[$this->source] ?? $this->source;
+    }
+
+    /** Assigned by Dispatch but not yet confirmed as having actually worked the job. */
+    public function isPending(): bool
+    {
+        return (bool) $this->needs_review;
     }
 
     public function roleLabel(): string
