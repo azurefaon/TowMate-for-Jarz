@@ -96,9 +96,20 @@ These rules hold even for raw SQL or tinker. Laravel `migrate:fresh` still works
 - `App\Casts\MoneyCast` keeps model attributes as exact strings and refuses floats.
 - Database sums use `NUMERIC` aggregates.
 
-## 6. Commission (pending client confirmation)
+## 6. Commission
 
-Initial rates: **Company 60%, Driver 12%, Team Leader 10%, Rider / Substitute 10%, Crew Mate 8%** (total 100%).
+### Confirmed calculation method (2026-11-12)
+
+Commission is a **percentage of each completed, fully paid towing job**, calculated separately for every job (per towing unit on that job) and then **added up per crew member and per towing unit for the selected Monday–Saturday week**. There is **no fixed amount per tow**. "Commission based on the number of completed jobs" means only completed, fully paid jobs enter the calculation; the number of jobs is not itself a multiplier.
+
+How the implementation follows it:
+- `CommissionCalculator::line()` computes one line per job and unit: sharing base × each role's rate, rounded to the centavo, remainder to Company.
+- A job that is unfinished, not fully paid (`payment_not_verified`), awaiting allocation, expense or refund review is shown in the draft but blocks approval, so an approved statement only ever contains completed, fully paid jobs.
+- `CommissionCalculator::totals()`, Commission (Draft) "by unit", Driver Records and Commission Statements (per unit × week) only add up those per-job lines. Nothing multiplies a fixed amount by a job count.
+
+### Provisional rates (still pending client confirmation)
+
+**Company 60%, Driver 12%, Team Leader 10%, Rider / Substitute 10%, Crew Mate 8%** (total 100%), stored as policy v1 in **draft**. The rates, and the questions C1–C6 and the role rules below, are not confirmed. Real approval and payout stay blocked until a policy with the client's answers is confirmed and activated.
 
 **Implemented in Phase 5 (`CommissionCalculator`, read-only, Draft / For Client Review):**
 - Sharing base per job and unit = allocated verified collection − that unit's approved job expenses − that unit's approved deductions (`finance_commission_deductions`). Each is counted once.
