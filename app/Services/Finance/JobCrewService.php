@@ -90,6 +90,88 @@ class JobCrewService extends FinanceSupport
         });
     }
 
+    /**
+     * Records the crew rebuilt from Dispatch and fleet history (CrewHistoryService) for one unit of a completed job,
+     * as confirmed by the Owner. Only the people the Owner ticked are recorded; the evidence is recomputed here, so
+     * nothing posted by the browser is trusted except the selection and the second Driver's role.
+     *
+     * @param  array<int, string>  $slots  slots to record (team_leader, driver_1, driver_2, crew_member_1, crew_member_2)
+     * @return array{recorded: array<int, JobPersonnel>, skipped: array<int, string>}
+     */
+    public function recordFromHistory(User $actor, Booking $booking, int $unitId, array $slots, ?string $secondDriverRole = null): array
+    {
+        $this->authorize($actor, FinanceAccess::MANAGE_CREW);
+        if ($slots === []) {
+            throw new FinanceException('Tick at least one person who worked this job.');
+        }
+
+        return DB::transaction(function () use ($actor, $booking, $unitId, $slots, $secondDriverRole) {
+            $job = $this->lockedJob($booking);
+            $evidence = app(CrewHistoryService::class)->forJob($job)[$unitId] ?? null;
+            if (! $evidence) {
+                throw new FinanceException('No crew was found in the Dispatch history for this unit.');
+            }
+            $recorded = [];
+            $skipped = [];
+            foreach ($evidence['members'] as $slot => $m) {
+                if (! in_array($slot, $slots, true)) {
+                    continue;
+                }
+                $role = $slot === 'driver_2' ? $secondDriverRole : $m['role'];
+                if (! in_array($role, ['driver', 'rider', 'team_leader', 'crew_mate'], true)) {
+                    throw new FinanceException("Choose the role {$m['name']} performed before confirming.");
+                }
+                if (! $m['personnel_id'] && ! $m['user_id']) {
+                    $skipped[] = "{$m['name']} has no personnel record; add them manually.";
+                    continue;
+                }
+                $participant = $m['user_id'] ? "user:{$m['user_id']}" : "personnel:{$m['personnel_id']}";
+                $current = JobPersonnel::current()->whereIn('booking_id', collect($job['members'])->pluck('id'))->where('unit_id', $unitId)->get();
+                if ($current->contains(fn (JobPersonnel $p) => ($m['personnel_id'] && $p->personnel_id === $m['personnel_id']) || ($m['user_id'] && $p->user_id === $m['user_id']))) {
+                    $skipped[] = "{$m['name']} is already recorded on this job.";
+                    continue;
+                }
+                $row = $this->insertRow($actor, $job, [
+                    'unit_id' => $unitId, 'participant' => $participant, 'commission_role' => $role,
+                    'borrowed_from_unit_id' => $m['borrowed_from'],
+                    'notes' => 'From Dispatch and fleet history (' . ($evidence['as_of']?->format('M j, Y g:i A') ?? 'job record') . '): ' . $m['evidence'] . '. Confirmed by the Owner.',
+                ], null, 'backfill');
+                $this->audit($actor, 'finance_crew_recorded', $row, $job['reference'],
+                    "Confirmed {$row->name_snapshot} as {$row->roleLabel()} on job {$job['reference']} ({$row->unit?->name}) from Dispatch history",
+                    $this->auditValues($row) + ['evidence' => $m['evidence'], 'as_of' => $evidence['as_of']?->toIso8601String(), 'uncertain' => $m['uncertain']]);
+                $recorded[] = $row;
+            }
+
+            return ['recorded' => $recorded, 'skipped' => $skipped];
+        });
+    }
+
+    /**
+     * Confirms every pending crew record of one unit on a job in one action. Records without a role are left
+     * pending (the Owner chooses the role with Correct).
+     *
+     * @return array{confirmed: int, needs_role: array<int, string>}
+     */
+    public function confirmPending(User $actor, Booking $booking, int $unitId): array
+    {
+        $this->authorize($actor, FinanceAccess::MANAGE_CREW);
+        $job = $this->collections->jobFor($booking);
+        $pending = JobPersonnel::current()->whereIn('booking_id', collect($job['members'])->pluck('id'))->where('unit_id', $unitId)
+            ->where('needs_review', true)->whereNull('confirmed_at')->orderBy('id')->get();
+        $confirmed = 0;
+        $needsRole = [];
+        foreach ($pending as $row) {
+            if (! $row->commission_role) {
+                $needsRole[] = $row->name_snapshot;
+                continue;
+            }
+            $this->confirm($actor, $row);
+            $confirmed++;
+        }
+
+        return ['confirmed' => $confirmed, 'needs_role' => $needsRole];
+    }
+
     /** Confirms a record that came from a capture or backfill and was flagged for review. */
     public function confirm(User $actor, JobPersonnel $entry): JobPersonnel
     {
@@ -227,7 +309,7 @@ class JobCrewService extends FinanceSupport
         ])->save();
     }
 
-    private function insertRow(User $actor, array $job, array $data, ?string $changeReason): JobPersonnel
+    private function insertRow(User $actor, array $job, array $data, ?string $changeReason, string $source = 'manual'): JobPersonnel
     {
         $role = (string) ($data['commission_role'] ?? '');
         if (! isset(JobPersonnel::ROLE_LABELS[$role])) {
@@ -278,7 +360,7 @@ class JobCrewService extends FinanceSupport
             'is_substitute' => (bool) ($data['is_substitute'] ?? false) || $borrowedFrom !== null,
             'notes' => filled($data['notes'] ?? null) ? mb_substr(trim($data['notes']), 0, 500) : null,
             'change_reason' => $changeReason,
-            'source' => 'manual',
+            'source' => $source,
             'needs_review' => false,
             'captured_by' => $actor->id,
             'captured_at' => now(),

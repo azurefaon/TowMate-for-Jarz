@@ -379,3 +379,36 @@
 }
 .fin-table tr.fin-cm-estimate-total td:first-child { padding-left: 14px; }
 .fin-table tr.fin-cm-estimate-total td:last-child { padding-right: 14px; }
+
+/* Job Crew: one readable list per unit (role · person · status · actions). */
+.fin-crew-unit .oa-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.fin-crew-roster { list-style: none; margin: 0; padding: 0; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
+.fin-crew-roster li {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr) auto auto;
+    gap: 6px 16px;
+    align-items: center;
+    padding: 12px 14px;
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+}
+.fin-crew-roster li:first-child { border-top: 0; }
+.fin-crew-roster-role { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #111827; }
+.fin-crew-roster-who { min-width: 0; color: #111827; }
+.fin-crew-roster-who input[type="checkbox"] { width: 18px; height: 18px; margin-right: 8px; vertical-align: -3px; accent-color: #111827; }
+.fin-crew-roster-name { font-weight: 700; font-size: 15px; margin-right: 6px; }
+.fin-crew-roster-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.fin-crew-roster-actions .fin-field { margin: 0; min-width: 170px; }
+.fin-crew-history { margin-top: 14px; padding: 14px; border: 1px solid #facc15; border-left-width: 4px; border-radius: 10px; background: #fefce8; }
+.fin-crew-history .fin-crew-roster { border-color: #fde68a; }
+.fin-crew-history-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; color: #111827; }
+.fin-crew-history .fin-form-actions { margin-top: 12px; }
+.fin-crew-manual > summary { cursor: pointer; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 8px; }
+.fin-crew-manual > summary svg { width: 18px; height: 18px; }
+.fin-crew-manual[open] > summary { margin-bottom: 12px; }
+
+@media (max-width: 640px) {
+    .fin-crew-roster li { grid-template-columns: minmax(0, 1fr) auto; }
+    .fin-crew-roster-role { grid-column: 1 / -1; }
+    .fin-crew-roster-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}

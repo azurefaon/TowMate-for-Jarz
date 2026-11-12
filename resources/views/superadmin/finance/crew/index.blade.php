@@ -21,8 +21,7 @@
 
         <div class="fin-flash fin-flash--warning" role="status">
             <i data-lucide="users" aria-hidden="true"></i>
-            <span>When Dispatch assigns a unit, its crew at that moment is recorded as <strong>Pending confirmation</strong>. Confirm or correct each person here; commission stays blocked until you do.
-                Jobs finished before this was turned on are not filled in from today's roster: record them by hand.
+            <span>Each job shows the crew Dispatch assigned to its unit: captured at assignment, or rebuilt from the Dispatch and fleet history for older jobs (never from today's roster). Open a job and confirm the crew in one step; commission stays blocked until you do.
                 How Rider, substitute, shared and combined roles are paid is still pending client confirmation.</span>
         </div>
 
@@ -61,14 +60,16 @@
                         <thead><tr><th scope="col">Job</th><th scope="col">Service date</th><th scope="col">Unit</th><th scope="col">Crew recorded</th><th scope="col">Status</th><th scope="col"><span class="fin-sr">Open</span></th></tr></thead>
                         <tbody>
                             @foreach ($rows as $row)
-                                @foreach ($row['units'] ?: [['unit_id' => null, 'name' => 'No unit assigned', 'people' => 0, 'roles' => [], 'needs_review' => 0]] as $u)
+                                @foreach ($row['units'] ?: [['unit_id' => null, 'name' => 'No unit assigned', 'people' => 0, 'roles' => [], 'needs_review' => 0, 'in_history' => 0]] as $u)
                                     <tr data-crew-row="{{ $row['job']['reference'] }}-{{ $u['unit_id'] }}">
                                         <td><span class="fin-ref">{{ $row['job']['reference'] }}</span>@if ($row['job']['group_code'])<div class="is-dim">Group {{ $row['job']['group_code'] }}</div>@endif</td>
                                         <td>{{ $row['job']['service_date']?->format('D, M j') }}</td>
                                         <td>{{ $u['name'] }}</td>
                                         <td>{{ $u['people'] }} @if ($u['roles'])<span class="is-dim">({{ collect($u['roles'])->map(fn ($r) => \App\Models\Finance\JobPersonnel::ROLE_LABELS[$r] ?? $r)->implode(', ') }})</span>@endif</td>
                                         <td>
-                                            @if ($u['people'] === 0)
+                                            @if ($u['people'] === 0 && ($u['in_history'] ?? 0) > 0)
+                                                <span class="fin-status fin-status--amber" data-crew-status="history">Crew found in history ({{ $u['in_history'] }}) · confirm</span>
+                                            @elseif ($u['people'] === 0)
                                                 <span class="fin-status fin-status--red">Not recorded</span>
                                             @elseif ($u['needs_review'] > 0)
                                                 <span class="fin-status fin-status--amber">Pending confirmation</span>

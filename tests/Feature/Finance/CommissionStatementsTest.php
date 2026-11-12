@@ -87,7 +87,7 @@ it('records the actual crew for a job, unit and performed role with an audit tra
         ->and(AuditLog::where('action', 'finance_crew_recorded')->count())->toBe(2);
 });
 
-it('never creates crew from booking, roster or loan information, and shows it only as supporting information', function () {
+it('never creates crew by itself: it shows the Dispatch-history crew for the Owner to confirm, never today\'s roster', function () {
     $owner = finOwner();
     $leader = finUser(3);
     $unit = finUnit($leader);
@@ -97,10 +97,12 @@ it('never creates crew from booking, roster or loan information, and shows it on
 
     $this->actingAs($owner)->get(route('superadmin.finance.crew.show', $booking->id))
         ->assertOk()
-        ->assertSee('Supporting information')
+        ->assertSee('Names written on the booking')
         ->assertSee('Booking Driver')
-        ->assertSee("Today's unit roster", false)
-        ->assertSee('data-crew-empty="' . $unit->id . '"', false);
+        ->assertDontSee("Today's unit roster", false)
+        ->assertSee('Crew found in the Dispatch history')
+        ->assertSee('data-crew-history="team_leader"', false)
+        ->assertSee($leader->full_name ?: $leader->name);
 
     expect(JobPersonnel::count())->toBe(0)
         ->and(stCodes(app(CommissionCalculator::class)->draft(finLastWeek())['blockers']))->toContain('no_personnel');

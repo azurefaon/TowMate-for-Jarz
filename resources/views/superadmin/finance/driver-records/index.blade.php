@@ -149,11 +149,12 @@
             <section class="oa-card oa-card-body" aria-labelledby="drMissing">
                 <div class="oa-card-head"><div>
                     <h2 class="oa-card-title" id="drMissing"><i data-lucide="user-x" aria-hidden="true"></i> Completed jobs with no {{ $d['role'] === 'all' ? 'crew' : mb_strtolower(rtrim($d['role_label'], 's')) }} recorded ({{ count($d['unrecorded']) }})</h2>
-                    <p class="oa-card-sub">These jobs are not in anyone's record. They are not counted as zero work; open a job to record who worked it.</p>
+                    <p class="oa-card-sub">These jobs are not in anyone's record yet and are not counted as zero work. Where the Dispatch history names the crew, open the job and confirm it in one step.</p>
                 </div></div>
                 <ul class="fin-trail">
                     @foreach ($d['unrecorded'] as $u)
-                        <li data-dr-unrecorded="{{ $u['reference'] }}"><a href="{{ route('superadmin.finance.crew.show', $u['booking_id']) }}"><span class="fin-ref">{{ $u['reference'] }}</span></a> · {{ $u['service_date']->format('M j, Y') }} · {{ $u['units'] ?: 'No unit' }}</li>
+                        <li data-dr-unrecorded="{{ $u['reference'] }}"><a href="{{ route('superadmin.finance.crew.show', $u['booking_id']) }}"><span class="fin-ref">{{ $u['reference'] }}</span></a> · {{ $u['service_date']->format('M j, Y') }} · {{ $u['units'] ?: 'No unit' }}
+                            @if ($u['in_history'] ?? [])<div class="is-dim" data-dr-in-history>In the Dispatch history: {{ implode(', ', $u['in_history']) }} · <a href="{{ route('superadmin.finance.crew.show', $u['booking_id']) }}">confirm crew</a></div>@endif</li>
                     @endforeach
                 </ul>
             </section>
