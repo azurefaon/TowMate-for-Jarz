@@ -35,6 +35,8 @@
             </div>
         @endif
 
+        <p class="fin-help" data-crew-legend><strong>Assigned</strong> means Dispatch put the person on the job; <strong>Confirmed</strong> means you (or the Team Leader's own completion) confirmed they worked it. Commission stays blocked until everyone is confirmed.</p>
+
         @foreach ($unitOptions as $uid => $uname)
             @php
                 $rows = ($current[$uid] ?? collect())->merge($unitOptions->count() === 1 ? ($current[0] ?? collect()) : collect());
@@ -46,7 +48,6 @@
             <section class="oa-card oa-card-body fin-crew-unit" aria-labelledby="crUnit{{ $uid }}" data-crew-unit="{{ $uid }}">
                 <div class="oa-card-head"><div>
                     <h2 class="oa-card-title" id="crUnit{{ $uid }}"><i data-lucide="truck" aria-hidden="true"></i> {{ $uname }}</h2>
-                    <p class="oa-card-sub">The crew assigned to this unit for this job. <strong>Assigned</strong> means Dispatch put the person on the job; <strong>Confirmed</strong> means you (or the Team Leader's own completion) confirmed they worked it. Commission stays blocked until everyone is confirmed.</p>
                 </div>
                     @if ($canManage && $pendingWithRole > 0)
                         <form method="POST" action="{{ route('superadmin.finance.crew.confirm-pending', $job['anchor']->id) }}" data-fin-once>@csrf

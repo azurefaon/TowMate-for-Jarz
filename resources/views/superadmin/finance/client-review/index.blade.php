@@ -54,7 +54,7 @@
             <section class="oa-card oa-card-body" data-cr-item="{{ $item->reference_code }}">
                 <div class="oa-card-head"><div>
                     <h2 class="oa-card-title"><span class="fin-ref">{{ $item->reference_code }}</span> {{ $item->title }}</h2>
-                    <p class="oa-card-sub">{{ $item->kindLabel() }}{{ $item->topic_code ? ' · ' . $item->topic_code : '' }} · <span class="fin-status fin-status--{{ $badge[$item->status] ?? 'grey' }}" data-cr-status="{{ $item->status }}">{{ $item->statusLabel() }}</span>
+                    <p class="oa-card-sub">{{ $item->kindLabel() !== $item->statusLabel() ? $item->kindLabel() . ' · ' : '' }}{{ $item->topic_code ? $item->topic_code . ' · ' : '' }}<span class="fin-status fin-status--{{ $badge[$item->status] ?? 'grey' }}" data-cr-status="{{ $item->status }}">{{ $item->statusLabel() }}</span>
                         @if ($item->updater) · last updated by {{ $item->updater->full_name ?: $item->updater->name }} on {{ $item->updated_at?->format('M j, Y g:i A') }} @endif</p>
                 </div></div>
                 <table class="oa-table fin-table">

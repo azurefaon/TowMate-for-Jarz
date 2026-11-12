@@ -119,7 +119,13 @@
             <section class="oa-card oa-card-body" aria-labelledby="stPayoutTitle" id="stPayouts">
                 <div class="oa-card-head"><div>
                     <h2 class="oa-card-title" id="stPayoutTitle"><i data-lucide="hand-coins" aria-hidden="true"></i> Payouts</h2>
-                    <p class="oa-card-sub">Record each payment after you have paid the person by cash, GCash or bank transfer. TowMate does not transfer money, and recording a payment never marks the statement Paid. Amounts come from the approved snapshot. One full payout per person; partial and combined payouts are pending client confirmation.</p>
+                    @if ($statement->status === 'approved')
+                        <p class="oa-card-sub">Record each payment after you have paid the person by cash, GCash or bank transfer. TowMate does not transfer money, and recording a payment never marks the statement Paid. Amounts come from the approved snapshot. One full payout per person; partial and combined payouts are pending client confirmation.</p>
+                    @elseif ($statement->status === 'paid')
+                        <p class="oa-card-sub">Every payout is recorded and the statement is Paid, which is final. TowMate does not transfer money; these are records of payments already made.</p>
+                    @else
+                        <p class="oa-card-sub">This statement is {{ $statement->status === 'voided' ? 'voided, so no payouts can be recorded' : 'not open for payouts' }}. Payout records that exist stay listed for the audit trail.</p>
+                    @endif
                 </div></div>
                 <div class="oa-kpis" style="--oa-kpi-count: 4;">
                     <div class="oa-kpi"><span class="oa-kpi-label">Sharing base</span><div class="oa-kpi-value">{{ $payouts['base']->format() }}</div></div>

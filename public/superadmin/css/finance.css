@@ -543,3 +543,27 @@
     outline: 2px solid var(--fin-ink);
     outline-offset: 2px;
 }
+
+/* ---- Tabs inside a grouped Finance module (Crew & Driver Records, Commissions): the sidebar's yellow active pill ---- */
+.fin-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.fin-page a.fin-tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 18px;
+    border: 1px solid var(--fin-control-line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--fin-ink);
+    font-weight: 600;
+    text-decoration: none;
+}
+.fin-page a.fin-tab:hover { border-color: var(--fin-ink); }
+.fin-page a.fin-tab.is-active { background: #facc15; border-color: #facc15; color: #171717; }
+@media (max-width: 640px) {
+    .fin-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+    .fin-page a.fin-tab { justify-content: center; padding: 0 10px; text-align: center; }
+}
+
+/* Empty states do not need a tall blank card. */
+.fin-page .oa-empty { min-height: 0; padding: 20px 0; }

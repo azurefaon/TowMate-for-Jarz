@@ -179,3 +179,60 @@ it('keeps Finance pages Owner-only after the UI changes', function () {
         }
     }
 });
+
+/** One statement per state, each on its own unit (Draft, For review, Approved, Paid, Voided). */
+function fuiStatementsByState($owner): array
+{
+    $svc = app(CommissionStatementService::class);
+    $pay = app(\App\Services\Finance\PayoutService::class);
+    $out = [];
+
+    $out['for_review'] = finReviewStatement($owner)['statement'];
+    $out['draft'] = $svc->returnToDraft($owner, finReviewStatement($owner)['statement'], 'Back to draft for the UI check');
+    $out['approved'] = $svc->approve($owner, finReviewStatement($owner)['statement']);
+
+    $paid = $svc->approve($owner, finReviewStatement($owner)['statement']);
+    foreach (array_keys($pay->earningsByRecipient($paid)) as $key) {
+        $pay->record($owner, $paid, $key, 'cash', now(config('finance.timezone'))->toDateString(), (string) Str::uuid(), 'REF-' . Str::upper(Str::random(6)));
+    }
+    $out['paid'] = $pay->markPaid($owner, $paid->fresh());
+
+    $out['voided'] = $svc->void($owner, $svc->approve($owner, finReviewStatement($owner)['statement']), 'Voided for the UI check');
+
+    return $out;
+}
+
+it('shows Draft, For review, Approved, Paid and Voided statements with the right solid badge, on screen and in print', function () {
+    Storage::fake('local');
+    $owner = finOwner();
+    $s = fuiStatementsByState($owner);
+    expect(collect($s)->map->status->all())->toBe(['for_review' => 'for_review', 'draft' => 'draft', 'approved' => 'approved', 'paid' => 'paid', 'voided' => 'voided']);
+
+    $tone = ['draft' => 'grey', 'for_review' => 'blue', 'approved' => 'green', 'paid' => 'green', 'voided' => 'red'];
+    $label = ['draft' => 'Draft', 'for_review' => 'For Review', 'approved' => 'Approved', 'paid' => 'Paid', 'voided' => 'Voided'];
+    $printClass = ['draft' => 'status ', 'for_review' => 'status review', 'approved' => 'status ok', 'paid' => 'status ok', 'voided' => 'status void'];
+
+    foreach ($s as $state => $statement) {
+        $this->actingAs($owner)->get(route('superadmin.finance.statements.show', $statement->id))->assertOk()
+            ->assertSee('fin-status fin-status--' . $tone[$state] . '">' . $label[$state], false);
+        $this->actingAs($owner)->get(route('superadmin.finance.statements.index', ['status' => $state]))->assertOk()
+            ->assertSee('fin-status fin-status--' . $tone[$state] . '">' . $label[$state], false)->assertSee($statement->reference_code);
+        $this->actingAs($owner)->get(route('superadmin.finance.statements.print', $statement->id))->assertOk()
+            ->assertSee('class="' . $printClass[$state] . '" data-doc-status="' . $state . '"', false);
+    }
+});
+
+it('words the payout panel for the statement\'s state, and keeps recording controls only while it is Approved', function () {
+    Storage::fake('local');
+    $owner = finOwner();
+    $s = fuiStatementsByState($owner);
+    $show = fn ($statement) => $this->actingAs($owner)->get(route('superadmin.finance.statements.show', $statement->id))->assertOk();
+
+    $show($s['approved'])->assertSee('Record each payment after you have paid the person')->assertSee('Record payout')->assertSee('data-po-mark-paid', false);
+    $show($s['paid'])->assertSee('Every payout is recorded and the statement is Paid, which is final.')->assertDontSee('Record each payment after you have paid the person')
+        ->assertDontSee('Record payout')->assertDontSee('data-po-mark-paid', false)->assertSee('fin-status fin-status--green">Recorded', false);
+    $show($s['voided'])->assertSee('This statement is voided, so no payouts can be recorded.')->assertDontSee('Record each payment after you have paid the person')
+        ->assertDontSee('Record payout')->assertDontSee('data-po-mark-paid', false);
+    // the earlier payout records of a Paid statement stay listed (audit trail)
+    expect(\App\Models\Finance\Payout::where('statement_id', $s['paid']->id)->where('status', 'recorded')->count())->toBeGreaterThan(0);
+});

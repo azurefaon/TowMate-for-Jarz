@@ -1,6 +1,6 @@
 @extends('layouts.superadmin')
 
-@section('title', 'Commission (Draft)')
+@section('title', 'Commissions · Draft Breakdown')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('superadmin/css/bookings.css') }}?v={{ filemtime(public_path('superadmin/css/bookings.css')) }}">
@@ -17,10 +17,12 @@
     <div class="ob-page oa-page fin-page" id="ownerCommission">
         <header class="ob-header fin-header">
             <div>
-                <h1>Commission (Draft)</h1>
-                <p>Week of {{ $draft['week_start']->format('M j') }} – {{ $draft['week_end']->format('M j, Y') }} (Monday to Saturday). This page previews the calculation; statements are prepared and approved under Commission Statements.</p>
+                <h1>Commissions</h1>
+                <p>Week of {{ $draft['week_start']->format('M j') }} – {{ $draft['week_end']->format('M j, Y') }} (Monday to Saturday). A preview of the calculation; statements are prepared and approved under Statements & Payouts.</p>
             </div>
         </header>
+
+        @include('superadmin.finance._tabs', ['group' => 'commission'])
 
         @include('superadmin.finance._flashes')
 
@@ -74,7 +76,7 @@
         <section class="oa-card oa-card-body" aria-labelledby="cmBlockersTitle">
             <div class="oa-card-head"><div>
                 <h2 class="oa-card-title" id="cmBlockersTitle"><i data-lucide="shield-alert" aria-hidden="true"></i> Why this week cannot be approved yet</h2>
-                <p class="oa-card-sub">{{ $draft['can_approve'] ? 'No blockers. Prepare a statement under Commission Statements to submit and approve it.' : count($draft['blockers']) . ' item(s) to resolve.' }}</p>
+                <p class="oa-card-sub">{{ $draft['can_approve'] ? 'No blockers. Prepare a statement under Statements & Payouts to submit and approve it.' : count($draft['blockers']) . ' item(s) to resolve.' }}</p>
             </div></div>
             @if ($draft['blockers'])
                 <ul class="fin-trail" id="cmBlockers">
@@ -94,7 +96,7 @@
         <section class="oa-card oa-card-body" aria-labelledby="cmLinesTitle">
             <div class="oa-card-head"><div>
                 <h2 class="oa-card-title" id="cmLinesTitle"><i data-lucide="truck" aria-hidden="true"></i> Draft commission by unit</h2>
-                <p class="oa-card-sub">Each job: who worked it, the approved expenses taken off, and the crew's draft commission. Only completed, fully paid jobs count toward the weekly total. Partially paid, unpaid and over-collected jobs stay listed with their status; their shares are an estimate and not payable. Shares are rounded to the centavo; any remainder goes to Company.</p>
+                <p class="oa-card-sub">Each job's crew, approved expenses and draft commission. Only fully paid jobs count toward the weekly total; other jobs stay listed with an estimate that is not payable. Shares are rounded to the centavo; any remainder goes to Company.</p>
             </div></div>
             @forelse ($byUnit as $uid => $unitLines)
                 @php
